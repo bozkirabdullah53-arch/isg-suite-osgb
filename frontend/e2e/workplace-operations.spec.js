@@ -19,6 +19,8 @@ async function setup(page, {
   let qrRequests = 0;
   let employeeRows = [...employees];
   const bulkPurgePayloads = [];
+  let employeeTemplateRequests = 0;
+  const employeeImportRequests = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
     const payload = btoa(JSON.stringify({sub: '9', exp: Math.floor(Date.now() / 1000) + 3600}));
@@ -43,6 +45,22 @@ async function setup(page, {
       summaryError ? {detail: 'Özet servisine ulaşılamıyor.'} : {company_id: company.id, company_name: company.name, counts},
       summaryError ? 500 : 200);
     if (path === '/companies') return json(route, [company]);
+    if (path === '/employees/import-template.xlsx' && request.method() === 'GET') {
+      employeeTemplateRequests += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        body: 'PK mock personnel template',
+      });
+    }
+    if (path === '/employees/import-excel' && request.method() === 'POST') {
+      const url = new URL(request.url());
+      employeeImportRequests.push({
+        companyId: url.searchParams.get('company_id'),
+        branchId: url.searchParams.get('branch_id'),
+      });
+      return json(route, {created: 1, updated: 0, reactivated: 0, errors: [], error_count: 0, count: 1});
+    }
     if (path === '/employees/bulk-purge' && request.method() === 'POST') {
       const payload = request.postDataJSON();
       bulkPurgePayloads.push(payload);
@@ -84,6 +102,8 @@ async function setup(page, {
     errors,
     qrRequests: () => qrRequests,
     bulkPurgePayloads: () => bulkPurgePayloads,
+    employeeTemplateRequests: () => employeeTemplateRequests,
+    employeeImportRequests: () => employeeImportRequests,
   };
 }
 
@@ -209,6 +229,33 @@ test('workplace password account can select and delete its own personnel', async
   await expect.poll(() => state.bulkPurgePayloads().length).toBe(1);
   expect(state.bulkPurgePayloads()[0]).toEqual({employee_ids: [101], company_id: company.id});
   await expect(page.getByText('Ayşe Örnek')).toHaveCount(0);
+  expect(state.errors).toEqual([]);
+});
+
+test('workplace password account can download and upload the personnel Excel template', async ({page}) => {
+  const state = await setup(page);
+  page.on('dialog', (dialog) => dialog.accept());
+
+  await page.goto('/#m=employees');
+  const downloadButton = page.getByRole('button', {name: "Örnek Excel'i İndir"});
+  const uploadInput = page.locator('input[type="file"][accept=".xlsx"]');
+
+  await expect(downloadButton).toBeVisible();
+  await expect(page.getByText(/Dosya yalnızca kendi işyerinize aktarılır/)).toBeVisible();
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes('/employees/import-template.xlsx')),
+    downloadButton.click(),
+  ]);
+  expect(state.employeeTemplateRequests()).toBe(1);
+
+  await uploadInput.setInputFiles({
+    name: 'doldurulan-personel-sablonu.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from('PK mock filled personnel workbook'),
+  });
+
+  await expect.poll(() => state.employeeImportRequests().length).toBe(1);
+  expect(state.employeeImportRequests()[0]).toEqual({companyId: String(company.id), branchId: null});
   expect(state.errors).toEqual([]);
 });
 

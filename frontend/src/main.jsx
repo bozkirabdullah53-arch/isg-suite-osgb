@@ -1395,8 +1395,8 @@ function Employees({user}){
 
   return <Page title="Personel Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
-    {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>}
-     {!isWorkplaceManager&&<label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>}
+    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
+    <label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Doldurulan Excel'i Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>
     <button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>
      <button data-ai-action="employee.create" disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
@@ -1425,8 +1425,8 @@ function Employees({user}){
 
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
       {isWorkplaceManager
-        ? 'Bu ekranda yalnız kendi işyerinizin personeli görünür; personel ekleyebilir, düzenleyebilir ve seçili kayıtları silebilirsiniz.'
-        : 'Şablon İndir → Personel sayfasındaki tabloyu doldurun → Excel Yükle. Sütunlar: Adı Soyadı (zorunlu), TC Kimlik No, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü. Başlık satırını silmeyin; örnek kişiler Ornek sayfasındadır ve yüklenmez. Dosya yalnızca seçili işyerine aktarılır.'}
+        ? "Toplu personel eklemek için Örnek Excel'i İndir → Personel sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Adı Soyadı zorunludur; örnek kişiler Ornek sayfasındadır ve yüklenmez. Dosya yalnızca kendi işyerinize aktarılır."
+        : "Örnek Excel'i İndir → Personel sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Sütunlar: Adı Soyadı (zorunlu), TC Kimlik No, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü. Başlık satırını silmeyin; örnek kişiler Ornek sayfasındadır ve yüklenmez. Dosya yalnızca seçili işyerine aktarılır."}
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[
