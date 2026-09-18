@@ -39,6 +39,7 @@ describe('workplace user policy', () => {
       'capa',
       'isg_kurulu',
       'personnel_training_records',
+      'remote_training',
       'documents',
       'eyas_inbox',
       'health',
@@ -52,7 +53,8 @@ describe('workplace user policy', () => {
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('security');
     expect(WORKPLACE_MANAGER_MODULES[0]).toBe('workplace_home');
     expect(workplaceMenuSection(manager, 'ppe')).toBe('İSG Kayıtları');
-    expect(workplaceMenuSection(manager, 'employees')).toBe('Personel');
+    expect(workplaceMenuSection(manager, 'employees')).toBe('Personel ve Eğitim');
+    expect(workplaceMenuSection(manager, 'remote_training')).toBe('Personel ve Eğitim');
     expect(workplaceMenuSection(manager, 'workplace_home')).toBe('İşyeri Özeti');
     expect(workplaceMenuSection({...manager, company_id: null}, 'ppe')).toBe('');
   });
@@ -69,6 +71,7 @@ describe('workplace user policy', () => {
     for (const id of ['companies', 'users', 'finance', 'contracts', 'health', 'documents', 'training']) {
       expect(modules).not.toContain(id);
     }
+    expect(modules).not.toContain('remote_training');
     expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'read_only'})).toBe(null);

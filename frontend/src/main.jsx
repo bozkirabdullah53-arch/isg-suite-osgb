@@ -186,7 +186,7 @@ function modulesForUser(user){
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
-  workplace_manager:['workplace_home','employees','ppe','isg_kurulu'],
+  workplace_manager:['workplace_home','employees','remote_training','ppe'],
   safety_specialist:['visit_notebook','visit_qr','field_inspection'],
   workplace_physician:['health','prescriptions','visit_notebook'],
   other_health_personnel:['field_pwa','visits','health','employees'],
@@ -214,6 +214,7 @@ const mobileMenuLabels={
   health:'Sağlık',
   prescriptions:'Reçete',
   employees:'Personel',
+  remote_training:'Eğitim',
   documents:'Doküman',
   security:'Güvenlik',
 };
@@ -273,6 +274,7 @@ const menuCatalog={
   companies:['İşyerleri',Building2],
   branches:['Şubeler',GitBranch],
   employees:['Personel',Users],
+  remote_training:['Uzaktan Eğitim Atama',GraduationCap],
   risk:['Risk Analizi',ShieldAlert],
   near_miss:['Ramak Kala',AlertTriangle],
   accident:['İş Kazaları',ShieldAlert],
@@ -2668,6 +2670,7 @@ function App(){
     // Çalışan hesabı eski genel eğitim/planlama sayfasını değil,
     // atanmış video + kontrol soruları + final sınavı panelini görür.
     training:<TrainingPage user={user}/>,
+    remote_training:<RemoteBasicOhsTrainingPanel user={user}/>,
     employee_training:<RemoteBasicOhsTrainingPanel user={user}/>,
     personnel_training_records:<WorkplaceTrainingRecordsPage user={user}/>,
     employee_self_service:<EmployeeSelfServicePage user={user} onOpenTraining={(assignmentId)=>{

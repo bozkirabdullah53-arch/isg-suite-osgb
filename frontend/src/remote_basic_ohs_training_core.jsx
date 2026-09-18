@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api, API_URL, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
 import {consumeEmployeeTrainingAssignment} from './employee_self_service_logic';
+import {isWorkplaceKioskUser, isWorkplaceManagerUser} from './workplace_user_policy';
 import './remote_basic_ohs_training.css';
 
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
@@ -1627,7 +1628,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   );
 }
 
-function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onCompanyChange, onBranchChange, refreshToken = 0, canEditContent = false}) {
+function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onCompanyChange, onBranchChange, refreshToken = 0, canEditContent = false, workplaceMode = false}) {
   const [companies, setCompanies] = useState([]);
   const [branches, setBranches] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -1707,7 +1708,10 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
 
   async function loadCompanies() {
     const rows = await api('/companies');
-    const next = Array.isArray(rows) ? rows : [];
+    const available = Array.isArray(rows) ? rows : [];
+    const next = workplaceMode
+      ? available.filter((row) => String(row.id) === String(user?.company_id))
+      : available;
     setCompanies(next);
     const defaultId = next.find((row) => String(row.id) === String(initialCompanyId))?.id
       || next.find((row) => String(row.id) === String(user?.company_id))?.id
@@ -1718,7 +1722,8 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   async function loadPrograms(cid = companyId) {
     if (!cid) return;
     const rows = await api(`/trainings/remote/programs?company_id=${Number(cid)}`);
-    setPrograms(Array.isArray(rows) ? rows : []);
+    const available = Array.isArray(rows) ? rows : [];
+    setPrograms(workplaceMode ? available.filter((row) => row.status === 'published') : available);
   }
 
   async function loadBranches(cid = companyId) {
@@ -1800,7 +1805,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     setCheckpointDraft((current) => ({...current, sector_code: defaultSector}));
     await loadEmployees(row.company_id);
     await loadEmployeeAccess(row.company_id);
-    await loadQuestionBank();
+    if (canEditContent) await loadQuestionBank();
     await loadAssignments(row.id);
   }
 
@@ -2158,27 +2163,29 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     <section style={{display: 'grid', gap: 16}} aria-label="Firma çalışanlarının eğitim ve sınav ataması yönetimi">
       <div style={cardStyle}>
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
-          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>FİRMA EĞİTİM VE SINAV YÖNETİMİ</div><h3 style={{margin: '4px 0'}}>Firma/işyeri personeline eğitim atayın</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Firma ve işyerini seçin, hazır programı açın, giriş hesabı olmayan personel için hesabı oluşturun ve eğitimi tek seçimle atayın. Katalog programlarında pakete göre final soruları otomatik hazırdır.</p></div>
+          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>{workplaceMode ? 'İŞYERİ UZAKTAN EĞİTİM YÖNETİMİ' : 'FİRMA EĞİTİM VE SINAV YÖNETİMİ'}</div><h3 style={{margin: '4px 0'}}>{workplaceMode ? 'Çalışanlarınıza uzaktan eğitim atayın' : 'Firma/işyeri personeline eğitim atayın'}</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>{workplaceMode ? 'İSG uzmanınızın işyerinize tanımladığı hazır eğitim paketini seçin, çalışan girişlerini kontrol edin ve eğitimi tek işlemle atayın.' : 'Firma ve işyerini seçin, hazır programı açın, giriş hesabı olmayan personel için hesabı oluşturun ve eğitimi tek seçimle atayın. Katalog programlarında pakete göre final soruları otomatik hazırdır.'}</p></div>
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
-            <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setBranchId(''); onBranchChange?.(''); onCompanyChange?.(event.target.value); setProgram(null); setAssignments([]); setAutomaticExamQuestions([]);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
+            {workplaceMode
+              ? <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '0 13px', border: '1px solid #b9d9d2', borderRadius: 9, background: '#f0faf7', color: '#115e59', fontWeight: 800}}>{companies.find((row) => String(row.id) === String(companyId))?.name || 'İşyeriniz'}</span>
+              : <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setBranchId(''); onBranchChange?.(''); onCompanyChange?.(event.target.value); setProgram(null); setAssignments([]); setAutomaticExamQuestions([]);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>}
             <select value={branchId} onChange={(event) => {setBranchId(event.target.value); onBranchChange?.(event.target.value); setSelectedEmployees([]);}} disabled={!companyId} aria-label="Personel ve eğitim işyeri seçin"><option value="">Firma geneli / işyeri seçilmedi</option>{branches.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
           </div>
         </div>
-        <div style={{marginTop: 12, padding: 10, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Yeni paket oluşturma burada yapılmaz.</strong> Yeni bir eğitim paketi için üstteki merkezi katalogdan ilerleyin. Böylece aynı eğitim adıyla tekrar tekrar taslak oluşmaz.</div>
+        <div style={{marginTop: 12, padding: 10, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}>{workplaceMode ? <><strong>Yetki sınırı:</strong> Burada yalnız İSG uzmanınızın işyerinize tanımlayıp yayımladığı paketler görünür. Paket oluşturma, içerik değiştirme ve başka işyerlerine erişim kapalıdır.</> : <><strong>Yeni paket oluşturma burada yapılmaz.</strong> Yeni bir eğitim paketi için üstteki merkezi katalogdan ilerleyin. Böylece aynı eğitim adıyla tekrar tekrar taslak oluşmaz.</>}</div>
         <ErrorText value={error} />
         {message && <div role="status" aria-live="polite" style={{color: '#087443', marginTop: 8, fontWeight: 600}}>{message}</div>}
       </div>
 
       <div className="remote-training-manager-grid" style={{gap: 16}}>
         <div style={cardStyle}>
-          <h4 style={{marginTop: 0}}>Firmaya atanmış sektör eğitimleri</h4>
-          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>Bu listede yalnızca seçtiğiniz firmaya hazırlanmış eğitimler görünür. Eski aynı adlı taslaklar silinmez; isterseniz geçmişten açabilirsiniz.</div>
-          {(showOldPrograms ? programs.map((row) => ({row, hidden: []})) : compactPrograms).map(({row, hidden}) => <div key={row.id} style={{marginBottom: 8}}>
+          <h4 style={{marginTop: 0}}>{workplaceMode ? 'İşyerinize tanımlanmış uzaktan eğitimler' : 'Firmaya atanmış sektör eğitimleri'}</h4>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>{workplaceMode ? 'Yalnızca iş güvenliği uzmanınızın hazırladığı, yayımlanmış ve çalışan atamasına açık paketler listelenir.' : 'Bu listede yalnızca seçtiğiniz firmaya hazırlanmış eğitimler görünür. Eski aynı adlı taslaklar silinmez; isterseniz geçmişten açabilirsiniz.'}</div>
+          {(workplaceMode ? compactPrograms : showOldPrograms ? programs.map((row) => ({row, hidden: []})) : compactPrograms).map(({row, hidden}) => <div key={row.id} style={{marginBottom: 8}}>
             <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{row.source_catalog_code ? `Sektör: ${packageSectorLabel(row.source_catalog_code, row.sector_code || row.source_catalog_sector_code)} · ` : ''}{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi katalogdan bu firmaya atanmış</span>}</button>
-            {!showOldPrograms && hidden.length > 0 && <div style={{fontSize: 11, color: '#795500', padding: '4px 8px'}}>Bu adla {hidden.length} eski taslak gizlendi.</div>}
+            {!workplaceMode && !showOldPrograms && hidden.length > 0 && <div style={{fontSize: 11, color: '#795500', padding: '4px 8px'}}>Bu adla {hidden.length} eski taslak gizlendi.</div>}
           </div>)}
-          {duplicateProgramCount > 0 && <button type="button" onClick={() => setShowOldPrograms((current) => !current)} style={{fontSize: 12, marginTop: 2}}>{showOldPrograms ? 'Eski kayıtları gizle' : `Eski/tekrarlı kayıtları göster (${duplicateProgramCount})`}</button>}
-          {!programs.length && <p style={{color: '#5e7485'}}>Bu firmada uzaktan eğitim taslağı yok.</p>}
+          {!workplaceMode && duplicateProgramCount > 0 && <button type="button" onClick={() => setShowOldPrograms((current) => !current)} style={{fontSize: 12, marginTop: 2}}>{showOldPrograms ? 'Eski kayıtları gizle' : `Eski/tekrarlı kayıtları göster (${duplicateProgramCount})`}</button>}
+          {!programs.length && <p style={{color: '#5e7485'}}>{workplaceMode ? 'İşyerinize henüz uzaktan eğitim paketi tanımlanmamış. İş güvenliği uzmanınız paketi tanımladığında burada görünecektir.' : 'Bu firmada uzaktan eğitim taslağı yok.'}</p>}
         </div>
         <div style={cardStyle}>
           {program ? (
@@ -2415,7 +2422,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                             <th style={{textAlign: 'left'}}>İlerleme</th>
                             <th style={{textAlign: 'left'}}>Atanma</th>
                             <th style={{textAlign: 'left'}}>Son tarih</th>
-                            <th style={{textAlign: 'left'}}>İşlem</th>
+                            {!workplaceMode && <th style={{textAlign: 'left'}}>İşlem</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -2428,11 +2435,11 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                                 <td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0} video</td>
                                 <td>{formatEmployeeDate(row.assigned_at)}</td>
                                 <td>{formatEmployeeDate(row.due_date)}</td>
-                                <td>
+                                {!workplaceMode && <td>
                                   <button type="button" onClick={() => deleteAssignment(row)} disabled={busy || actionBusy} style={{fontSize: 12, padding: '7px 10px', color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>
                                     {actionBusy ? 'Siliniyor…' : 'Atamayı kalıcı sil'}
                                   </button>
-                                </td>
+                                </td>}
                               </tr>
                             );
                           })}
@@ -2442,13 +2449,13 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                   ) : (
                     <p style={{margin: '8px 0 0', color: '#5e7485', fontSize: 12}}>Bu eğitime henüz çalışan atanmamış.</p>
                   )}
-                  <div style={{marginTop: 8, color: '#5e7485', fontSize: 11}}>
+                  {!workplaceMode && <div style={{marginTop: 8, color: '#5e7485', fontSize: 11}}>
                     Silme işlemi atamayı ve bu atamaya bağlı ilerleme, sınav ve belge kayıtlarını kalıcı olarak siler.
-                  </div>
+                  </div>}
                 </div>
               </div>
             </>
-          ) : <p style={{color: '#5e7485'}}>Detay ve video yaşam döngüsünü görmek için bir taslak seçin.</p>}
+          ) : <p style={{color: '#5e7485'}}>{workplaceMode ? 'Çalışanlara atamak için soldaki tanımlı eğitimlerden birini seçin.' : 'Detay ve video yaşam döngüsünü görmek için bir taslak seçin.'}</p>}
         </div>
       </div>
       {report && <div id="remote-training-report" style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu ve belgelendirme</h4><p style={{margin: '6px 0 10px', color: '#496174', fontSize: 12}}>Başarılı çalışanlar için çıktı, yüz yüze eğitimde kullanılan mevcut belge şablonuyla aynı düzen ve imza alanlarıyla hazırlanır; belgede eğitim şekli <strong>Uzaktan Eğitim</strong> olarak görünür.</p><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Uzaktan eğitim belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{(row.status === 'completed' || row.certificate_ready) ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>{row.status === 'revoked' ? 'Arşiv belgesini al' : 'Uzaktan Eğitim belgesini al'}</button> : <button type="button" disabled style={{fontSize: 12, padding: '6px 9px', color: '#5e7485', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 7}} title="Tüm videolar ve en az %70 final sınavı tamamlanınca aktif olur">Belge çıktısı eğitim tamamlanınca açılır</button>}</td></tr>)}</tbody></table></div>}</div>}
@@ -2934,7 +2941,8 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [programRefreshToken, setProgramRefreshToken] = useState(0);
-  const canManage = MANAGE_ROLES.includes(user?.role);
+  const canManage = MANAGE_ROLES.includes(user?.role) && !isWorkplaceKioskUser(user);
+  const workplaceMode = isWorkplaceManagerUser(user);
   const canEditContent = canEditRemoteContent(user);
   // Ortak merkezi paketler de kullanıcı arayüzünden değiştirilemez. OSGB
   // yöneticisi yalnız kendi OSGB özel kopyasını düzenler.
@@ -2947,6 +2955,31 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   if (error) return <section className="remote-training-panel remote-training-card" style={cardStyle}><ErrorText value={error} /></section>;
   if (!meta) return <section className="remote-training-panel remote-training-card" style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
   if (!meta.enabled) return <section className="remote-training-panel remote-training-card" style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} modülü henüz etkin değil.</section>;
+  if (workplaceMode) {
+    return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
+      <section style={{...cardStyle, borderTop: '4px solid #0f766e'}} aria-label="İşyeri uzaktan eğitim atama akışı">
+        <div style={{fontSize: 11, color: '#0f766e', fontWeight: 800, letterSpacing: '.1em'}}>İŞYERİ YETKİLİSİ / İNSAN KAYNAKLARI</div>
+        <h2 style={{margin: '7px 0 6px', color: '#123b59'}}>Uzaktan Eğitim Atama</h2>
+        <p style={{margin: 0, color: '#5e7485', lineHeight: 1.6}}>İş güvenliği uzmanınızın işyerinize tanımladığı eğitim paketlerini görün ve kendi çalışanlarınıza atayın. Eğitim içeriği ve merkezi paketler bu ekrandan değiştirilemez.</p>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 14}}>
+          {[
+            ['1', 'Tanımlı paketi seçin', 'Yalnız işyerinize açılmış yayımlanmış paketler gösterilir.'],
+            ['2', 'Çalışan hesabını kontrol edin', 'Giriş hesabı olmayan çalışan için güvenli geçici hesap oluşturun.'],
+            ['3', 'Personeli seçip atayın', 'Son tarihi belirleyin; tek kişiye veya toplu atama yapın.'],
+          ].map(([number, title, description]) => <div key={number} style={{display: 'flex', gap: 10, padding: 12, border: '1px solid #dbe8e5', borderRadius: 10, background: '#f8fcfb'}}><span style={{display: 'grid', placeItems: 'center', width: 28, height: 28, flex: '0 0 28px', borderRadius: 999, background: '#0f766e', color: '#fff', fontWeight: 800}}>{number}</span><span><strong style={{display: 'block', color: '#163943'}}>{title}</strong><small style={{display: 'block', marginTop: 3, color: '#64748b', lineHeight: 1.45}}>{description}</small></span></div>)}
+        </div>
+      </section>
+      <ManagerPanel
+        user={user}
+        initialCompanyId={String(user.company_id || '')}
+        initialBranchId={selectedBranchId}
+        onBranchChange={setSelectedBranchId}
+        refreshToken={programRefreshToken}
+        canEditContent={false}
+        workplaceMode
+      />
+    </div>;
+  }
   if (!canManage) {
     if (meta.can_view_employee_panel) return <div className="remote-training-panel"><EmployeePanel /></div>;
     return <section className="remote-training-panel remote-training-card" style={cardStyle}>

@@ -90,9 +90,12 @@ async function setup(page, {
 for (const email of ['isyeri.42@kiosk.isgsuite.tr', 'yetkili@example.com']) {
   test(`${email}: workplace modules open through the common sidebar`, async ({page}, testInfo) => {
     const state = await setup(page, {email});
+    const isKiosk = email.endsWith('@kiosk.isgsuite.tr');
     await page.goto('/');
     await expect(page.getByRole('heading', {name: company.name})).toBeVisible();
-    await expect(page.locator('.workplace-module-card')).toHaveCount(9);
+    await expect(page.locator('.workplace-module-card')).toHaveCount(isKiosk ? 9 : 10);
+    await expect(page.getByRole('button', {name: 'Uzaktan Eğitim modülünü aç'})).toHaveCount(isKiosk ? 0 : 1);
+    await expect(page.locator('.nav-desktop [data-nav="remote_training"]')).toHaveCount(isKiosk ? 0 : 1);
     await expect(page.getByRole('button', {name: 'KKD Takip modülünü aç'})).toContainText('620 kayıt');
     await page.screenshot({path: testInfo.outputPath('workplace-home.png'), fullPage: true});
     for (const forbidden of ['companies', 'users', 'finance', 'contracts']) {
