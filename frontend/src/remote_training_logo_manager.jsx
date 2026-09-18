@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {api, uploadFile} from './api';
+import {isWorkplaceAccountUser} from './workplace_user_policy';
 
 const LOGO_MANAGER_ROLES = new Set(['global_admin', 'company_admin', 'safety_specialist']);
 
@@ -10,7 +11,7 @@ export function RemoteTrainingLogoManager({user}) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const canManage = LOGO_MANAGER_ROLES.has(user?.role);
+  const canManage = LOGO_MANAGER_ROLES.has(user?.role) && !isWorkplaceAccountUser(user);
   const selectedProgram = useMemo(
     () => programs.find((row) => String(row.id) === String(selectedId)) || null,
     [programs, selectedId],

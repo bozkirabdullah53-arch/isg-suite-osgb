@@ -1,13 +1,15 @@
 import React, {useEffect, useState} from 'react';
 import {
   AlertTriangle, ArrowRight, Beaker, ClipboardCheck, FileText, Gauge,
-  HardHat, QrCode, RefreshCw, ShieldAlert, Users,
+  GraduationCap, HardHat, QrCode, RefreshCw, ShieldAlert, Users,
 } from 'lucide-react';
 import {api} from './api';
+import {isWorkplaceManagerUser} from './workplace_user_policy';
 import './workplace_home.css';
 
 const MODULE_CARDS = [
   {id: 'employees', title: 'Personel', hint: 'Personel ekleyin, çalışan bilgilerini düzenleyin.', icon: Users, countKey: 'employees'},
+  {id: 'remote_training', title: 'Uzaktan Eğitim', hint: 'Uzmanınızın işyerine tanımladığı paketleri çalışanlara atayın.', icon: GraduationCap, footer: 'Tanımlı eğitimleri aç'},
   {id: 'ppe', title: 'KKD Takip', hint: 'Zimmet, teslim ve stok kayıtlarını yönetin.', icon: HardHat, countKey: 'ppe'},
   {id: 'sds', title: 'SDS / PKD', hint: 'Kimyasal ürünleri ve güvenlik belgelerini takip edin.', icon: Beaker, countKey: 'sds'},
   {id: 'periyodik_kontrol', title: 'Periyodik Kontrol', hint: 'Ekipman kontrollerini ve raporlarını kaydedin.', icon: ClipboardCheck, countKey: 'periodic'},
@@ -23,6 +25,9 @@ export function WorkplaceHomePage({user, onNavigate}) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
+  const moduleCards = MODULE_CARDS.filter(
+    (card) => card.id !== 'remote_training' || isWorkplaceManagerUser(user),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +73,7 @@ export function WorkplaceHomePage({user, onNavigate}) {
         </div>
       )}
       <div className="workplace-module-grid" aria-busy={loading}>
-        {MODULE_CARDS.map((card) => {
+        {moduleCards.map((card) => {
           const Icon = card.icon;
           const count = summary?.counts?.[card.countKey];
           return (
@@ -83,7 +88,7 @@ export function WorkplaceHomePage({user, onNavigate}) {
               <span className="workplace-module-title">{card.title}</span>
               <span className="workplace-module-hint">{card.hint}</span>
               <span className="workplace-module-footer">
-                <span>{card.countKey ? (loading ? 'Yükleniyor…' : error || count == null ? 'Sayı alınamadı' : `${count} kayıt`) : 'Üyeler ve toplantılar'}</span>
+                <span>{card.countKey ? (loading ? 'Yükleniyor…' : error || count == null ? 'Sayı alınamadı' : `${count} kayıt`) : (card.footer || 'Üyeler ve toplantılar')}</span>
                 <ArrowRight size={18}/>
               </span>
             </button>

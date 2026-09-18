@@ -255,7 +255,7 @@ def list_catalog_packages_with_custom(
 ):
     """Preserve the central catalog and append only this OSGB's custom packages."""
     remote_api.require_feature()
-    remote_api._manager(user)
+    remote_api._catalog_manager(user)
     remote_api._ensure_catalog_seed(db, user)
     scope = remote_api._catalog_scope(db, user)
     if scope is not None:

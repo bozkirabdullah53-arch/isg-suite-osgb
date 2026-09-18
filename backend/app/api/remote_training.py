@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, is_workplace_manager_account
 from app.core.config import (
     remote_basic_ohs_strict_policy_active,
     remote_basic_ohs_strict_policy_package_codes,
@@ -176,8 +176,25 @@ def _remote_training_video_store():
 
 
 def _manager(user: User) -> None:
-    if user.role not in MANAGE_ROLES:
+    if not is_manager(user):
         raise HTTPException(403, "Bu uzaktan eğitim işlemi için eğitici/yönetici yetkisi gerekir.")
+
+
+def _catalog_manager(user: User) -> None:
+    """Keep catalog/workplace-definition actions outside workplace accounts.
+
+    A named workplace authority or HR account may assign only a program that
+    has already been materialized for its own workplace.  It must not be able
+    to browse the central catalog and materialize a package by calling the API
+    directly.  Existing OSGB administrators, global administrators and
+    assigned safety specialists retain their current catalog workflow.
+    """
+    _manager(user)
+    if is_workplace_manager_account(user):
+        raise HTTPException(
+            403,
+            "Uzaktan eğitim paketini işyerine yalnız İSG uzmanı veya OSGB yönetimi tanımlayabilir.",
+        )
 
 
 def _assert_catalog_content_editor(db: Session, user: User) -> None:
@@ -235,6 +252,11 @@ def _assert_program_manager(db: Session, user: User, program_id: int) -> RemoteT
     _manager(user)
     program = load_program(db, program_id)
     ensure_company_access(db, user, program.company_id)
+    if is_workplace_manager_account(user) and program.status != "published":
+        # Workplace users see only the assignment-ready programs explicitly
+        # prepared for their workplace; draft/unpublished records remain an
+        # OSGB/specialist concern and are deliberately hidden as not found.
+        raise HTTPException(404, "İşyerine tanımlanmış yayımlanmış eğitim bulunamadı.")
     return program
 
 def _assert_program_content_manager(
@@ -750,7 +772,7 @@ def _catalog_package_for_manager(
     db: Session, user: User, package_id: int
 ) -> RemoteTrainingCatalogPackage:
     require_feature()
-    _manager(user)
+    _catalog_manager(user)
     package = db.get(RemoteTrainingCatalogPackage, package_id)
     if package is None:
         raise HTTPException(404, "Merkezi eğitim paketi bulunamadı.")
@@ -1062,7 +1084,7 @@ def list_catalog_packages(
     user: User = Depends(get_current_user),
 ):
     require_feature()
-    _manager(user)
+    _catalog_manager(user)
     _ensure_catalog_seed(db, user)
     scope = _catalog_scope(db, user)
     if scope is not None:
@@ -2045,10 +2067,18 @@ def list_remote_programs(
     require_feature()
     _manager(user)
     stmt = _program_query_for_user(db, user, company_id)
+    if status and status not in PROGRAM_STATUSES:
+        raise HTTPException(422, "Geçersiz eğitim durumu.")
+    if is_workplace_manager_account(user):
+        # A workplace authority/HR account receives only packages already
+        # defined and published for its own workplace.  Passing a different
+        # status must not reveal draft, unpublished or archived snapshots.
+        if status and status != "published":
+            return []
+        stmt = stmt.where(RemoteTrainingProgram.status == "published")
     if status:
-        if status not in PROGRAM_STATUSES:
-            raise HTTPException(422, "Geçersiz eğitim durumu.")
-        stmt = stmt.where(RemoteTrainingProgram.status == status)
+        if not is_workplace_manager_account(user):
+            stmt = stmt.where(RemoteTrainingProgram.status == status)
     rows = db.scalars(stmt.order_by(RemoteTrainingProgram.updated_at.desc())).all()
     return [_program_output(row) for row in rows]
 
@@ -2191,10 +2221,7 @@ def get_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    require_feature()
-    _manager(user)
-    program = load_program(db, program_id)
-    assert_program_access(db, user, program)
+    program = _assert_program_manager(db, user, program_id)
     return _program_detail(db, program)
 
 
@@ -2850,7 +2877,7 @@ def download_remote_asset(
         raise HTTPException(404, "Video eki bulunamadı.")
     video = load_video(db, video_id)
     if is_manager(user):
-        assert_program_access(db, user, load_program(db, video.program_id))
+        _assert_program_manager(db, user, video.program_id)
     else:
         if not assignment_id:
             raise HTTPException(403, "Çalışan video eki için atama bilgisi gerekir.")
@@ -2881,7 +2908,7 @@ def create_remote_playback(
     if preview:
         if not is_manager(user):
             raise HTTPException(403, "Önizleme yetkiniz yok.")
-        assert_program_access(db, user, program)
+        _assert_program_manager(db, user, program.id)
         if video.status not in {"ready_for_review", "published", "unpublished"}:
             raise HTTPException(409, "Bu durumdaki video önizlenemez.")
         assignment_id = None

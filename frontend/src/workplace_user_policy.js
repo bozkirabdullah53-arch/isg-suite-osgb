@@ -39,6 +39,7 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'capa',
   'isg_kurulu',
   'personnel_training_records',
+  'remote_training',
   'documents',
   'eyas_inbox',
   'health',
@@ -47,7 +48,7 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
 
 export const WORKPLACE_MENU_SECTIONS = Object.freeze([
   {label: 'İşyeri Özeti', items: ['workplace_home', 'employer_oversight']},
-  {label: 'Personel', items: ['employees', 'personnel_training_records']},
+  {label: 'Personel ve Eğitim', items: ['employees', 'personnel_training_records', 'remote_training']},
   {
     label: 'İSG Kayıtları',
     items: [

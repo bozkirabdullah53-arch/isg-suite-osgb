@@ -231,6 +231,7 @@ async def upload_remote_program_logo(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    remote_api._catalog_manager(user)
     program = remote_api._assert_program_manager(db, user, program_id)
     original = Path(file.filename or "logo.png")
     extension = original.suffix.lower()
@@ -280,6 +281,7 @@ def delete_remote_program_logo(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    remote_api._catalog_manager(user)
     program = remote_api._assert_program_manager(db, user, program_id)
     _delete_existing_logo(program.company_id, program.id)
     remote_service.audit(

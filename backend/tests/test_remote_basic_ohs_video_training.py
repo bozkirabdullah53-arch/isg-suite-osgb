@@ -2187,6 +2187,7 @@ def test_remote_content_permission_separates_osgb_admin_and_expert(monkeypatch):
 
     from app.api.remote_training import (
         _assert_catalog_content_editor,
+        _catalog_manager,
         _catalog_content_package_for_manager,
     )
     from app.models.entities import OsgbOrganization, User, UserRole
@@ -2229,6 +2230,7 @@ def test_remote_content_permission_separates_osgb_admin_and_expert(monkeypatch):
         db.flush()
 
         assert is_manager(expert)
+        _catalog_manager(expert)
         assert not is_catalog_content_manager(expert)
         with pytest.raises(HTTPException) as error:
             _assert_catalog_content_editor(db, expert)
@@ -2464,6 +2466,239 @@ def test_manager_can_delete_assignment_and_training_history(remote_client):
         f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
         headers=manager_headers,
     ).status_code == 404
+
+
+def test_workplace_manager_only_sees_published_company_programs_and_can_assign(remote_client):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, Employee, User, UserRole
+    from app.models.remote_training import (
+        RemoteTrainingCatalogPackage,
+        RemoteTrainingProgram,
+        RemoteTrainingSection,
+        RemoteTrainingVideo,
+    )
+
+    password = "TestPass123!"
+    with SessionLocal() as db:
+        osgb, company, _branch, employee, _employee_user = _scope_rows(db)
+        other_company = Company(
+            name="Başka Remote Test Firma",
+            osgb_id=osgb.id,
+            sgk_registry_no="SGK-REMOTE-OTHER",
+            is_active=True,
+        )
+        db.add(other_company)
+        db.flush()
+        other_employee = Employee(
+            company_id=other_company.id,
+            full_name="Başka Firma Çalışanı",
+            is_active=True,
+        )
+        manager = User(
+            email="workplace-training-manager@remote-test.com",
+            full_name="İşyeri Eğitim Yetkilisi",
+            hashed_password=get_password_hash(password),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=company.id,
+            is_active=True,
+            password_change_required=False,
+        )
+        kiosk = User(
+            email="remote-training-workplace@kiosk.isgsuite.tr",
+            full_name="İşyeri QR Hesabı",
+            hashed_password=get_password_hash(password),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=company.id,
+            is_active=True,
+            password_change_required=False,
+        )
+        package = RemoteTrainingCatalogPackage(
+            osgb_id=osgb.id,
+            code="workplace-permission-test",
+            title="Uzman Tarafından Hazırlanan Paket",
+            status="published",
+            requires_final_exam=False,
+        )
+        published = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="İşyerine Tanımlı Eğitim",
+            status="published",
+            requires_final_exam=False,
+        )
+        draft = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Uzmanın Taslağı",
+            status="draft",
+            requires_final_exam=False,
+        )
+        unpublished = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Yayından Kaldırılmış Eğitim",
+            status="unpublished",
+            requires_final_exam=False,
+        )
+        foreign_program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=other_company.id,
+            title="Başka İşyerinin Eğitimi",
+            status="published",
+            requires_final_exam=False,
+        )
+        db.add_all(
+            [
+                other_employee,
+                manager,
+                kiosk,
+                package,
+                published,
+                draft,
+                unpublished,
+                foreign_program,
+            ]
+        )
+        db.flush()
+        draft_section = RemoteTrainingSection(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=draft.id,
+            title="Taslak Bölüm",
+            order_index=1,
+        )
+        db.add(draft_section)
+        db.flush()
+        draft_video = RemoteTrainingVideo(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=draft.id,
+            section_id=draft_section.id,
+            title="Taslak Video",
+            status="ready_for_review",
+            original_file_name="taslak.mp4",
+            content_type="video/mp4",
+            file_size_bytes=100,
+            duration_seconds=60,
+            storage_key="tests/workplace/taslak.mp4",
+        )
+        db.add(draft_video)
+        db.commit()
+        company_id = company.id
+        employee_id = employee.id
+        other_company_id = other_company.id
+        other_employee_id = other_employee.id
+        package_id = package.id
+        published_id = published.id
+        draft_id = draft.id
+        draft_video_id = draft_video.id
+        foreign_program_id = foreign_program.id
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "workplace-training-manager@remote-test.com", "password": password},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    meta = remote_client.get("/api/v1/trainings/remote/meta", headers=headers)
+    assert meta.status_code == 200, meta.text
+    assert meta.json()["can_manage"] is True
+
+    catalog = remote_client.get(
+        "/api/v1/trainings/remote/catalog/packages",
+        headers=headers,
+    )
+    assert catalog.status_code == 403, catalog.text
+
+    materialized = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/packages/{package_id}/materialize",
+        headers=headers,
+        json={"company_id": company_id},
+    )
+    assert materialized.status_code == 403, materialized.text
+
+    created = remote_client.post(
+        "/api/v1/trainings/remote/programs",
+        headers=headers,
+        json={"company_id": company_id, "title": "Yetkisiz İçerik"},
+    )
+    assert created.status_code == 403, created.text
+
+    logo_upload = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{published_id}/logo",
+        headers=headers,
+        files={"file": ("logo.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+    )
+    assert logo_upload.status_code == 403, logo_upload.text
+    assert remote_client.delete(
+        f"/api/v1/trainings/remote/programs/{published_id}/logo",
+        headers=headers,
+    ).status_code == 403
+
+    programs = remote_client.get(
+        f"/api/v1/trainings/remote/programs?company_id={company_id}",
+        headers=headers,
+    )
+    assert programs.status_code == 200, programs.text
+    assert [row["id"] for row in programs.json()] == [published_id]
+
+    hidden_status = remote_client.get(
+        f"/api/v1/trainings/remote/programs?company_id={company_id}&status=draft",
+        headers=headers,
+    )
+    assert hidden_status.status_code == 200, hidden_status.text
+    assert hidden_status.json() == []
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/programs/{draft_id}",
+        headers=headers,
+    ).status_code == 404
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/videos/{draft_video_id}/playback?preview=true",
+        headers=headers,
+    ).status_code == 404
+
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/programs?company_id={other_company_id}",
+        headers=headers,
+    ).status_code == 403
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/programs/{foreign_program_id}",
+        headers=headers,
+    ).status_code == 403
+
+    foreign_assignment = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{published_id}/assign",
+        headers=headers,
+        json={"employee_ids": [other_employee_id]},
+    )
+    assert foreign_assignment.status_code == 422, foreign_assignment.text
+
+    assignment = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{published_id}/assign",
+        headers=headers,
+        json={"employee_ids": [employee_id]},
+    )
+    assert assignment.status_code == 200, assignment.text
+    assert assignment.json()["created_count"] == 1
+    assert assignment.json()["created"][0]["employee_id"] == employee_id
+
+    kiosk_login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "remote-training-workplace@kiosk.isgsuite.tr", "password": password},
+    )
+    assert kiosk_login.status_code == 200, kiosk_login.text
+    kiosk_headers = {"Authorization": f"Bearer {kiosk_login.json()['access_token']}"}
+    kiosk_meta = remote_client.get("/api/v1/trainings/remote/meta", headers=kiosk_headers)
+    assert kiosk_meta.status_code == 200, kiosk_meta.text
+    assert kiosk_meta.json()["can_manage"] is False
+    assert remote_client.get(
+        "/api/v1/trainings/remote/programs",
+        headers=kiosk_headers,
+    ).status_code == 403
 
 
 def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(remote_client):
