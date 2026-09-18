@@ -291,7 +291,6 @@ def _classroom_certificate_items(
             TrainingParticipant.employee_id == employee_id,
         )
         .order_by(TrainingSession.start_date.desc(), TrainingSession.id.desc())
-        .limit(100)
     ).all()
     items: list[dict[str, Any]] = []
     for session, participant in rows:
@@ -328,7 +327,6 @@ def _remote_certificate_items(
             RemoteTrainingAssignment.employee_id == employee_id,
         )
         .order_by(RemoteTrainingAssignment.completed_at.desc(), RemoteTrainingAssignment.id.desc())
-        .limit(100)
     ).all()
     if not assignments:
         return []
