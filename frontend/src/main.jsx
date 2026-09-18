@@ -1397,8 +1397,8 @@ function Employees({user}){
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>}
      {!isWorkplaceManager&&<label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>}
-    {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
-    {!isWorkplaceManager&&<button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>}
+    <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>
+    <button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>
      <button data-ai-action="employee.create" disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
     <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
@@ -1425,12 +1425,12 @@ function Employees({user}){
 
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
       {isWorkplaceManager
-        ? 'Bu ekranda yalnız kendi işyerinizin personeli görünür; yeni işe girenleri Personel Ekle ile tek tek kaydedebilirsiniz.'
+        ? 'Bu ekranda yalnız kendi işyerinizin personeli görünür; personel ekleyebilir, düzenleyebilir ve seçili kayıtları silebilirsiniz.'
         : 'Şablon İndir → Personel sayfasındaki tabloyu doldurun → Excel Yükle. Sütunlar: Adı Soyadı (zorunlu), TC Kimlik No, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü. Başlık satırını silmeyin; örnek kişiler Ornek sayfasındadır ve yüklenmez. Dosya yalnızca seçili işyerine aktarılır.'}
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[
-      ...(!isWorkplaceManager?[{key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>}]:[]),
+      {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
       {key:'full_name',label:'Ad Soyad'},
       {key:'job_title',label:'Görev'},
       {key:'department',label:'Departman'},
@@ -1440,7 +1440,7 @@ function Employees({user}){
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
       {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
         <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)}>Düzenle</button>
-        {!isWorkplaceManager&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>}
+        <button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>
       </div>},
     ]} rows={selectedCompanyId?data:[]}/>
 
