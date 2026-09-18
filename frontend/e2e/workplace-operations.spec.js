@@ -9,7 +9,11 @@ const modules = [
   ['isg_kurulu', /İSG Kurulu/],
 ];
 
-async function setup(page, {email = 'isyeri.42@kiosk.isgsuite.tr', summaryError = false} = {}) {
+async function setup(page, {
+  email = 'isyeri.42@kiosk.isgsuite.tr',
+  summaryError = false,
+  committeeCandidates = {mandatory: [], other: [], missing_mandatory: []},
+} = {}) {
   const errors = [];
   let qrRequests = 0;
   page.on('pageerror', (error) => errors.push(error.message));
@@ -47,7 +51,13 @@ async function setup(page, {email = 'isyeri.42@kiosk.isgsuite.tr', summaryError 
       contentType: 'image/svg+xml',
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320"><rect width="320" height="320" fill="white"/><rect x="30" y="30" width="260" height="260" fill="black"/></svg>',
     });
-    if (path === '/ohs-committee/candidates') return json(route, {mandatory: [], other: [], missing_mandatory: []});
+    if (path === '/ohs-committee/candidates') return json(route, committeeCandidates);
+    if (path === '/ohs-committee/meta') return json(route, {roles: [
+      {code: 'uzman', label: 'İş Güvenliği Uzmanı'},
+      {code: 'calisan_temsilcisi', label: 'Çalışan Temsilcisi'},
+      {code: 'destek', label: 'Destek Elemanı'},
+      {code: 'diger', label: 'Diğer'},
+    ]});
     if (path === '/ohs-committee/work-queue') return json(route, {items: [], counts: {}});
     if (path.endsWith('/meta')) return json(route, {roles: [], categories: [], ghs_pictograms: [], measurement_types: [], event_types: []});
     if (path === '/ppe/catalog') return json(route, {categories: [], statuses: [], item_types: {}});
@@ -112,6 +122,35 @@ test('workplace password account can open the requested register forms', async (
     await dialog.getByRole('button', {name: /Kapat|Vazgeç|İptal/}).first().click();
   }
   expect(state.errors).toEqual([]);
+});
+
+test('committee member picker is wide, readable and keeps the selection flow', async ({page}, testInfo) => {
+  await setup(page, {
+    committeeCandidates: {
+      mandatory: [{
+        identity_key: 'professional-17', source_type: 'professional', source_id: 17,
+        full_name: 'Ayşe Yılmaz', job_title: 'A Sınıfı İş Güvenliği Uzmanı',
+        company_name: company.name, mandatory: true, suggested_role_code: 'uzman',
+      }],
+      other: [{
+        identity_key: 'employee-28', source_type: 'employee', source_id: 28,
+        full_name: 'Mehmet Demir', job_title: 'Üretim Sorumlusu', department: 'Üretim',
+        company_name: company.name, suggested_role_code: 'calisan_temsilcisi',
+      }],
+      missing_mandatory: [],
+    },
+  });
+  await page.goto('/#m=isg_kurulu');
+  await page.getByRole('button', {name: 'Üye Yönet'}).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Kurul Üyesi Seçimi');
+  const bounds = await dialog.boundingBox();
+  expect(bounds?.width).toBeGreaterThan(1000);
+  await dialog.getByRole('button', {name: /Mehmet Demir kişisini/}).click();
+  await expect(dialog.getByText('Seçilen personel')).toBeVisible();
+  await expect(dialog.getByRole('button', {name: /Kurula Ekle/})).toBeEnabled();
+  await page.screenshot({path: testInfo.outputPath('committee-member-picker.png'), fullPage: true});
 });
 
 test('a fresh-tab module link is preserved', async ({page}) => {
