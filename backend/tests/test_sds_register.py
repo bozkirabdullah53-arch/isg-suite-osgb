@@ -195,6 +195,60 @@ def test_sds_meta_and_crud(client):
     assert got.json()["selected"] == ["GHS02", "GHS07"]
 
 
+def test_sds_branch_must_belong_to_company_and_be_active(client):
+    from app.core.database import SessionLocal
+    from app.models.entities import Branch, Company
+
+    token, company_id = _seed_specialist(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with SessionLocal() as db:
+        company = db.get(Company, company_id)
+        own_branch = Branch(company_id=company_id, name="Merkez Şube", is_active=True)
+        inactive_branch = Branch(company_id=company_id, name="Kapalı Şube", is_active=False)
+        foreign_company = Company(
+            name="Başka Firma",
+            osgb_id=company.osgb_id,
+            is_active=True,
+        )
+        db.add_all([own_branch, inactive_branch, foreign_company])
+        db.flush()
+        foreign_branch = Branch(
+            company_id=foreign_company.id,
+            name="Yabancı Şube",
+            is_active=True,
+        )
+        db.add(foreign_branch)
+        db.commit()
+        own_branch_id = own_branch.id
+        inactive_branch_id = inactive_branch.id
+        foreign_branch_id = foreign_branch.id
+
+    created = client.post(
+        "/api/v1/sds",
+        headers=headers,
+        json={
+            "company_id": company_id,
+            "branch_id": own_branch_id,
+            "product_name": "Şubeye Bağlı Kimyasal",
+        },
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["branch_id"] == own_branch_id
+
+    for branch_id in (foreign_branch_id, inactive_branch_id, 999_999):
+        rejected = client.post(
+            "/api/v1/sds",
+            headers=headers,
+            json={
+                "company_id": company_id,
+                "branch_id": branch_id,
+                "product_name": "Geçersiz Şube Kimyasalı",
+            },
+        )
+        assert rejected.status_code == 400, rejected.text
+
+
 def test_company_admin_cannot_create_sds(client):
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash

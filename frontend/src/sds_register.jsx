@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   Beaker,
   Building2,
@@ -6,6 +6,7 @@ import {
   Download,
   FileCheck2,
   Hash,
+  MapPin,
   Plus,
   RefreshCw,
   Save,
@@ -61,6 +62,7 @@ function reviewBadge(status) {
 
 const empty = {
   company_id: '',
+  branch_id: '',
   product_name: '',
   cas_number: '',
   has_sds_file: false,
@@ -69,10 +71,12 @@ const empty = {
 };
 
 export function SdsRegisterPage({user}) {
+  const workplaceAccount = isWorkplaceAccountUser(user);
   const canEdit = user.role === 'safety_specialist'
     || user.role === 'global_admin'
-    || isWorkplaceAccountUser(user);
+    || workplaceAccount;
   const [companies, setCompanies] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [catalog, setCatalog] = useState([]);
@@ -84,19 +88,29 @@ export function SdsRegisterPage({user}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const workplaceBranches = useMemo(() => (
+    workplaceAccount ? branches.filter((branch) => (
+      branch.is_active !== false
+      && String(branch.company_id) === String(user.company_id)
+    )) : []
+  ), [branches, user.company_id, workplaceAccount]);
 
   async function load(nextQ = q) {
     setBusy(true);
     setErr('');
     try {
       const qs = nextQ.trim() ? `?q=${encodeURIComponent(nextQ.trim())}` : '';
-      const [c, r, s, meta] = await Promise.all([
-        api('/companies'),
+      const [c, b, r, s, meta] = await Promise.all([
+        workplaceAccount ? Promise.resolve([]) : api('/companies'),
+        workplaceAccount
+          ? api(`/branches?company_id=${Number(user.company_id)}`)
+          : Promise.resolve([]),
         api(`/sds${qs}`),
         api('/sds/due-summary'),
         api('/sds/meta'),
       ]);
-      setCompanies(c);
+      setCompanies(Array.isArray(c) ? c : []);
+      setBranches(Array.isArray(b) ? b : []);
       setRows(r);
       setSummary(s);
       setCatalog(meta?.ghs_pictograms || []);
@@ -112,6 +126,25 @@ export function SdsRegisterPage({user}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!workplaceAccount) return;
+    setForm((current) => {
+      const companyId = String(user.company_id || '');
+      const currentBranchIsValid = workplaceBranches.some(
+        (branch) => String(branch.id) === String(current.branch_id),
+      );
+      const branchId = currentBranchIsValid
+        ? String(current.branch_id)
+        : workplaceBranches.length === 1
+          ? String(workplaceBranches[0].id)
+          : '';
+      if (String(current.company_id) === companyId && String(current.branch_id) === branchId) {
+        return current;
+      }
+      return {...current, company_id: companyId, branch_id: branchId};
+    });
+  }, [user.company_id, workplaceAccount, workplaceBranches]);
+
   async function save(e) {
     e.preventDefault();
     setErr('');
@@ -120,7 +153,8 @@ export function SdsRegisterPage({user}) {
       await api('/sds', {
         method: 'POST',
         body: JSON.stringify({
-          company_id: Number(form.company_id),
+          company_id: Number(workplaceAccount ? user.company_id : form.company_id),
+          branch_id: form.branch_id ? Number(form.branch_id) : null,
           product_name: form.product_name,
           cas_number: form.cas_number || null,
           has_sds_file: !!form.has_sds_file,
@@ -129,7 +163,11 @@ export function SdsRegisterPage({user}) {
         }),
       });
       setOpen(false);
-      setForm({...empty, company_id: user.company_id || form.company_id || ''});
+      setForm({
+        ...empty,
+        company_id: workplaceAccount ? String(user.company_id) : form.company_id || '',
+        branch_id: workplaceAccount ? form.branch_id : '',
+      });
       setMsg('Kimyasal ürün eklendi.');
       await load();
     } catch (ex) {
@@ -349,18 +387,43 @@ export function SdsRegisterPage({user}) {
             </div>
 
             <div className="sds-product-grid">
-              <Field label="Firma" icon={Building2} requiredLabel>
-                <select
-                  required
-                  value={form.company_id}
-                  onChange={(e) => setForm({...form, company_id: e.target.value})}
+              {workplaceAccount ? (
+                <Field
+                  label="Şube"
+                  icon={MapPin}
+                  requiredLabel
+                  hint={workplaceBranches.length
+                    ? 'Kimyasal ürün seçtiğiniz şubeye kaydedilecektir.'
+                    : 'Bu işyerine tanımlanmış aktif şube bulunamadı.'}
                 >
-                  <option value="">Seçiniz</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </Field>
+                  <select
+                    required
+                    disabled={workplaceBranches.length === 0}
+                    value={form.branch_id}
+                    onChange={(e) => setForm({...form, branch_id: e.target.value})}
+                  >
+                    <option value="">
+                      {workplaceBranches.length ? 'Şube seçiniz' : 'Tanımlı şube bulunamadı'}
+                    </option>
+                    {workplaceBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              ) : (
+                <Field label="Firma" icon={Building2} requiredLabel>
+                  <select
+                    required
+                    value={form.company_id}
+                    onChange={(e) => setForm({...form, company_id: e.target.value})}
+                  >
+                    <option value="">Seçiniz</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field
                 label="Ürün adı"
                 icon={Beaker}
@@ -416,7 +479,11 @@ export function SdsRegisterPage({user}) {
               >
                 Vazgeç
               </button>
-              <button type="submit" className="sds-save-button" disabled={busy}>
+              <button
+                type="submit"
+                className="sds-save-button"
+                disabled={busy || (workplaceAccount && !form.branch_id)}
+              >
                 <Save size={17} aria-hidden="true" />
                 {busy ? 'Kaydediliyor…' : 'Ürünü Kaydet'}
               </button>
