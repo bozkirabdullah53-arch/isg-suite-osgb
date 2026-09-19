@@ -137,6 +137,11 @@ class HealthRecordResponse(BaseModel):
     blood_lead_unit: str | None = None
     blood_lead_ref: float | None = None
     blood_lead_eval: str | None = None
+    blood_lead_limit: float | None = None
+    blood_lead_medical_threshold: float | None = None
+    blood_lead_status: str | None = None
+    blood_lead_status_label: str | None = None
+    blood_lead_exceeds_limit: bool = False
     suggested_tests: str | None = None
     exposures: str | None = None
     follow_up_note: str | None = None

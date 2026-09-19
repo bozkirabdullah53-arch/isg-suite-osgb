@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
+import {AlertTriangle, Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
 import {API_URL, api, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
 import {AppModal} from './ui_modal';
@@ -100,7 +100,7 @@ function emptyForm(user) {
     blood_lead_date: '',
     blood_lead_value: '',
     blood_lead_unit: 'µg/dL',
-    blood_lead_ref: '30',
+    blood_lead_ref: '70',
     suggested_tests: '',
     exposures: [],
     follow_up_note: '',
@@ -165,6 +165,68 @@ function MiniTable({title, rows, empty}) {
   );
 }
 
+function LeadStatusBadge({row, compact = false}) {
+  if (row?.blood_lead_value == null) {
+    return <span style={{color: '#64748b', fontSize: 12}}>Sonuç yok</span>;
+  }
+  const label = row.blood_lead_status_label
+    || row.lead_label
+    || (row.blood_lead_exceeds_limit ? 'Sınır aşıldı' : 'Normal');
+  const danger = row.blood_lead_exceeds_limit || ['Kritik', 'Sınır aşıldı'].some((x) => label.includes(x));
+  const surveillance = !danger && (row.blood_lead_status === 'surveillance' || label.includes('gözetim'));
+  const color = danger ? '#b91c1c' : surveillance ? '#b45309' : '#166534';
+  const background = danger ? '#fee2e2' : surveillance ? '#fef3c7' : '#dcfce7';
+  return (
+    <span style={{display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3}}>
+      <span className="badge" style={{background, color, whiteSpace: 'nowrap'}}>{label}</span>
+      {!compact && (
+        <small style={{color: danger ? '#991b1b' : '#64748b'}}>
+          {row.blood_lead_value} {row.blood_lead_unit || 'µg/dL'}
+          {row.blood_lead_limit != null ? ` / sınır ${row.blood_lead_limit}` : ''}
+        </small>
+      )}
+    </span>
+  );
+}
+
+function LeadTable({rows, empty = 'Kan kurşunu ölçümü bulunamadı.'}) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Personel</th>
+            <th>Görev</th>
+            <th>Ölçüm tarihi</th>
+            <th>Kan kurşunu</th>
+            <th>Tıbbi gözetim eşiği</th>
+            <th>Durum</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(rows || []).length ? rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <div>{row.employee_name || `#${row.employee_id}`}</div>
+                <div style={{fontSize: 12, color: '#64748b'}}>{row.department || '—'}</div>
+              </td>
+              <td>{row.job_title || '—'}</td>
+              <td>{row.blood_lead_date || row.examination_date || '—'}</td>
+              <td style={{fontWeight: 800}}>
+                {row.blood_lead_value == null ? '—' : `${row.blood_lead_value} ${row.blood_lead_unit || 'µg/dL'}`}
+              </td>
+              <td>{row.blood_lead_medical_threshold != null ? `>${row.blood_lead_medical_threshold} ${row.blood_lead_limit_unit || 'µg Pb/100 ml kan'}` : '—'}</td>
+              <td><LeadStatusBadge row={row} compact /></td>
+            </tr>
+          )) : (
+            <tr><td colSpan={6} className="empty">{empty}</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function HealthPage({user}) {
   const canEdit = canEditHealthRecords(user);
   const canView = canViewHealthRecords(user);
@@ -178,12 +240,14 @@ export function HealthPage({user}) {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [analysis, setAnalysis] = useState(null);
-  const [meta, setMeta] = useState({record_types: [], fitness_statuses: [], exposure_options: []});
+  const [leadSummary, setLeadSummary] = useState(null);
+  const [meta, setMeta] = useState({record_types: [], fitness_statuses: [], exposure_options: [], lead_limits: null});
   const [companyId, setCompanyId] = useState(user.company_id ? String(user.company_id) : '');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [leadFilter, setLeadFilter] = useState('');
   const [tab, setTab] = useState('kayitlar');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -206,6 +270,14 @@ export function HealthPage({user}) {
   }, [meta]);
 
   const exposureOpts = meta.exposure_options?.length ? meta.exposure_options : EXPOSURE_FALLBACK;
+  const leadLimits = leadSummary?.limits || meta.lead_limits || {
+    binding_limit: 70,
+    medical_surveillance_limit: 40,
+    unit: 'µg Pb/100 ml kan',
+    source: 'Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik, Ek-2',
+  };
+  const leadCounts = leadSummary?.counts || {};
+  const showLeadTracking = isPhysician || isEmployerView;
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -214,8 +286,9 @@ export function HealthPage({user}) {
     if (q) p.set('q', q);
     if (typeFilter) p.set('record_type', typeFilter);
     if (overdueOnly) p.set('overdue_only', 'true');
+    if (leadFilter) p.set('lead_status', leadFilter);
     return p.toString();
-  }, [companyId, employeeFilter, q, typeFilter, overdueOnly]);
+  }, [companyId, employeeFilter, q, typeFilter, overdueOnly, leadFilter]);
 
   async function load() {
     if (!canView) return;
@@ -232,6 +305,7 @@ export function HealthPage({user}) {
         setRows([]);
         setSummary(null);
         setAnalysis(null);
+        setLeadSummary(null);
         setMessage('İşlem yapabilmek için önce bir işyeri seçiniz.');
         return;
       }
@@ -244,21 +318,27 @@ export function HealthPage({user}) {
       if (q) recordQs.set('q', q);
       if (typeFilter) recordQs.set('record_type', typeFilter);
       if (overdueOnly) recordQs.set('overdue_only', 'true');
+      if (leadFilter) recordQs.set('lead_status', leadFilter);
 
       const sumQs = new URLSearchParams();
       sumQs.set('company_id', String(nextCid));
 
-      const [r, s, m, a] = await Promise.all([
+      const leadQs = new URLSearchParams(sumQs);
+      leadQs.set('lead_status', leadFilter || 'measured');
+
+      const [r, s, m, a, l] = await Promise.all([
         api(`/health-records?${recordQs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
         isPhysician ? api(`/health-records/analysis?${sumQs}`) : Promise.resolve(null),
+        (isPhysician || isEmployerView) ? api(`/health-records/lead-summary?${leadQs}`) : Promise.resolve(null),
       ]);
 
       setRows(Array.isArray(r) ? r : []);
       setSummary(s);
       setMeta(m);
       setAnalysis(a);
+      setLeadSummary(l && !Array.isArray(l) ? l : null);
 
       // Yalnız seçilen işyerinde bugün aktif görevlendirilmiş işyeri hekimleri.
       const hekimler = canEdit && nextCid
@@ -303,7 +383,7 @@ export function HealthPage({user}) {
       return;
     }
     const t = setTimeout(() => {
-      api(`/health-records/lead-eval?value=${encodeURIComponent(v)}&ref=${encodeURIComponent(form.blood_lead_ref || 30)}`)
+      api(`/health-records/lead-eval?value=${encodeURIComponent(v)}&ref=${encodeURIComponent(form.blood_lead_ref || 70)}`)
         .then(setLeadLive)
         .catch(() => setLeadLive(null));
     }, 250);
@@ -408,7 +488,7 @@ export function HealthPage({user}) {
       blood_lead_date: row.blood_lead_date || '',
       blood_lead_value: row.blood_lead_value ?? '',
       blood_lead_unit: row.blood_lead_unit || 'µg/dL',
-      blood_lead_ref: row.blood_lead_ref ?? '30',
+      blood_lead_ref: row.blood_lead_ref ?? '70',
       suggested_tests: row.suggested_tests || '',
       exposures: exp,
       follow_up_note: row.follow_up_note || '',
@@ -518,6 +598,14 @@ export function HealthPage({user}) {
     try { await downloadFile(`/health-records/export.xlsx?${companyQs()}`, 'saglik-gozetimi.xlsx'); }
     catch (err) { setMessage(err.message); }
   }
+  async function exportLeadXlsx() {
+    try {
+      const p = new URLSearchParams();
+      if (companyId) p.set('company_id', companyId);
+      p.set('lead_status', leadFilter || 'measured');
+      await downloadFile(`/health-records/lead-export.xlsx?${p.toString()}`, 'kan-kursunu-listesi.xlsx');
+    } catch (err) { setMessage(err.message); }
+  }
   async function exportAnalysis() {
     try { await downloadFile(`/health-records/analysis.txt?${companyQs()}`, 'saglik-analiz-raporu.txt'); }
     catch (err) { setMessage(err.message); }
@@ -579,8 +667,10 @@ export function HealthPage({user}) {
     ['Kısıtlamalar', detailRow.restrictions], ['Odyometri', `${detailRow.audiometry_date || ''} / ${detailRow.audiometry_result || ''}`],
     ['SFT', `${detailRow.spirometry_date || ''} / ${detailRow.spirometry_result || ''}`],
     ['Akciğer grafisi', `${detailRow.chest_xray_date || ''} / ${detailRow.chest_xray_result || ''}`],
-    ['Kan kurşun', `${detailRow.blood_lead_date || ''} / ${detailRow.blood_lead_value ?? ''} ${detailRow.blood_lead_unit || ''} / ref ${detailRow.blood_lead_ref ?? ''}`],
-    ['Kurşun değerlendirme', detailRow.blood_lead_eval], ['Önerilen tetkikler', detailRow.suggested_tests],
+    ['Kan kurşun', `${detailRow.blood_lead_date || ''} / ${detailRow.blood_lead_value ?? ''} ${detailRow.blood_lead_unit || ''} / sınır ${detailRow.blood_lead_limit ?? detailRow.blood_lead_ref ?? 70}`],
+    ['Kurşun değerlendirme', detailRow.blood_lead_status_label || detailRow.blood_lead_eval],
+    ['Tıbbi gözetim eşiği', detailRow.blood_lead_medical_threshold != null ? `>${detailRow.blood_lead_medical_threshold} µg Pb/100 ml kan` : null],
+    ['Önerilen tetkikler', detailRow.suggested_tests],
     ['Maruziyetler', Array.isArray(detailRow.exposures) ? detailRow.exposures.join(', ') : detailRow.exposures],
     ['Takip notu', detailRow.follow_up_note], ['Diğer biyolojik tetkik', detailRow.other_biological_test],
     ['Akıllı özet', detailRow.smart_summary], ['Tetkik özeti', detailRow.tetkik_summary],
@@ -642,6 +732,7 @@ export function HealthPage({user}) {
                 setRows([]);
                 setSummary(null);
                 setAnalysis(null);
+                setLeadSummary(null);
                 setForm((f) => ({...f, company_id: next, employee_id: ''}));
               }}
             >
@@ -672,6 +763,14 @@ export function HealthPage({user}) {
             <option value="">Tüm kayıtlar</option>
             <option value="1">Yalnız geciken</option>
           </Select>
+          <Select label="Kan kurşunu" value={leadFilter} onChange={(e) => setLeadFilter(e.target.value)}>
+            <option value="">Kurşun filtresi yok</option>
+            <option value="measured">Ölçümü olanlar</option>
+            <option value="surveillance">Tıbbi gözetim eşiğini aşanlar (&gt;{leadLimits.medical_surveillance_limit})</option>
+            <option value="over_limit">Bağlayıcı sınırı aşanlar (&gt;{leadLimits.binding_limit})</option>
+            <option value="critical">Kritik sınır aşımı (&gt;{Number(leadLimits.binding_limit || 70) * 1.5})</option>
+            <option value="missing">Maruziyet var, sonuç yok</option>
+          </Select>
         </div>
         {message && <p style={{marginTop: 12, color: '#b91c1c'}}>{message}</p>}
       </section>
@@ -690,14 +789,61 @@ export function HealthPage({user}) {
             </strong>
           </article>
         ) : (
-          <article className="metric"><span>Kurşun yüksek</span><strong style={{color: '#b91c1c'}}>{summary?.lead_high ?? '—'}</strong></article>
+          <article className="metric"><span>Kurşun sınırı aşan</span><strong style={{color: '#b91c1c'}}>{summary?.lead_over_limit ?? '—'}</strong></article>
+        )}
+        {isEmployerView && (
+          <article className="metric">
+            <span>Kurşun sınırı aşan</span>
+            <strong style={{color: '#b91c1c'}}>{summary?.lead_over_limit ?? '—'}</strong>
+          </article>
         )}
       </div>
+
+      {showLeadTracking && (
+        <section className="panel" style={{marginBottom: 16, borderColor: '#fcd34d', background: '#fffbeb'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
+            <div>
+              <h3 style={{margin: 0, display: 'flex', alignItems: 'center', gap: 8}}>
+                <AlertTriangle size={19} color="#b45309" /> Kan kurşunu takibi
+              </h3>
+              <p style={{margin: '6px 0 0', color: '#78350f', fontSize: 13}}>
+                Bağlayıcı biyolojik sınır: <strong>{leadLimits.binding_limit} {leadLimits.unit}</strong> ·
+                {' '}tıbbi gözetim eşiği: <strong>&gt;{leadLimits.medical_surveillance_limit} {leadLimits.unit}</strong>.
+              </p>
+            </div>
+            <small style={{maxWidth: 420, color: '#92400e'}}>{leadLimits.source}</small>
+          </div>
+          <div className="cards" style={{marginTop: 14}}>
+            <article className="metric"><span>Ölçümü olan</span><strong>{leadCounts.measured ?? summary?.with_blood_lead ?? 0}</strong></article>
+            <article className="metric"><span>Tıbbi gözetim</span><strong style={{color: '#b45309'}}>{leadCounts.surveillance ?? summary?.lead_medical_surveillance ?? 0}</strong></article>
+            <article className="metric"><span>Sınırı aşan</span><strong style={{color: '#b91c1c'}}>{leadCounts.over_limit ?? summary?.lead_over_limit ?? 0}</strong></article>
+            <article className="metric"><span>Sonuç eksik</span><strong style={{color: '#64748b'}}>{leadCounts.missing ?? 0}</strong></article>
+          </div>
+          {(Number(leadCounts.over_limit ?? summary?.lead_over_limit ?? 0) > 0) && (
+            <div style={{marginTop: 12, padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 700}}>
+              Uyarı: bağlayıcı kan kurşunu sınırını aşan kayıtlar var. İş yeri hekimi değerlendirmesi ve gerekli sağlık gözetimi planlanmalıdır.
+            </div>
+          )}
+          <div className="actions" style={{marginTop: 12, gap: 8}}>
+            <button type="button" onClick={() => setTab('kurşun')}>
+              Kan kurşunu toplu listesini aç ({leadCounts.measured ?? summary?.with_blood_lead ?? 0})
+            </button>
+            <button type="button" className="secondary" onClick={exportLeadXlsx}>
+              <Download size={15} /> Kurşun Excel indir
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="actions" style={{marginBottom: 12, gap: 8}}>
         <button type="button" className={tab === 'kayitlar' ? '' : 'secondary'} onClick={() => setTab('kayitlar')}>
           <HeartPulse size={16} /> Kayıtlar
         </button>
+        {showLeadTracking && (
+          <button type="button" className={tab === 'kurşun' ? '' : 'secondary'} onClick={() => setTab('kurşun')}>
+            Kan Kurşunu Takibi
+          </button>
+        )}
         {isPhysician && (
           <button type="button" className={tab === 'analiz' ? '' : 'secondary'} onClick={() => setTab('analiz')}>
             Sağlık Analiz Merkezi
@@ -705,7 +851,27 @@ export function HealthPage({user}) {
         )}
       </div>
 
-      {tab === 'analiz' ? (
+      {tab === 'kurşun' ? (
+        <section className="panel">
+          <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12}}>
+            <div>
+              <h3 style={{margin: 0}}>Kan kurşunu toplu listesi</h3>
+              <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 13}}>
+                Bağlayıcı sınır: <strong>{leadLimits.binding_limit} {leadLimits.unit}</strong> ·
+                {' '}tıbbi gözetim: <strong>&gt;{leadLimits.medical_surveillance_limit} {leadLimits.unit}</strong>.
+              </p>
+            </div>
+            <button type="button" className="secondary" onClick={exportLeadXlsx}><Download size={15} /> Excel indir</button>
+          </div>
+          {Number(leadCounts.over_limit || 0) > 0 && (
+            <div style={{marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 700}}>
+              <AlertTriangle size={15} style={{verticalAlign: 'text-bottom', marginRight: 6}} />
+              Sınırı aşan {leadCounts.over_limit} kayıt var; işyeri hekimi değerlendirmesi gerekir.
+            </div>
+          )}
+          <LeadTable rows={leadSummary?.items || []} empty={leadFilter === 'missing' ? 'Kurşun maruziyeti görünen ancak sonucu olmayan kayıt yok.' : 'Kan kurşunu ölçümü bulunamadı.'} />
+        </section>
+      ) : tab === 'analiz' ? (
         <>
           <section className="panel" style={{marginBottom: 12}}>
             <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
@@ -719,9 +885,9 @@ export function HealthPage({user}) {
             </div>
             <div className="cards" style={{marginTop: 14}}>
               <article className="metric"><span>Kurşun ölçümü</span><strong>{analysis?.total_lead ?? 0}</strong></article>
-              <article className="metric"><span>≥30 µg/dL</span><strong style={{color: '#d97706'}}>{analysis?.over30?.length ?? 0} ({analysis?.pct30 ?? 0}%)</strong></article>
-              <article className="metric"><span>≥40</span><strong style={{color: '#b91c1c'}}>{analysis?.over40?.length ?? 0} ({analysis?.pct40 ?? 0}%)</strong></article>
-              <article className="metric"><span>≥45</span><strong style={{color: '#991b1b'}}>{analysis?.over45?.length ?? 0} ({analysis?.pct45 ?? 0}%)</strong></article>
+              <article className="metric"><span>&gt;{analysis?.lead_limits?.medical_surveillance_limit ?? leadLimits.medical_surveillance_limit} tıbbi gözetim</span><strong style={{color: '#d97706'}}>{analysis?.over_medical?.length ?? 0} ({analysis?.pct_medical ?? 0}%)</strong></article>
+              <article className="metric"><span>&gt;{analysis?.lead_limits?.binding_limit ?? leadLimits.binding_limit} sınır</span><strong style={{color: '#b91c1c'}}>{analysis?.over_limit?.length ?? 0} ({analysis?.pct_limit ?? 0}%)</strong></article>
+              <article className="metric"><span>Kritik</span><strong style={{color: '#991b1b'}}>{analysis?.over_critical?.length ?? 0} ({analysis?.pct_critical ?? 0}%)</strong></article>
             </div>
             <div className="cards" style={{marginTop: 12}}>
               {(analysis?.ranges || []).map((r) => (
@@ -729,7 +895,7 @@ export function HealthPage({user}) {
               ))}
             </div>
           </section>
-          <MiniTable title="≥30 Kurşun listesi" rows={analysis?.over30} />
+          <MiniTable title={`>${analysis?.lead_limits?.binding_limit ?? leadLimits.binding_limit} sınırı aşan kurşun listesi`} rows={analysis?.over_limit} />
           <MiniTable title="Odyometri takip" rows={analysis?.odyo_follow} />
           <MiniTable title="SFT takip" rows={analysis?.sft_follow} />
           <MiniTable title="Akciğer takip" rows={analysis?.chest_follow} />
@@ -748,6 +914,7 @@ export function HealthPage({user}) {
                   <th>Sonraki</th>
                   <th>Hekim</th>
                   <th>{isEmployerView ? 'Sağlık bilgileri' : 'Tetkik'}</th>
+                  <th>Kan kurşunu</th>
                   {!isEmployerView && <th>Akıllı özet</th>}
                   <th>Durum</th>
                   <th>İşlem</th>
@@ -769,6 +936,7 @@ export function HealthPage({user}) {
                         ? (r.restrictions || 'Kısıtlama bildirilmemiştir.')
                         : (r.tetkik_summary || '—')}
                     </td>
+                    <td><LeadStatusBadge row={r} /></td>
                     {!isEmployerView && <td style={{fontSize: 12, maxWidth: 200}}>{r.smart_summary || '—'}</td>}
                     <td>{fitnessBadge(r.fitness_status, r.is_overdue, !isPhysician && !isEmployerView)}</td>
                     <td>
@@ -791,7 +959,7 @@ export function HealthPage({user}) {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={isEmployerView ? 8 : 9} className="empty">
+                    <td colSpan={isEmployerView ? 9 : 10} className="empty">
                       {isEmployerView
                         ? 'Sağlık kaydı bulunamadı.'
                         : 'Kayıt yok. Yeni muayene ekleyebilirsiniz.'}
@@ -912,10 +1080,13 @@ export function HealthPage({user}) {
             {isPhysician && <Field label="Akciğer sonuç" value={form.chest_xray_result} onChange={(e) => setForm({...form, chest_xray_result: e.target.value})} />}
             <Field label="Kan kurşun tarihi" type="date" value={form.blood_lead_date} onChange={(e) => setForm({...form, blood_lead_date: e.target.value})} />
             <Field label="Kan kurşun değer" type="number" step="0.1" value={form.blood_lead_value} onChange={(e) => setForm({...form, blood_lead_value: e.target.value})} />
-            <Field label="Birim" value={form.blood_lead_unit} onChange={(e) => setForm({...form, blood_lead_unit: e.target.value})} />
-            <Field label="Referans" type="number" step="0.1" value={form.blood_lead_ref} onChange={(e) => setForm({...form, blood_lead_ref: e.target.value})} />
+            <Field label="Birim (µg/dL = µg/100 ml)" value={form.blood_lead_unit} onChange={(e) => setForm({...form, blood_lead_unit: e.target.value})} />
+            <Field label="Bağlayıcı sınır" type="number" step="0.1" value={form.blood_lead_ref} onChange={(e) => setForm({...form, blood_lead_ref: e.target.value})} />
+            <div style={{gridColumn: '1/-1', padding: '10px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', fontSize: 12}}>
+              Varsayılan mevzuat eşiği: <strong>{leadLimits.binding_limit} {leadLimits.unit}</strong> bağlayıcı sınır; <strong>&gt;{leadLimits.medical_surveillance_limit} {leadLimits.unit}</strong> tıbbi gözetim uyarısıdır. Laboratuvarın farklı bir standardı varsa kayda özel bağlayıcı sınırı hekim belirleyebilir.
+            </div>
             {leadLive?.code && (
-              <div style={{gridColumn: '1/-1', fontSize: 13, color: leadLive.code === 'normal' ? '#166534' : '#9a3412'}}>
+              <div style={{gridColumn: '1/-1', fontSize: 13, color: leadLive.code === 'normal' ? '#166534' : leadLive.code === 'izlem' ? '#b45309' : '#b91c1c'}}>
                 Canlı kurşun değerlendirme: <strong>{leadLive.label}</strong>
               </div>
             )}

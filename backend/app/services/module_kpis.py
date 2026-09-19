@@ -15,12 +15,13 @@ from app.models.entities import (
     TrainingSession,
     TrainingStatus,
 )
+from app.services.health_meta import lead_limit_for
 
 
 def _lead_high(record: HealthRecord) -> bool:
     return record.blood_lead_eval in ("yuksek", "kritik") or (
         record.blood_lead_value is not None
-        and (record.blood_lead_ref or 30) < record.blood_lead_value
+        and record.blood_lead_value > lead_limit_for(record.blood_lead_ref)
     )
 
 

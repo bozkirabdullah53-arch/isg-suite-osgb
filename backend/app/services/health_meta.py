@@ -5,6 +5,42 @@ import calendar
 from datetime import date, timedelta
 from typing import Any
 
+# Türkiye'de yürürlükteki Kimyasal Maddelerle Çalışmalarda Sağlık ve
+# Güvenlik Önlemleri Hakkında Yönetmelik Ek-2'deki PbB eşikleri. Değerler
+# kayda yazılabildiği için geçmiş ölçümlerde kullanılan özel referans da
+# korunur; boş/uygunsuz referans yeni kayıtlarda bu varsayılanlara döner.
+LEAD_UNIT = "µg Pb/100 ml kan"
+LEAD_DEFAULT_BINDING_LIMIT = 70.0
+LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT = 40.0
+LEAD_SOURCE = "Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik, Ek-2"
+LEAD_SOURCE_DATE = "12.08.2013; 20.10.2023 değişikliği"
+
+
+def lead_limit_for(ref: float | None = None) -> float:
+    """Return the binding blood-lead limit used for a record."""
+    try:
+        value = float(ref) if ref is not None else LEAD_DEFAULT_BINDING_LIMIT
+    except (TypeError, ValueError):
+        value = LEAD_DEFAULT_BINDING_LIMIT
+    return value if value > 0 else LEAD_DEFAULT_BINDING_LIMIT
+
+
+def lead_medical_surveillance_limit_for(ref: float | None = None) -> float:
+    """Return the medical-surveillance trigger without exceeding the limit."""
+    return min(LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT, lead_limit_for(ref))
+
+
+def lead_limit_info(ref: float | None = None) -> dict[str, Any]:
+    binding = lead_limit_for(ref)
+    return {
+        "binding_limit": binding,
+        "medical_surveillance_limit": lead_medical_surveillance_limit_for(ref),
+        "unit": LEAD_UNIT,
+        "source": LEAD_SOURCE,
+        "source_date": LEAD_SOURCE_DATE,
+        "note": "Bağlayıcı sınır aşıldığında işyeri hekimi değerlendirmesi ve gerekli sağlık gözetimi başlatılmalıdır.",
+    }
+
 # PRO SAGLIK_MARUZIYET_LISTESI
 EXPOSURE_OPTIONS = [
     "Kurşun",
@@ -196,32 +232,53 @@ def default_next_exam(
         return exam_date + timedelta(days=365 * years)
 
 
-def evaluate_blood_lead(value: float | None, ref: float | None = None) -> str | None:
+def lead_status_code(value: float | None, ref: float | None = None) -> str | None:
     if value is None:
         return None
-    limit = ref if ref is not None else 30.0
+    limit = lead_limit_for(ref)
+    surveillance_limit = lead_medical_surveillance_limit_for(ref)
     if value > limit * 1.5:
-        return "kritik"
+        return "critical"
     if value > limit:
-        return "yuksek"
-    if value > limit * 0.8:
-        return "izlem"
+        return "over_limit"
+    if value > surveillance_limit:
+        return "surveillance"
     return "normal"
 
 
-def lead_status_label(value: float | None) -> tuple[str, str]:
-    """PRO saglik_analiz_status."""
-    if value is None:
+def evaluate_blood_lead(value: float | None, ref: float | None = None) -> str | None:
+    """Persisted evaluation code used by old and new health records."""
+    return {
+        "critical": "kritik",
+        "over_limit": "yuksek",
+        "surveillance": "izlem",
+        "normal": "normal",
+    }.get(lead_status_code(value, ref) or "")
+
+
+def lead_status_label(value: float | None, ref: float | None = None) -> tuple[str, str]:
+    """Return a user-facing label and visual tone for a blood-lead result."""
+    code = lead_status_code(value, ref)
+    if code is None:
         return ("Eksik", "gray")
-    if value >= 45:
-        return ("Acil değerlendirme", "red")
-    if value >= 40:
-        return ("Kritik", "red")
-    if value >= 30:
-        return ("Yüksek / takip", "orange")
-    if value >= 20:
-        return ("Yakın takip", "yellow")
+    if code == "critical":
+        return ("Kritik — sınır aşımı", "red")
+    if code == "over_limit":
+        return ("Sınır aşıldı", "red")
+    if code == "surveillance":
+        return ("Tıbbi gözetim", "orange")
     return ("Normal", "green")
+
+
+def lead_exposure_hint(record: Any, employee: Any | None = None) -> bool:
+    """Whether the record/person appears to involve lead exposure."""
+    text = _norm(
+        f"{getattr(employee, 'job_title', '') if employee else ''} "
+        f"{getattr(employee, 'department', '') if employee else ''} "
+        f"{getattr(record, 'exposures', '') or ''} "
+        f"{getattr(record, 'suggested_tests', '') or ''}"
+    )
+    return any(marker in text for marker in ("kursun", "aku", "plaka", "sarj"))
 
 
 def _text_has_follow_keywords(text: str, keys: list[str]) -> bool:
@@ -293,6 +350,10 @@ def build_analysis_payload(
     for r in records:
         emp = employees.get(r.employee_id)
         val = r.blood_lead_value
+        limit = lead_limit_for(r.blood_lead_ref)
+        medical_limit = lead_medical_surveillance_limit_for(r.blood_lead_ref)
+        lead_code = lead_status_code(val, r.blood_lead_ref)
+        lead_label, lead_tone = lead_status_label(val, r.blood_lead_ref)
         row = {
             "id": r.id,
             "employee_id": r.employee_id,
@@ -302,9 +363,13 @@ def build_analysis_payload(
             "blood_lead_date": r.blood_lead_date.isoformat() if r.blood_lead_date else None,
             "blood_lead_value": val,
             "blood_lead_unit": r.blood_lead_unit or "µg/dL",
+            "blood_lead_limit": limit,
+            "blood_lead_medical_threshold": medical_limit,
             "blood_lead_eval": r.blood_lead_eval,
-            "lead_label": lead_status_label(val)[0],
-            "lead_tone": lead_status_label(val)[1],
+            "blood_lead_status": lead_code,
+            "blood_lead_exceeds_limit": bool(val is not None and val > limit),
+            "lead_label": lead_label,
+            "lead_tone": lead_tone,
             "examination_date": r.examination_date.isoformat() if r.examination_date else None,
             "smart_summary": smart_summary(r, emp),
         }
@@ -334,15 +399,17 @@ def build_analysis_payload(
         return round(n / total_lead * 100, 1) if total_lead else 0.0
 
     ranges = [
-        {"label": "0–20", "count": sum(1 for x in lead_records if (x["blood_lead_value"] or 0) < 20), "items": [x for x in lead_records if (x["blood_lead_value"] or 0) < 20]},
-        {"label": "20–30", "count": sum(1 for x in lead_records if 20 <= (x["blood_lead_value"] or 0) < 30), "items": [x for x in lead_records if 20 <= (x["blood_lead_value"] or 0) < 30]},
-        {"label": "30–40", "count": sum(1 for x in lead_records if 30 <= (x["blood_lead_value"] or 0) < 40), "items": [x for x in lead_records if 30 <= (x["blood_lead_value"] or 0) < 40]},
-        {"label": "40–45", "count": sum(1 for x in lead_records if 40 <= (x["blood_lead_value"] or 0) < 45), "items": [x for x in lead_records if 40 <= (x["blood_lead_value"] or 0) < 45]},
-        {"label": "45+", "count": sum(1 for x in lead_records if (x["blood_lead_value"] or 0) >= 45), "items": [x for x in lead_records if (x["blood_lead_value"] or 0) >= 45]},
+        {"label": "0–40", "count": sum(1 for x in lead_records if (x["blood_lead_value"] or 0) <= LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT), "items": [x for x in lead_records if (x["blood_lead_value"] or 0) <= LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT]},
+        {"label": "40–70", "count": sum(1 for x in lead_records if LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT < (x["blood_lead_value"] or 0) <= LEAD_DEFAULT_BINDING_LIMIT), "items": [x for x in lead_records if LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT < (x["blood_lead_value"] or 0) <= LEAD_DEFAULT_BINDING_LIMIT]},
+        {"label": "70–105", "count": sum(1 for x in lead_records if LEAD_DEFAULT_BINDING_LIMIT < (x["blood_lead_value"] or 0) <= LEAD_DEFAULT_BINDING_LIMIT * 1.5), "items": [x for x in lead_records if LEAD_DEFAULT_BINDING_LIMIT < (x["blood_lead_value"] or 0) <= LEAD_DEFAULT_BINDING_LIMIT * 1.5]},
+        {"label": "105+", "count": sum(1 for x in lead_records if (x["blood_lead_value"] or 0) > LEAD_DEFAULT_BINDING_LIMIT * 1.5), "items": [x for x in lead_records if (x["blood_lead_value"] or 0) > LEAD_DEFAULT_BINDING_LIMIT * 1.5]},
     ]
     over30 = [x for x in lead_records if (x["blood_lead_value"] or 0) >= 30]
     over40 = [x for x in lead_records if (x["blood_lead_value"] or 0) >= 40]
     over45 = [x for x in lead_records if (x["blood_lead_value"] or 0) >= 45]
+    over_medical = [x for x in lead_records if (x["blood_lead_value"] or 0) > x["blood_lead_medical_threshold"]]
+    over_limit = [x for x in lead_records if x["blood_lead_exceeds_limit"]]
+    over_critical = [x for x in lead_records if x["blood_lead_status"] == "critical"]
 
     covered_emp_ids = {r.employee_id for r in records}
     missing_employees = []
@@ -365,6 +432,13 @@ def build_analysis_payload(
         "total_records": len(records),
         "total_employees": len(all_employees or []),
         "total_lead": total_lead,
+        "lead_limits": lead_limit_info(),
+        "over_medical": over_medical,
+        "over_limit": over_limit,
+        "over_critical": over_critical,
+        "pct_medical": pct(len(over_medical)),
+        "pct_limit": pct(len(over_limit)),
+        "pct_critical": pct(len(over_critical)),
         "over30": over30,
         "over40": over40,
         "over45": over45,

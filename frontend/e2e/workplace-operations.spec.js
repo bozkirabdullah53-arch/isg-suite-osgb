@@ -72,6 +72,42 @@ async function setup(page, {
       with_blood_lead: null,
       lead_high: null,
     });
+    if (path === '/health-records/lead-summary') {
+      const leadLimit = 70;
+      const medicalThreshold = 40;
+      const measured = healthRows.filter((row) => row.blood_lead_value != null);
+      const overLimit = measured.filter((row) => Number(row.blood_lead_value) > leadLimit);
+      const surveillance = measured.filter((row) => Number(row.blood_lead_value) > medicalThreshold);
+      const status = new URL(request.url()).searchParams.get('lead_status') || 'measured';
+      const items = measured.filter((row) => (
+        status === 'measured' || status === 'with'
+          ? true
+          : status === 'surveillance' || status === 'medical'
+            ? Number(row.blood_lead_value) > medicalThreshold
+            : status === 'over_limit' || status === 'over'
+              ? Number(row.blood_lead_value) > leadLimit
+              : status === 'critical'
+                ? Number(row.blood_lead_value) > 105
+                : true
+      )).map((row) => ({
+        ...row,
+        blood_lead_limit: row.blood_lead_limit ?? leadLimit,
+        blood_lead_limit_unit: 'µg Pb/100 ml kan',
+        blood_lead_medical_threshold: row.blood_lead_medical_threshold ?? medicalThreshold,
+        blood_lead_status_label: row.blood_lead_status_label || (Number(row.blood_lead_value) > leadLimit ? 'Sınır aşıldı' : Number(row.blood_lead_value) > medicalThreshold ? 'Tıbbi gözetim' : 'Normal'),
+        blood_lead_exceeds_limit: Number(row.blood_lead_value) > leadLimit,
+      }));
+      return json(route, {
+        company_id: company.id,
+        lead_status: status,
+        limits: {binding_limit: leadLimit, medical_surveillance_limit: medicalThreshold, unit: 'µg Pb/100 ml kan'},
+        counts: {measured: measured.length, surveillance: surveillance.length, over_limit: overLimit.length, critical: measured.filter((row) => Number(row.blood_lead_value) > 105).length, missing: 0},
+        items,
+      });
+    }
+    if (path === '/health-records/lead-export.xlsx') {
+      return route.fulfill({status: 200, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: 'PK mock lead export'});
+    }
     if (path === '/health-records/meta') return json(route, {
       record_types: [{code: 'periodic_exam', label: 'Periyodik Muayene'}],
       fitness_statuses: [{code: 'conditional', label: 'Kısıtlı / Şartlı'}],
@@ -247,6 +283,53 @@ test('workplace manager sees every own employee health record in a full read-onl
   }
   await expect(detail.getByRole('button', {name: 'Raporu İndir'})).toBeVisible();
   await expect(detail.getByRole('button', {name: 'Sayfayı İndir'})).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
+
+test('workplace manager sees the scoped blood-lead warning and bulk register', async ({page}) => {
+  const state = await setup(page, {
+    email: 'yetkili@example.com',
+    employees: [{
+      id: 102,
+      company_id: company.id,
+      full_name: 'Mehmet Akücü',
+      job_title: 'Akü operatörü',
+      department: 'Üretim',
+      is_active: true,
+    }],
+    healthRows: [{
+      id: 502,
+      company_id: company.id,
+      employee_id: 102,
+      employee_name: 'Mehmet Akücü',
+      job_title: 'Akü operatörü',
+      department: 'Üretim',
+      record_type: 'periodic_exam',
+      examination_date: '2026-09-01',
+      next_examination_date: '2027-09-01',
+      fitness_status: 'fit',
+      physician_name: 'Dr. Hekim',
+      restrictions: '',
+      blood_lead_date: '2026-09-01',
+      blood_lead_value: 74,
+      blood_lead_unit: 'µg/dL',
+      blood_lead_limit: 70,
+      blood_lead_status_label: 'Sınır aşıldı',
+      blood_lead_exceeds_limit: true,
+      is_overdue: false,
+    }],
+  });
+
+  await page.goto('/#m=health');
+  const content = page.locator('main.content');
+  await expect(content.getByText('Kan kurşunu takibi')).toBeVisible();
+  await expect(content.getByText(/Bağlayıcı biyolojik sınır: 70/)).toBeVisible();
+  await expect(content.getByText(/Uyarı: bağlayıcı kan kurşunu sınırını aşan/)).toBeVisible();
+  await expect(content.getByText('Sınır aşıldı', {exact: true}).first()).toBeVisible();
+  await content.getByRole('button', {name: /Kan kurşunu toplu listesini aç/}).click();
+  await expect(content.getByRole('heading', {name: 'Kan kurşunu toplu listesi'})).toBeVisible();
+  await expect(content.locator('tbody tr').filter({hasText: 'Mehmet Akücü'})).toHaveCount(1);
+  await expect(content.getByRole('button', {name: 'Excel indir'})).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 

@@ -56,10 +56,19 @@ from app.services.health_audit import (
 )
 from app.services.health_meta import (
     EXPOSURE_OPTIONS,
+    LEAD_DEFAULT_BINDING_LIMIT,
+    LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT,
+    LEAD_UNIT,
     MESLEK_TETKIK,
     build_analysis_payload,
     default_next_exam,
     evaluate_blood_lead,
+    lead_exposure_hint,
+    lead_limit_for,
+    lead_limit_info,
+    lead_medical_surveillance_limit_for,
+    lead_status_code,
+    lead_status_label,
     smart_summary,
     suggest_for_job,
     tetkik_summary,
@@ -192,6 +201,19 @@ def _to_response(
     today = date.today()
     overdue = bool(row.next_examination_date and row.next_examination_date < today)
     view = DecryptedRecordView(row)
+    lead_limit = lead_limit_for(row.blood_lead_ref)
+    lead_medical_threshold = lead_medical_surveillance_limit_for(row.blood_lead_ref)
+    lead_status = lead_status_code(row.blood_lead_value, row.blood_lead_ref)
+    lead_label = lead_status_label(row.blood_lead_value, row.blood_lead_ref)[0]
+    lead_fields = {
+        "blood_lead_limit": lead_limit,
+        "blood_lead_medical_threshold": lead_medical_threshold,
+        "blood_lead_status": lead_status,
+        "blood_lead_status_label": lead_label,
+        "blood_lead_exceeds_limit": bool(
+            row.blood_lead_value is not None and row.blood_lead_value > lead_limit
+        ),
+    }
     if employer_view:
         # İşyeri yöneticisi kendi işyerindeki çalışanların sağlık kaydını
         # salt-okunur olarak tam veriyle görebilir. Yazma/silme yetkileri ve
@@ -226,6 +248,7 @@ def _to_response(
             blood_lead_unit=row.blood_lead_unit,
             blood_lead_ref=row.blood_lead_ref,
             blood_lead_eval=row.blood_lead_eval,
+            **lead_fields,
             suggested_tests=view.suggested_tests,
             exposures=view.exposures,
             follow_up_note=view.follow_up_note,
@@ -271,13 +294,21 @@ def _to_response(
         # taşımamalıdır. Kayıt ve dosya kapsamı yine atama + tenant ile korunur.
         data.fitness_status = None
         data.blood_lead_eval = None
+        data.blood_lead_status = None
+        data.blood_lead_status_label = None
+        data.blood_lead_exceeds_limit = False
         data.smart_summary = None
         data.tetkik_summary = None
+    else:
+        for key, value in lead_fields.items():
+            setattr(data, key, value)
     return data
 
 
 def _apply_lead_eval(record: HealthRecord) -> None:
     if record.blood_lead_value is not None:
+        if not record.blood_lead_ref or record.blood_lead_ref <= 0:
+            record.blood_lead_ref = LEAD_DEFAULT_BINDING_LIMIT
         record.blood_lead_eval = evaluate_blood_lead(record.blood_lead_value, record.blood_lead_ref)
         if not record.blood_lead_unit:
             record.blood_lead_unit = "µg/dL"
@@ -360,6 +391,54 @@ def _employees_map(db: Session, emp_ids: set[int]) -> dict[int, Employee]:
     }
 
 
+def _lead_filter_matches(record: HealthRecord, employee: Employee | None, lead_status: str | None) -> bool:
+    """Apply the same lead filters to the table, summary and Excel export."""
+    if not lead_status or lead_status in ("all", "tumu"):
+        return True
+    value = record.blood_lead_value
+    limit = lead_limit_for(record.blood_lead_ref)
+    surveillance_limit = lead_medical_surveillance_limit_for(record.blood_lead_ref)
+    if lead_status in ("measured", "with"):
+        return value is not None
+    if lead_status in ("surveillance", "medical"):
+        return value is not None and value > surveillance_limit
+    if lead_status in ("over_limit", "over"):
+        return value is not None and value > limit
+    if lead_status == "critical":
+        return value is not None and value > limit * 1.5
+    if lead_status == "missing":
+        return value is None and lead_exposure_hint(DecryptedRecordView(record), employee)
+    return False
+
+
+def _lead_item(record: HealthRecord, employee: Employee | None) -> dict:
+    limit = lead_limit_for(record.blood_lead_ref)
+    medical_threshold = lead_medical_surveillance_limit_for(record.blood_lead_ref)
+    status = lead_status_code(record.blood_lead_value, record.blood_lead_ref)
+    label, tone = lead_status_label(record.blood_lead_value, record.blood_lead_ref)
+    return {
+        "id": record.id,
+        "company_id": record.company_id,
+        "employee_id": record.employee_id,
+        "employee_name": employee.full_name if employee else f"#{record.employee_id}",
+        "job_title": employee.job_title if employee else None,
+        "department": employee.department if employee else None,
+        "blood_lead_date": record.blood_lead_date.isoformat() if record.blood_lead_date else None,
+        "blood_lead_value": record.blood_lead_value,
+        "blood_lead_unit": record.blood_lead_unit or "µg/dL",
+        "blood_lead_limit": limit,
+        "blood_lead_limit_unit": LEAD_UNIT,
+        "blood_lead_medical_threshold": medical_threshold,
+        "blood_lead_status": status,
+        "blood_lead_status_label": label,
+        "blood_lead_tone": tone,
+        "blood_lead_exceeds_limit": bool(
+            record.blood_lead_value is not None and record.blood_lead_value > limit
+        ),
+        "examination_date": record.examination_date.isoformat() if record.examination_date else None,
+    }
+
+
 @router.get("/meta")
 def health_meta(user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES))):
     _ = user
@@ -383,6 +462,7 @@ def health_meta(user: User = Depends(require_roles_or_workplace_manager(*HEALTH_
             "yuksek": "Yüksek",
             "kritik": "Kritik",
         },
+        "lead_limits": lead_limit_info(),
     }
 
 
@@ -420,13 +500,26 @@ def health_suggest(
 @router.get("/lead-eval")
 def health_lead_eval(
     value: float | None = None,
-    ref: float | None = 30,
+    ref: float | None = LEAD_DEFAULT_BINDING_LIMIT,
     user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     _ = user
     code = evaluate_blood_lead(value, ref)
-    labels = {"normal": "Normal", "izlem": "İzlem", "yuksek": "Yüksek", "kritik": "Kritik"}
-    return {"code": code, "label": labels.get(code or "", "—"), "value": value, "ref": ref}
+    labels = {
+        "normal": "Normal",
+        "izlem": "Tıbbi gözetim",
+        "yuksek": "Sınır aşıldı",
+        "kritik": "Kritik — sınır aşımı",
+    }
+    limit = lead_limit_for(ref)
+    return {
+        "code": code,
+        "label": labels.get(code or "", "—"),
+        "value": value,
+        "ref": limit,
+        "medical_threshold": lead_medical_surveillance_limit_for(ref),
+        "unit": LEAD_UNIT,
+    }
 
 
 @router.get("/summary")
@@ -441,11 +534,17 @@ def health_summary(
     today = date.today()
     soon = today + timedelta(days=30)
     items = _company_records(db, effective)
-    lead_high = sum(
+    lead_over_limit = sum(
         1
         for i in items
-        if i.blood_lead_eval in ("yuksek", "kritik")
-        or (i.blood_lead_value is not None and (i.blood_lead_ref or 30) < i.blood_lead_value)
+        if i.blood_lead_value is not None
+        and i.blood_lead_value > lead_limit_for(i.blood_lead_ref)
+    )
+    lead_surveillance = sum(
+        1
+        for i in items
+        if i.blood_lead_value is not None
+        and i.blood_lead_value > lead_medical_surveillance_limit_for(i.blood_lead_ref)
     )
     payload = {
         "company_id": effective,
@@ -462,10 +561,16 @@ def health_summary(
         "with_spirometry": sum(1 for i in items if i.spirometry_date or i.spirometry_result),
         "with_chest_xray": sum(1 for i in items if i.chest_xray_date or i.chest_xray_result),
         "with_blood_lead": sum(1 for i in items if i.blood_lead_value is not None),
-        "lead_high": lead_high,
+        "lead_high": lead_over_limit,
+        "lead_over_limit": lead_over_limit,
+        "lead_medical_surveillance": lead_surveillance,
+        "lead_limit": LEAD_DEFAULT_BINDING_LIMIT,
+        "lead_medical_threshold": LEAD_DEFAULT_MEDICAL_SURVEILLANCE_LIMIT,
+        "lead_unit": LEAD_UNIT,
+        "lead_source": lead_limit_info()["source"],
     }
     if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
-        for key in ("fit", "conditional", "tracking", "unfit", "lead_high"):
+        for key in ("fit", "conditional", "tracking", "unfit", "lead_high", "lead_over_limit", "lead_medical_surveillance"):
             payload[key] = None
     # İşyeri yöneticisi kendi işyerinin sağlık özetindeki tüm takip
     # metriklerini salt-okunur görebilir; veri burada olduğu gibi döner.
@@ -475,6 +580,146 @@ def health_summary(
     )
     db.commit()
     return payload
+
+
+@router.get("/lead-summary")
+def health_lead_summary(
+    request: Request,
+    company_id: int | None = None,
+    lead_status: str = Query(default="measured"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES)),
+):
+    """Return a company-scoped bulk blood-lead register and warning counts."""
+    valid = {
+        "all", "tumu", "measured", "with", "surveillance", "medical",
+        "over_limit", "over", "critical", "missing",
+    }
+    if lead_status not in valid:
+        raise HTTPException(status_code=422, detail="Geçersiz kurşun filtresi.")
+    effective = effective_company_id(db, user, company_id)
+    records = _company_records(db, effective)
+    employees = _employees_map(db, {r.employee_id for r in records})
+    items = []
+    counts = {"measured": 0, "surveillance": 0, "over_limit": 0, "critical": 0, "missing": 0}
+    for record in records:
+        employee = employees.get(record.employee_id)
+        view = DecryptedRecordView(record)
+        code = lead_status_code(record.blood_lead_value, record.blood_lead_ref)
+        if record.blood_lead_value is not None:
+            counts["measured"] += 1
+            if record.blood_lead_value > lead_medical_surveillance_limit_for(record.blood_lead_ref):
+                counts["surveillance"] += 1
+            if record.blood_lead_value > lead_limit_for(record.blood_lead_ref):
+                counts["over_limit"] += 1
+            if code == "critical":
+                counts["critical"] += 1
+        elif lead_exposure_hint(view, employee):
+            counts["missing"] += 1
+        if _lead_filter_matches(record, employee, lead_status):
+            if lead_status in ("all", "tumu") and record.blood_lead_value is None and not lead_exposure_hint(view, employee):
+                continue
+            items.append(_lead_item(record, employee))
+
+    employer_view = is_workplace_manager_account(user)
+    if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
+        counts = {key: None for key in counts}
+        for item in items:
+            item["blood_lead_status"] = None
+            item["blood_lead_status_label"] = None
+            item["blood_lead_tone"] = "gray"
+            item["blood_lead_exceeds_limit"] = False
+    append_health_access(
+        db,
+        actor=user,
+        company_id=effective,
+        action="lead_summary_view",
+        request=request,
+        metadata={"lead_status": lead_status, "returned_count": len(items), "employer_view": employer_view},
+    )
+    db.commit()
+    return {
+        "company_id": effective,
+        "lead_status": lead_status,
+        "limits": lead_limit_info(),
+        "counts": counts,
+        "items": items,
+    }
+
+
+@router.get("/lead-export.xlsx")
+def export_lead_xlsx(
+    request: Request,
+    company_id: int | None = None,
+    lead_status: str = Query(default="measured"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles_or_workplace_manager(*PHYSICIAN_ONLY)),
+):
+    """Export only the scoped blood-lead register, without unrelated clinical notes."""
+    if lead_status not in {
+        "all", "tumu", "measured", "with", "surveillance", "medical",
+        "over_limit", "over", "critical", "missing",
+    }:
+        raise HTTPException(status_code=422, detail="Geçersiz kurşun filtresi.")
+    effective = effective_company_id(db, user, company_id)
+    company = db.get(Company, effective)
+    records = _company_records(db, effective)
+    employees = _employees_map(db, {r.employee_id for r in records})
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Kan Kurşunu"
+    ws.append([
+        "Personel", "Görev", "Bölüm", "Kan kurşun tarihi", "Kan kurşun değeri",
+        "Birim", "Bağlayıcı sınır", "Tıbbi gözetim eşiği", "Durum", "Muayene tarihi",
+    ])
+    export_count = 0
+    for record in records:
+        employee = employees.get(record.employee_id)
+        if lead_status in ("all", "tumu"):
+            if record.blood_lead_value is None and not lead_exposure_hint(DecryptedRecordView(record), employee):
+                continue
+        elif not _lead_filter_matches(record, employee, lead_status):
+            continue
+        item = _lead_item(record, employee)
+        ws.append([
+            employee.full_name if employee else f"#{record.employee_id}",
+            employee.job_title if employee else "",
+            employee.department if employee else "",
+            item["blood_lead_date"] or "",
+            item["blood_lead_value"] if item["blood_lead_value"] is not None else "",
+            item["blood_lead_unit"],
+            f"{item['blood_lead_limit']} {item['blood_lead_limit_unit']}",
+            f"{item['blood_lead_medical_threshold']} {item['blood_lead_limit_unit']}",
+            item["blood_lead_status_label"],
+            item["examination_date"] or "",
+        ])
+        export_count += 1
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+    for column, width in zip("ABCDEFGHIJ", (28, 24, 22, 20, 20, 22, 28, 32, 28, 20)):
+        ws.column_dimensions[column].width = width
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    employer_view = is_workplace_manager_account(user)
+    append_health_access(
+        db,
+        actor=user,
+        company_id=effective,
+        action="lead_records_export",
+        request=request,
+        metadata={"format": "xlsx", "lead_status": lead_status, "record_count": export_count, "employer_view": employer_view},
+    )
+    db.commit()
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="kan-kursunu-listesi-{effective}.xlsx"'
+            )
+        },
+    )
 
 
 @router.get("/analysis")
@@ -527,7 +772,9 @@ def health_analysis_txt(
         f"Oluşturma: {datetime.utcnow().strftime('%d.%m.%Y %H:%M')}",
         "-" * 72,
         f"Toplam kayıt: {d['total_records']} | Personel: {d['total_employees']} | Kurşun ölçümü: {d['total_lead']}",
-        f">=30: {len(d['over30'])} ({d['pct30']}%) | >=40: {len(d['over40'])} ({d['pct40']}%) | >=45: {len(d['over45'])} ({d['pct45']}%)",
+        f">{d['lead_limits']['medical_surveillance_limit']} tıbbi gözetim: {len(d['over_medical'])} ({d['pct_medical']}%) | "
+        f">{d['lead_limits']['binding_limit']} bağlayıcı sınır: {len(d['over_limit'])} ({d['pct_limit']}%) | "
+        f"Kritik: {len(d['over_critical'])} ({d['pct_critical']}%)",
         "",
         "Kurşun aralıkları:",
     ]
@@ -570,6 +817,7 @@ def list_health_records(
     record_type: HealthRecordType | None = None,
     fitness_status: HealthFitnessStatus | None = None,
     overdue_only: bool = False,
+    lead_status: str | None = Query(default=None),
     q: str | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES)),
@@ -592,6 +840,11 @@ def list_health_records(
                 detail="Uygunluk kararı filtresi bu kullanıcı için kapalıdır.",
             )
         query = query.where(HealthRecord.fitness_status == fitness_status)
+    if lead_status and lead_status not in {
+        "all", "tumu", "measured", "with", "surveillance", "medical",
+        "over_limit", "over", "critical", "missing",
+    }:
+        raise HTTPException(status_code=422, detail="Geçersiz kurşun filtresi.")
     rows = list(db.scalars(query).all())
     employees = _employees_map(db, {r.employee_id for r in rows})
     today = date.today()
@@ -599,6 +852,8 @@ def list_health_records(
     out = []
     for r in rows:
         emp = employees.get(r.employee_id)
+        if not _lead_filter_matches(r, emp, lead_status):
+            continue
         if q:
             needle = q.casefold()
             view = DecryptedRecordView(r)
@@ -627,6 +882,7 @@ def list_health_records(
                 "returned_count": counts.get(cid, 0),
                 "masked": not include_conf,
                 "employer_view": employer_view,
+                "lead_status": lead_status,
             },
         )
     db.commit()
@@ -920,9 +1176,9 @@ def export_health_xlsx(
     wa = wb.create_sheet("Analiz")
     wa.append(["Firma", company.name if company else effective])
     wa.append(["Kurşun ölçümü", analysis["total_lead"]])
-    wa.append([">=30", len(analysis["over30"]), f"%{analysis['pct30']}"])
-    wa.append([">=40", len(analysis["over40"]), f"%{analysis['pct40']}"])
-    wa.append([">=45", len(analysis["over45"]), f"%{analysis['pct45']}"])
+    wa.append([f">{analysis['lead_limits']['medical_surveillance_limit']} tıbbi gözetim", len(analysis["over_medical"]), f"%{analysis['pct_medical']}"])
+    wa.append([f">{analysis['lead_limits']['binding_limit']} bağlayıcı sınır", len(analysis["over_limit"]), f"%{analysis['pct_limit']}"])
+    wa.append(["Kritik", len(analysis["over_critical"]), f"%{analysis['pct_critical']}"])
     wa.append([])
     wa.append(["Eksik personel (sağlık kaydı yok)"])
     wa.append(["Ad Soyad", "Görev", "Bölüm"])
