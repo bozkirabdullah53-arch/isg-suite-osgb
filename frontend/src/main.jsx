@@ -186,11 +186,11 @@ function modulesForUser(user){
   return roleModules[user?.role]||[];
 }
 
-/** Mobil alt bar: en sık 4 modül + «Menü» (çok satırlı ızgara içeriği kapatmasın). */
+/** Mobil alt bar: işyeri hesabında en sık kullanılan 4 modül + «Menü». */
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
-  workplace_manager:['workplace_home','employees','health','remote_training','ppe'],
+  workplace_manager:['workplace_home','employees','remote_training','ppe','health'],
   safety_specialist:['visit_notebook','visit_qr','field_inspection'],
   workplace_physician:['health','prescriptions','visit_notebook'],
   other_health_personnel:['field_pwa','visits','health','employees'],

@@ -31,20 +31,20 @@ describe('workplace user policy', () => {
       'workplace_status',
       'employer_oversight',
       'employees',
+      'personnel_training_records',
+      'remote_training',
       'ppe',
-      'sds',
       'periyodik_kontrol',
+      'sds',
       'ortam_olcum',
+      'tatbikat',
       'near_miss',
       'accident',
       'capa',
       'isg_kurulu',
-      'tatbikat',
-      'personnel_training_records',
-      'remote_training',
+      'health',
       'documents',
       'eyas_inbox',
-      'health',
       'workplace_backups',
       'site_qr_kiosk',
     ]);
@@ -60,6 +60,7 @@ describe('workplace user policy', () => {
     expect(workplaceMenuSection(manager, 'remote_training')).toBe('Personel ve Eğitim');
     expect(workplaceMenuSection(manager, 'workplace_home')).toBe('İşyeri Özeti');
     expect(workplaceMenuSection(manager, 'workplace_status')).toBe('İşyeri Özeti');
+    expect(workplaceMenuSection(manager, 'health')).toBe('Sağlık Bilgileri');
     expect(workplaceMenuSection({...manager, company_id: null}, 'ppe')).toBe('');
   });
 
