@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
@@ -303,8 +303,54 @@ def build_company_overview(db: Session, company: Company) -> dict:
             select(FinanceTransaction)
             .where(FinanceTransaction.company_id == cid)
             .order_by(FinanceTransaction.transaction_date.desc(), FinanceTransaction.id.desc())
-            .limit(6)
+            .limit(8)
         ).all()
+    )
+    finance_scope = [FinanceTransaction.company_id == cid]
+
+    def finance_sum(*criteria) -> int:
+        return int(
+            db.scalar(
+                select(func.coalesce(func.sum(FinanceTransaction.amount), 0)).where(
+                    *finance_scope, *criteria
+                )
+            )
+            or 0
+        )
+
+    def finance_count() -> int:
+        return int(
+            db.scalar(
+                select(func.count()).select_from(FinanceTransaction).where(*finance_scope)
+            )
+            or 0
+        )
+
+    income_active = [FinanceTransaction.transaction_type == "income", FinanceTransaction.status != "cancelled"]
+    expense_active = [FinanceTransaction.transaction_type == "expense", FinanceTransaction.status != "cancelled"]
+    receivable = [FinanceTransaction.transaction_type == "income", FinanceTransaction.status.in_(("pending", "overdue"))]
+    overdue_receivable = [
+        *receivable,
+        or_(
+            FinanceTransaction.status == "overdue",
+            and_(FinanceTransaction.status == "pending", FinanceTransaction.due_date < today),
+        ),
+    ]
+    due_soon_receivable = [
+        FinanceTransaction.transaction_type == "income",
+        FinanceTransaction.status == "pending",
+        FinanceTransaction.due_date.between(today, soon),
+    ]
+    paid_income = finance_sum(FinanceTransaction.transaction_type == "income", FinanceTransaction.status == "paid")
+    paid_expense = finance_sum(FinanceTransaction.transaction_type == "expense", FinanceTransaction.status == "paid")
+    income_accrued = finance_sum(*income_active)
+    expense_total = finance_sum(*expense_active)
+    receivable_total = finance_sum(*receivable)
+    overdue_receivable_total = finance_sum(*overdue_receivable)
+    due_soon_receivable_total = finance_sum(*due_soon_receivable)
+    pending_expense_total = finance_sum(
+        FinanceTransaction.transaction_type == "expense",
+        FinanceTransaction.status.in_(("pending", "overdue")),
     )
     finance_summary = {
         "recent": [
@@ -312,6 +358,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
                 "id": f.id,
                 "description": f.description,
                 "transaction_type": f.transaction_type,
+                "category": f.category,
                 "amount": f.amount,
                 "status": f.status,
                 "transaction_date": f.transaction_date.isoformat() if f.transaction_date else None,
@@ -326,6 +373,19 @@ def build_company_overview(db: Session, company: Company) -> dict:
             )
         )
         or 0,
+        "summary": {
+            "transaction_count": finance_count(),
+            "income_accrued": income_accrued,
+            "income_paid": paid_income,
+            "receivable": receivable_total,
+            "overdue_receivable": overdue_receivable_total,
+            "due_soon_receivable": due_soon_receivable_total,
+            "expense_total": expense_total,
+            "expense_paid": paid_expense,
+            "pending_expense": pending_expense_total,
+            "net_paid": paid_income - paid_expense,
+            "net_position": income_accrued - expense_total,
+        },
     }
 
     compliance = _compliance_slice(db, company)
@@ -353,6 +413,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
         "company": {
             "id": company.id,
             "name": company.name,
+            "tax_number": company.tax_number,
             "nace_code": company.nace_code,
             "sgk_registry_no": company.sgk_registry_no,
             "hazard_class": company.hazard_class,

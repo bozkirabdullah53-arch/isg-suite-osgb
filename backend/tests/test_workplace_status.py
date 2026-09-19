@@ -402,6 +402,86 @@ def test_one_click_pdf_and_excel_reports_are_valid_and_scoped(client):
     assert foreign.status_code == 403
 
 
+def test_full_company_file_keeps_commercial_scope_and_adds_detail_sheets(client):
+    seed = _seed()
+    from app.core.database import SessionLocal
+    from app.models.entities import Branch, FinanceTransaction, ServiceContract
+
+    with SessionLocal() as db:
+        db.add(Branch(
+            company_id=seed["company_1"],
+            name="Üretim Şubesi",
+            sgk_registry_no="SGK-SUBE-1",
+            city="Balıkesir",
+            address="Organize Sanayi Bölgesi",
+            is_active=True,
+        ))
+        db.add(ServiceContract(
+            osgb_id=1,
+            company_id=seed["company_1"],
+            contract_number="SOZ-2026-01",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=180),
+            monthly_fee=12500,
+            status="active",
+        ))
+        db.add_all([
+            FinanceTransaction(
+                osgb_id=1,
+                company_id=seed["company_1"],
+                transaction_type="income",
+                category="contract",
+                amount=12500,
+                transaction_date=date.today(),
+                due_date=date.today() - timedelta(days=2),
+                status="pending",
+                description="Ocak sözleşme tahakkuku",
+            ),
+            FinanceTransaction(
+                osgb_id=1,
+                company_id=seed["company_1"],
+                transaction_type="income",
+                category="service",
+                amount=10000,
+                transaction_date=date.today(),
+                status="paid",
+                description="Tahsilat",
+            ),
+        ])
+        db.commit()
+
+    admin_headers = {"Authorization": f"Bearer {_token(client, seed['users'][0], seed['password'])}"}
+    full_pdf = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/full-report.pdf",
+        headers=admin_headers,
+    )
+    assert full_pdf.status_code == 200, full_pdf.text
+    assert full_pdf.content.startswith(b"%PDF")
+    assert full_pdf.headers["cache-control"] == "no-store"
+
+    full_excel = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/full-report.xlsx",
+        headers=admin_headers,
+    )
+    assert full_excel.status_code == 200, full_excel.text
+    workbook = load_workbook(BytesIO(full_excel.content), read_only=True)
+    assert "Cari Özet" in workbook.sheetnames
+    assert "Finans İşlemleri" in workbook.sheetnames
+    assert "OSGB Sözleşmeleri" in workbook.sheetnames
+    assert "Belge Envanteri" in workbook.sheetnames
+
+    workplace_headers = {"Authorization": f"Bearer {_token(client, seed['users'][2], seed['password'])}"}
+    workplace_excel = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/full-report.xlsx",
+        headers=workplace_headers,
+    )
+    assert workplace_excel.status_code == 200, workplace_excel.text
+    workplace_workbook = load_workbook(BytesIO(workplace_excel.content), read_only=True)
+    assert "Cari Özet" not in workplace_workbook.sheetnames
+    assert "Finans İşlemleri" not in workplace_workbook.sheetnames
+    assert "OSGB Sözleşmeleri" not in workplace_workbook.sheetnames
+
+
 def test_forgot_password_keeps_neutral_response_and_does_not_crash(client):
     seed = _seed()
     response = client.post("/api/v1/auth/forgot-password", json={"email": seed["users"][1]})

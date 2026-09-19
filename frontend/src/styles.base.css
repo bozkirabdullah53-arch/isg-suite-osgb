@@ -1204,6 +1204,44 @@ header p { margin: 4px 0 0; color: #6c7f87; }
   .theme-toggle{display:none!important}
 }
 
+/* Firma 360 / Tam Firma Dosyası — ekrandaki durum merkeziyle sınırlı, diğer
+   modüllerin kart ve tablo stillerine dokunmayan görsel katman. */
+.customer-file-hero{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:24px;
+  margin:0 0 16px;
+  padding:20px 22px;
+  border:1px solid #cfe5e8;
+  border-radius:18px;
+  background:
+    radial-gradient(circle at 100% 0%,rgba(20,184,166,.15),transparent 36%),
+    linear-gradient(135deg,#f5fffe,#f8fbff);
+  box-shadow:0 14px 34px rgba(15,76,129,.08);
+}
+.customer-file-hero h3{margin:4px 0 5px;color:#0f2f3d;font-size:20px;letter-spacing:-.02em}
+.customer-file-hero p{margin:0;color:#58717c;font-size:13px;line-height:1.5}
+.customer-file-eyebrow{display:inline-block;color:#0f766e;font-size:11px;font-weight:800;letter-spacing:.1em}
+.customer-file-meta{display:grid;gap:4px;min-width:180px;padding:11px 14px;border-left:1px solid #cfe5e8;color:#64748b;font-size:11px;text-align:right}
+.customer-file-meta strong{color:#0f172a;font-size:16px}
+.customer-file-meta small{font-size:11px;color:#0f766e}
+.customer-finance-metrics .metric{min-width:0}
+.customer-finance-metrics .metric strong{font-size:21px}
+@media(max-width:720px){
+  .customer-file-hero{align-items:flex-start;flex-direction:column;padding:17px}
+  .customer-file-meta{width:100%;border-left:0;border-top:1px solid #cfe5e8;padding:10px 0 0;text-align:left}
+}
+@media print{
+  .customer-360-page .customer-360-actions,
+  .customer-360-page .customer-file-hero,
+  .customer-360-page button{display:none!important}
+  .customer-360-page .table-wrap{overflow:visible!important;border:1px solid #cbd5e1!important}
+  .customer-360-page table{min-width:0!important;font-size:9px!important}
+  .customer-360-page th,.customer-360-page td{padding:5px 6px!important;font-size:9px!important}
+  .customer-360-page .panel{break-inside:avoid;page-break-inside:avoid}
+}
+
 /* Deneysel tema anahtarı (klasik görünüm) — mevcut tasarıma dokunmaz, sadece yeni buton */
 .theme-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid #dcebed;border-radius:999px;background:white;color:#24515e;padding:8px 13px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .theme-toggle:hover{border-color:#0f766e;color:#0f766e}

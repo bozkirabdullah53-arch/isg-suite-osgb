@@ -98,6 +98,7 @@ from app.schemas.company import (
     CompanyVisitQrPolicyUpdate,
 )
 from app.services.company_overview import build_company_overview
+from app.services.company_file import build_company_file
 from app.services.capacity_engine import sync_company_service_requirements
 from app.services.employer_oversight import build_employer_oversight
 from app.services.workplace_status import build_workplace_status
@@ -107,6 +108,8 @@ from app.services.workplace_obligations import (
     build_workplace_obligations,
 )
 from app.services.workplace_status_reports import (
+    build_company_file_excel,
+    build_company_file_pdf,
     build_workplace_status_excel,
     build_workplace_status_pdf,
 )
@@ -559,6 +562,52 @@ def workplace_status_report_pdf(
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'attachment; filename="workplace-status-{company_id}.pdf"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/{company_id}/status/full-report.xlsx")
+def company_file_report_excel(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Firma 360'ın ayrıntılı, sekmeli Tam Firma Dosyası Excel çıktısı."""
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    data = build_company_file_excel(build_company_file(db, obj, viewer=user))
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="firma-dosyasi-{company_id}.xlsx"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/{company_id}/status/full-report.pdf")
+def company_file_report_pdf(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Firma 360'ın kurumsal A4 Tam Firma Dosyası PDF çıktısı."""
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    data = build_company_file_pdf(build_company_file(db, obj, viewer=user))
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="firma-dosyasi-{company_id}.pdf"',
             "Cache-Control": "no-store",
             "X-Content-Type-Options": "nosniff",
         },

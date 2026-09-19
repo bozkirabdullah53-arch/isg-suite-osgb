@@ -63,6 +63,11 @@ function Metric({label, value, tone}) {
   );
 }
 
+function money(value) {
+  const amount = Number(value || 0);
+  return `${amount.toLocaleString('tr-TR')} ₺`;
+}
+
 function Panel({title, icon: Icon, children, action}) {
   return (
     <section className="panel" style={{marginBottom: 16}}>
@@ -164,12 +169,18 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
     onNavigate(moduleId, {companyId: String(companyId), recordTarget: target});
   }
 
-  async function exportReport(type) {
+  function goToFinance() {
+    if (!onNavigate) return;
+    try { sessionStorage.setItem('isg_finance_company_id', String(companyId)); } catch (_) { /* ignore */ }
+    onNavigate('finance', {companyId: String(companyId)});
+  }
+
+  async function exportReport(type, full = false) {
     setErr('');
     try {
       await downloadFile(
-        `/companies/${companyId}/status/report.${type}`,
-        `isyeri-durum-${companyId}.${type}`,
+        `/companies/${companyId}/status/${full ? 'full-report' : 'report'}.${type}`,
+        `${full ? 'firma-dosyasi' : 'isyeri-durum'}-${companyId}.${type}`,
       );
     } catch (e) {
       setErr(e.message || 'Rapor oluşturulamadı.');
@@ -177,7 +188,7 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
   }
 
   return (
-    <div className="page">
+    <div className="page customer-360-page">
       <header className="page-head" style={{marginBottom: 16}}>
         <div style={{display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap'}}>
           {onBack && (
@@ -197,12 +208,12 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
               {c?.hazard_class ? ` · ${c.hazard_class}` : ''}
             </p>
           </div>
-          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-            <button type="button" className="mini secondary" disabled={busy} onClick={() => void exportReport('pdf')}>
-              <Download size={14} style={{verticalAlign: 'middle', marginRight: 4}} />PDF
+          <div className="customer-360-actions" style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+            <button type="button" className="mini secondary" disabled={busy} onClick={() => void exportReport('pdf', true)}>
+              <FileText size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Tam PDF
             </button>
-            <button type="button" className="mini secondary" disabled={busy} onClick={() => void exportReport('xlsx')}>
-              <Download size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Excel
+            <button type="button" className="mini secondary" disabled={busy} onClick={() => void exportReport('xlsx', true)}>
+              <Download size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Detaylı Excel
             </button>
             <button type="button" className="mini secondary" onClick={() => window.print()}>
               <Printer size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Yazdır
@@ -222,6 +233,19 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
 
       {data && (
         <>
+          <section className="customer-file-hero" aria-label="Firma dosyası özeti">
+            <div>
+              <span className="customer-file-eyebrow">FİRMA 360 · YÖNETİCİ DOSYASI</span>
+              <h3>Tek ekranda firma resmi</h3>
+              <p>İSG operasyonu, sözleşme ve yetkiniz dahilindeki cari veriler aynı rapor bütününde.</p>
+            </div>
+            <div className="customer-file-meta">
+              <span>Rapor tarihi</span>
+              <strong>{new Date().toLocaleDateString('tr-TR')}</strong>
+              <small>{data.finance ? 'Ticari + operasyonel görünüm' : 'Operasyonel görünüm'}</small>
+            </div>
+          </section>
+
           <section className="panel" style={{marginBottom: 16, borderLeft: `4px solid ${statusCenter.overall_status === 'critical' ? '#dc2626' : statusCenter.overall_status === 'warning' ? '#d97706' : '#16a34a'}`}}>
             <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap'}}>
               <div>
@@ -309,6 +333,9 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
               <dl style={{margin: 0, display: 'grid', gap: 8, fontSize: 14}}>
                 <div><dt style={{color: '#64748b', fontSize: 12}}>Yetkili</dt><dd style={{margin: '2px 0 0'}}>{c?.authorized_person || '—'}</dd></div>
                 <div><dt style={{color: '#64748b', fontSize: 12}}>Telefon</dt><dd style={{margin: '2px 0 0'}}>{c?.phone || '—'}</dd></div>
+                <div><dt style={{color: '#64748b', fontSize: 12}}>Vergi No</dt><dd style={{margin: '2px 0 0'}}>{c?.tax_number || '—'}</dd></div>
+                <div><dt style={{color: '#64748b', fontSize: 12}}>NACE / Tehlike</dt><dd style={{margin: '2px 0 0'}}>{[c?.nace_code, c?.hazard_class].filter(Boolean).join(' · ') || '—'}</dd></div>
+                <div><dt style={{color: '#64748b', fontSize: 12}}>SGK Sicil</dt><dd style={{margin: '2px 0 0'}}>{c?.sgk_registry_no || '—'}</dd></div>
                 <div><dt style={{color: '#64748b', fontSize: 12}}>Adres</dt><dd style={{margin: '2px 0 0'}}>{c?.address || '—'}</dd></div>
                 <div><dt style={{color: '#64748b', fontSize: 12}}>Durum</dt><dd style={{margin: '2px 0 0'}}>{c?.is_active ? 'Aktif' : 'Pasif'}</dd></div>
               </dl>
@@ -400,6 +427,7 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
                       {r.days_left ?? '—'}
                     </span>
                   )},
+                  {key: 'monthly_fee', label: 'Aylık ücret', render: (r) => r.monthly_fee ? money(r.monthly_fee) : '—'},
                   {key: 'status', label: 'Durum'},
                 ]}
                 rows={data.contracts || []}
@@ -434,25 +462,31 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
             )}
           </Panel>
 
-          {(data.finance?.recent || []).length > 0 && (
+          {data.finance && (
             <Panel
-              title="Finans"
+              title="Cari ve Finans"
               icon={WalletCards}
               action={onNavigate && (
-                <button type="button" className="mini" onClick={() => onNavigate('finance')}>Finans modülü</button>
+                <button type="button" className="mini" onClick={goToFinance}>Finans modülü</button>
               )}
             >
-              <p style={{margin: '0 0 12px', fontSize: 13, color: '#64748b'}}>
-                Bekleyen tutar: <strong>{data.finance.pending_amount?.toLocaleString('tr-TR')} ₺</strong>
-              </p>
+              <div className="cards osgb-cards customer-finance-metrics" style={{marginBottom: 12}}>
+                <Metric label="OSGB alacağı" value={money(data.finance.summary?.receivable)} tone={data.finance.summary?.receivable ? 'warn' : undefined} />
+                <Metric label="Vadesi geçmiş" value={money(data.finance.summary?.overdue_receivable)} tone={data.finance.summary?.overdue_receivable ? 'danger' : undefined} />
+                <Metric label="Tahsil edilen" value={money(data.finance.summary?.income_paid)} />
+                <Metric label="Net ödenen" value={money(data.finance.summary?.net_paid)} tone={data.finance.summary?.net_paid < 0 ? 'danger' : undefined} />
+              </div>
               <SimpleTable
                 cols={[
                   {key: 'transaction_date', label: 'Tarih'},
+                  {key: 'transaction_type', label: 'Tür', render: (r) => r.transaction_type === 'income' ? 'Gelir' : 'Gider'},
+                  {key: 'category', label: 'Kategori'},
                   {key: 'description', label: 'Açıklama'},
-                  {key: 'amount', label: 'Tutar', render: (r) => `${r.amount?.toLocaleString('tr-TR')} ₺`},
-                  {key: 'status', label: 'Durum'},
+                  {key: 'amount', label: 'Tutar', render: (r) => money(r.amount)},
+                  {key: 'status', label: 'Durum', render: (r) => r.status === 'overdue' ? 'Vadesi geçti' : r.status === 'paid' ? 'Ödendi' : r.status === 'cancelled' ? 'İptal' : 'Bekliyor'},
                 ]}
-                rows={data.finance.recent}
+                rows={data.finance.recent || []}
+                empty="Bu firma için finans kaydı bulunmuyor."
               />
             </Panel>
           )}
