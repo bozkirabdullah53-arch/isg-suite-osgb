@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {
   AlertTriangle, ArrowRight, Beaker, BellRing, CalendarDays, CheckCircle2,
-  Activity, ClipboardCheck, FileText, Gauge, GraduationCap, HardHat, QrCode, RefreshCw,
+  Activity, ClipboardCheck, FileText, Gauge, GraduationCap, HardHat, HeartPulse, QrCode, RefreshCw,
   ShieldAlert, Users,
 } from 'lucide-react';
 import {api} from './api';
@@ -29,6 +29,7 @@ const MODULE_CARDS = [
   {id: 'capa', title: 'DÖF', hint: 'Olay ve risk kayıtlarına bağlı faaliyetleri izleyin.', icon: ClipboardCheck, countKey: 'capa'},
   {id: 'isg_kurulu', title: 'İSG Kurulu', hint: 'Kurul üyelerini, toplantıları ve kararları yönetin.', icon: Users},
   {id: 'tatbikat', title: 'Tatbikat Kayıtları', hint: 'Tatbikat tarihlerini, durumlarını ve raporlarını takip edin.', icon: Activity, countKey: 'drills', footer: 'Kayıtları ve raporları aç'},
+  {id: 'health', title: 'Sağlık Bilgileri', hint: 'Çalışanların sağlık kayıtlarını ve raporlarını görüntüleyin.', icon: HeartPulse, footer: 'Sağlık kayıtlarını görüntüle'},
 ];
 
 export function WorkplaceHomePage({user, onNavigate}) {
