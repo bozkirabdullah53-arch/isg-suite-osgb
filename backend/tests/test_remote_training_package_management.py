@@ -182,6 +182,62 @@ def test_management_route_installer_is_idempotent():
     assert ("/trainings/remote/catalog/packages/{package_id}/sections/order", "PATCH") in routes
 
 
+def test_company_assignment_update_and_remove_preserve_central_catalog(monkeypatch):
+    from app.api import remote_training as remote_api
+    from app.models.remote_training import RemoteTrainingProgram
+
+    db = _db()
+    package = _package(db, title="Merkezi Paket")
+    program = RemoteTrainingProgram(
+        osgb_id=77,
+        company_id=909,
+        source_catalog_package_id=package.id,
+        source_catalog_code=package.code,
+        source_catalog_revision_no=package.revision_no,
+        title=package.title,
+        status="published",
+    )
+    db.add(program)
+    db.commit()
+    db.refresh(program)
+    user = SimpleNamespace(id=12)
+
+    monkeypatch.setattr(remote_api, "_assert_program_assignment_manager", lambda _db, _user, _id: program)
+    updated = remote_api.update_remote_program_assignment(
+        program.id,
+        remote_api.RemoteProgramAssignmentUpdate(
+            title="Firma için güncellenmiş paket",
+            description="Firma açıklaması",
+        ),
+        db=db,
+        user=user,
+    )
+    assert updated["title"] == "Firma için güncellenmiş paket"
+    assert updated["description"] == "Firma açıklaması"
+
+    removed = remote_api._remove_company_program(db, user, program)
+    db.commit()
+    assert removed["removed"] is True
+    assert removed["history_preserved"] is True
+    db.refresh(program)
+    assert program.status == "archived"
+    assert db.get(type(package), package.id) is not None
+    assert db.get(RemoteTrainingProgram, program.id) is not None
+
+
+def test_company_assignment_management_routes_are_registered():
+    from app.api import remote_training as remote_api
+
+    routes = {
+        (str(getattr(route, "path", "")), method)
+        for route in remote_api.router.routes
+        for method in (getattr(route, "methods", set()) or set())
+    }
+    assert ("/trainings/remote/programs/{program_id}/assignment", "PATCH") in routes
+    assert ("/trainings/remote/programs/{program_id}", "DELETE") in routes
+    assert ("/trainings/remote/programs", "DELETE") in routes
+
+
 def test_catalog_section_reorder_uses_contiguous_order_and_preserves_snapshot_boundary(monkeypatch):
     from sqlalchemy import select
 

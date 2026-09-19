@@ -40,6 +40,32 @@ class RemoteProgramUpdate(RemoteModel):
     branch_id: int | None = Field(default=None, gt=0)
 
 
+class RemoteProgramAssignmentUpdate(RemoteModel):
+    """Update only the company-side metadata of a prepared program.
+
+    Curriculum/content remains a snapshot of the central catalog. This
+    contract therefore deliberately excludes content and exam policy fields.
+    """
+
+    title: str | None = Field(default=None, min_length=3, max_length=220)
+    description: str | None = Field(default=None, max_length=5000)
+    instructor_name: str | None = Field(default=None, max_length=180)
+    instructor_qualification: str | None = Field(default=None, max_length=220)
+    branch_id: int | None = Field(default=None, gt=0)
+
+
+class RemoteProgramBulkRemove(RemoteModel):
+    program_ids: list[int] = Field(min_length=1, max_length=100)
+
+    @field_validator("program_ids")
+    @classmethod
+    def unique_positive_ids(cls, value: list[int]) -> list[int]:
+        normalized = list(dict.fromkeys(int(item) for item in value if int(item) > 0))
+        if not normalized:
+            raise ValueError("En az bir firma eğitim paketi seçilmelidir.")
+        return normalized
+
+
 class RemoteSectionCreate(RemoteModel):
     sector_code: str = Field(default="common", min_length=2, max_length=64)
     title: str = Field(min_length=2, max_length=220)

@@ -1656,6 +1656,9 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const [assignmentNotice, setAssignmentNotice] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [assignmentActionId, setAssignmentActionId] = useState(null);
+  const [selectedProgramIds, setSelectedProgramIds] = useState([]);
+  const [editingProgram, setEditingProgram] = useState(false);
+  const [programEditForm, setProgramEditForm] = useState({title: '', description: '', instructor_name: '', instructor_qualification: '', branch_id: ''});
   const [report, setReport] = useState(null);
   const [sectorScope, setSectorScope] = useState(null);
   const [selectedSectorCodes, setSelectedSectorCodes] = useState([]);
@@ -1704,6 +1707,9 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     () => visibleEmployees.find((row) => String(row.id) === String(provisionEmployeeId)),
     [visibleEmployees, provisionEmployeeId],
   );
+  const canManageCompanyAssignment = !workplaceMode
+    && Boolean(user?.osgb_id || user?.role === 'global_admin')
+    && !user?.company_id;
 
   async function loadCompanies() {
     const rows = await api('/companies');
@@ -2009,6 +2015,84 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     } catch (err) { setError(err.message || 'Video önizlemesi açılamadı.'); } finally { setBusy(false); }
   }
 
+  function beginProgramAssignmentEdit() {
+    if (!program || !canManageCompanyAssignment) return;
+    setProgramEditForm({
+      title: program.title || '',
+      description: program.description || '',
+      instructor_name: program.instructor_name || '',
+      instructor_qualification: program.instructor_qualification || '',
+      branch_id: program.branch_id ? String(program.branch_id) : '',
+    });
+    setEditingProgram(true);
+    setError('');
+  }
+
+  async function saveProgramAssignment() {
+    if (!program || !canManageCompanyAssignment) return;
+    const title = String(programEditForm.title || '').trim().replace(/\s+/g, ' ');
+    if (title.length < 3) {
+      setError('Eğitim adı en az 3 karakter olmalıdır.');
+      return;
+    }
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await api(`/trainings/remote/programs/${program.id}/assignment`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title,
+          description: String(programEditForm.description || '').trim() || null,
+          instructor_name: String(programEditForm.instructor_name || '').trim() || null,
+          instructor_qualification: String(programEditForm.instructor_qualification || '').trim() || null,
+          branch_id: programEditForm.branch_id ? Number(programEditForm.branch_id) : null,
+        }),
+      });
+      setEditingProgram(false);
+      await loadDetail(program.id);
+      await loadPrograms(program.company_id);
+      setMessage('Firma eğitim ataması güncellendi. Merkezi katalog paketi ve geçmiş kayıtlar değişmedi.');
+    } catch (err) {
+      setError(err.message || 'Firma eğitim ataması güncellenemedi.');
+    } finally { setBusy(false); }
+  }
+
+  async function removeProgramAssignments(programIds, source = 'single') {
+    const ids = [...new Set((programIds || []).map(Number).filter((value) => value > 0))];
+    if (!ids.length || !canManageCompanyAssignment || busy) return;
+    const rows = programs.filter((row) => ids.includes(Number(row.id)));
+    const names = rows.map((row) => localizedTrainingTitle(row.title)).filter(Boolean);
+    const label = names.length > 3 ? `${names.slice(0, 3).join(', ')} ve ${names.length - 3} paket daha` : names.join(', ');
+    const confirmed = window.confirm(
+      source === 'bulk'
+        ? `${ids.length} eğitim paketi seçilen firmadan kaldırılacak.\n\n${label}\n\nMerkezi katalog paketi silinmez. Çalışan ataması veya belge geçmişi varsa korunur. Devam edilsin mi?`
+        : `“${label || localizedTrainingTitle(program?.title) || 'Eğitim paketi'}” seçilen firmadan kaldırılacak.\n\nMerkezi katalog paketi silinmez. Çalışan ataması veya belge geçmişi varsa korunur. Devam edilsin mi?`,
+    );
+    if (!confirmed) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const out = source === 'bulk'
+        ? await api('/trainings/remote/programs', {method: 'DELETE', body: JSON.stringify({program_ids: ids})})
+        : await api(`/trainings/remote/programs/${ids[0]}`, {method: 'DELETE'});
+      await loadPrograms(companyId);
+      setSelectedProgramIds((current) => current.filter((id) => !ids.includes(Number(id))));
+      if (program && ids.includes(Number(program.id))) {
+        setProgram(null);
+        setAssignments([]);
+        setEditingProgram(false);
+      }
+      setMessage(out?.message || `${ids.length} eğitim paketi firmadan kaldırıldı.`);
+    } catch (err) {
+      setError(err.message || 'Eğitim paketi firmadan kaldırılamadı.');
+    } finally { setBusy(false); }
+  }
+
+  function toggleProgramSelection(programId) {
+    const id = Number(programId);
+    setSelectedProgramIds((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : [...current, id]);
+  }
+
   async function programAction(action) {
     if (!program) return;
     setBusy(true); setError(''); setMessage('');
@@ -2185,9 +2269,18 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
       <div className="remote-training-manager-grid" style={{gap: 16}}>
         <div style={cardStyle}>
           <h4 style={{marginTop: 0}}>{workplaceMode ? 'İşyerinize tanımlanmış uzaktan eğitimler' : 'Firmaya atanmış sektör eğitimleri'}</h4>
-          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>{workplaceMode ? 'Yalnızca iş güvenliği uzmanınızın hazırladığı, yayımlanmış ve çalışan atamasına açık paketler listelenir.' : 'Bu listede yalnızca seçtiğiniz firmaya hazırlanmış eğitimler görünür. Eski aynı adlı taslaklar silinmez; isterseniz geçmişten açabilirsiniz.'}</div>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>{workplaceMode ? 'Yalnızca iş güvenliği uzmanınızın hazırladığı, yayımlanmış ve çalışan atamasına açık paketler listelenir.' : 'Bu listede yalnızca seçtiğiniz firmaya hazırlanmış eğitimler görünür. Paketi açıp güncelleyebilir veya firmadan kaldırabilirsiniz.'}</div>
+          {!workplaceMode && canManageCompanyAssignment && <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 10px', marginBottom: 10, borderRadius: 9, background: '#f7fbfd', border: '1px solid #dbe5ef'}}>
+            <strong style={{color: '#123b59'}}>{selectedProgramIds.length} paket seçildi</strong>
+            <button type="button" onClick={() => setSelectedProgramIds(compactPrograms.map(({row}) => Number(row.id)))} disabled={busy || !compactPrograms.length}>Listedekilerin hepsini seç</button>
+            {selectedProgramIds.length > 0 && <button type="button" onClick={() => setSelectedProgramIds([])} disabled={busy}>Seçimi temizle</button>}
+            {selectedProgramIds.length > 0 && <button type="button" onClick={() => removeProgramAssignments(selectedProgramIds, 'bulk')} disabled={busy} style={{marginLeft: 'auto', color: '#b42318', borderColor: '#e39b93', background: '#fff5f4'}}>Seçilenleri firmadan kaldır</button>}
+          </div>}
           {(workplaceMode ? compactPrograms : showOldPrograms ? programs.map((row) => ({row, hidden: []})) : compactPrograms).map(({row, hidden}) => <div key={row.id} style={{marginBottom: 8}}>
-            <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{row.source_catalog_code ? `Sektör: ${packageSectorLabel(row.source_catalog_code, row.sector_code || row.source_catalog_sector_code)} · ` : ''}{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi katalogdan bu firmaya atanmış</span>}</button>
+            <div style={{display: 'flex', gap: 8, alignItems: 'stretch'}}>
+              {!workplaceMode && canManageCompanyAssignment && <label style={{display: 'grid', placeItems: 'center', minWidth: 38, border: '1px solid #dbe5ef', borderRadius: 9, background: '#fbfdff'}} title="Firma paketini seç"><input type="checkbox" checked={selectedProgramIds.includes(Number(row.id))} onChange={() => toggleProgramSelection(row.id)} disabled={busy} aria-label={`${localizedTrainingTitle(row.title)} paketini seç`} /></label>}
+              <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', flex: 1, width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{row.source_catalog_code ? `Sektör: ${packageSectorLabel(row.source_catalog_code, row.sector_code || row.source_catalog_sector_code)} · ` : ''}{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi katalogdan bu firmaya atanmış</span>}</button>
+            </div>
             {!workplaceMode && !showOldPrograms && hidden.length > 0 && <div style={{fontSize: 11, color: '#795500', padding: '4px 8px'}}>Bu adla {hidden.length} eski taslak gizlendi.</div>}
           </div>)}
           {!workplaceMode && duplicateProgramCount > 0 && <button type="button" onClick={() => setShowOldPrograms((current) => !current)} style={{fontSize: 12, marginTop: 2}}>{showOldPrograms ? 'Eski kayıtları gizle' : `Eski/tekrarlı kayıtları göster (${duplicateProgramCount})`}</button>}
@@ -2196,7 +2289,19 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
         <div style={cardStyle}>
           {program ? (
             <>
-              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code, program.sector_code || program.source_catalog_sector_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>{canEditContent && <><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button></>}<button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code, program.sector_code || program.source_catalog_sector_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>{canManageCompanyAssignment && <><button type="button" onClick={beginProgramAssignmentEdit} disabled={busy || program.status === 'archived'}>Atamayı güncelle</button><button type="button" onClick={() => removeProgramAssignments([program.id])} disabled={busy} style={{color: '#b42318', borderColor: '#e39b93', background: '#fff5f4'}}>Firmadan kaldır</button></>}{canEditContent && <><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button></>}<button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
+              {editingProgram && canManageCompanyAssignment && <div style={{marginTop: 12, padding: 12, border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}}>
+                <strong style={{display: 'block', color: '#123b59'}}>Firma eğitim atamasını güncelle</strong>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 8, marginTop: 9}}>
+                  <label style={{fontSize: 12, color: '#36556d'}}>Eğitim adı<input value={programEditForm.title} onChange={(event) => setProgramEditForm((current) => ({...current, title: event.target.value}))} style={{display: 'block', width: '100%', marginTop: 4}} /></label>
+                  <label style={{fontSize: 12, color: '#36556d'}}>İşyeri / şube<select value={programEditForm.branch_id} onChange={(event) => setProgramEditForm((current) => ({...current, branch_id: event.target.value}))} style={{display: 'block', width: '100%', marginTop: 4}}><option value="">Firma geneli</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
+                  <label style={{fontSize: 12, color: '#36556d'}}>Eğitici adı<input value={programEditForm.instructor_name} onChange={(event) => setProgramEditForm((current) => ({...current, instructor_name: event.target.value}))} style={{display: 'block', width: '100%', marginTop: 4}} /></label>
+                  <label style={{fontSize: 12, color: '#36556d'}}>Eğitici yeterliliği<input value={programEditForm.instructor_qualification} onChange={(event) => setProgramEditForm((current) => ({...current, instructor_qualification: event.target.value}))} style={{display: 'block', width: '100%', marginTop: 4}} /></label>
+                </div>
+                <label style={{display: 'block', marginTop: 8, fontSize: 12, color: '#36556d'}}>Açıklama<textarea value={programEditForm.description} onChange={(event) => setProgramEditForm((current) => ({...current, description: event.target.value}))} rows={3} style={{display: 'block', width: '100%', marginTop: 4}} /></label>
+                <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 9}}><button type="button" onClick={() => setEditingProgram(false)} disabled={busy}>Vazgeç</button><button type="button" onClick={saveProgramAssignment} disabled={busy} style={{color: '#fff', background: '#0f766e', borderColor: '#0f766e'}}>Değişiklikleri kaydet</button></div>
+                <div style={{marginTop: 8, fontSize: 11, color: '#5e7485'}}>Bu işlem yalnızca seçili firmadaki atama bilgilerini günceller; merkezi katalog ve çalışanların geçmiş/belge kayıtları değişmez.</div>
+              </div>}
               <InlineRemoteVideoPreview preview={preview} onClose={() => setPreview(null)} />
               <div id="remote-training-certificate-output" style={{marginTop: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}} aria-label="Uzaktan eğitim belge çıktıları">
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap'}}>

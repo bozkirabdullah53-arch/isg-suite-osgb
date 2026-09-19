@@ -67,6 +67,8 @@ from app.schemas.remote_training import (
     RemoteExamSubmit,
     RemoteFinalExamQuestionUpdate,
     RemoteProgramCreate,
+    RemoteProgramAssignmentUpdate,
+    RemoteProgramBulkRemove,
     RemoteProgramQuestionLink,
     RemoteProgramSectorUpdate,
     RemoteProgramUpdate,
@@ -301,6 +303,20 @@ def _assert_program_content_manager(
 ) -> RemoteTrainingProgram:
     program = _assert_program_manager(db, user, program_id)
     _assert_catalog_content_editor(db, user)
+    return program
+
+
+def _assert_program_assignment_manager(
+    db: Session, user: User, program_id: int
+) -> RemoteTrainingProgram:
+    """Allow OSGB-side operators to manage a prepared company package.
+
+    This is intentionally separate from curriculum editing: removing or
+    correcting a company assignment must never grant access to the central
+    catalog or change a package used by another company.
+    """
+    program = _assert_program_manager(db, user, program_id)
+    _assert_catalog_distribution_manager(user)
     return program
 
 def _assert_assignment_document_manager(
@@ -2125,6 +2141,12 @@ def list_remote_programs(
             raise HTTPException(422, "Geçersiz eğitim durumu.")
         if not is_workplace_account(user):
             stmt = stmt.where(RemoteTrainingProgram.status == status)
+    elif not is_workplace_account(user):
+        # Removed company packages remain in the database only when needed to
+        # preserve employee progress/certificates. They are not part of the
+        # active OSGB assignment list; callers can request them explicitly
+        # with status=archived when historical review is needed.
+        stmt = stmt.where(RemoteTrainingProgram.status != "archived")
     if is_workplace_account(user):
         # New company-scoped operation is limited to immutable catalog
         # snapshots. Existing rows remain visible during the transition so
@@ -2137,6 +2159,133 @@ def list_remote_programs(
         )
     rows = db.scalars(stmt.order_by(RemoteTrainingProgram.updated_at.desc())).all()
     return [_program_output(row) for row in rows]
+
+
+@router.patch("/programs/{program_id}/assignment")
+def update_remote_program_assignment(
+    program_id: int,
+    payload: RemoteProgramAssignmentUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update company-side metadata without changing the catalog snapshot."""
+    program = _assert_program_assignment_manager(db, user, program_id)
+    if program.status == "archived":
+        raise HTTPException(409, "Firmadan kaldırılmış eğitim yeniden seçilmeden güncellenemez.")
+    values = payload.model_dump(exclude_unset=True)
+    if "branch_id" in values and values["branch_id"] is not None:
+        branch = db.get(Branch, values["branch_id"])
+        if not branch or branch.company_id != program.company_id or not branch.is_active:
+            raise HTTPException(422, "Seçilen işyeri/şube firma ile uyumlu değil veya pasif.")
+    if not values:
+        raise HTTPException(422, "Güncellenecek firma eğitim bilgisi bulunamadı.")
+    for key, value in values.items():
+        setattr(program, key, value.strip() if isinstance(value, str) else value)
+    program.revision_no += 1
+    audit(
+        db,
+        company_id=program.company_id,
+        user=user,
+        action="company_training_assignment_updated",
+        entity_type="program",
+        entity_id=program.id,
+        details={"updated_fields": sorted(values)},
+    )
+    _commit(db, "Firma eğitim ataması güncellenemedi; kayıt çakışması oluştu.")
+    db.refresh(program)
+    return _program_output(program)
+
+
+def _remove_company_program(
+    db: Session,
+    user: User,
+    program: RemoteTrainingProgram,
+    *,
+    request: Request | None = None,
+) -> dict[str, Any]:
+    """Remove a prepared package from the active company assignment list.
+
+    Employee assignments are historical records. In that case the prepared
+    program is archived so progress and certificates remain verifiable. The
+    central catalog package is never modified.
+    """
+    assignment_count = int(
+        db.scalar(
+            select(func.count(RemoteTrainingAssignment.id)).where(
+                RemoteTrainingAssignment.program_id == program.id
+            )
+        )
+        or 0
+    )
+    was_archived = program.status == "archived"
+    if not was_archived:
+        program.status = "archived"
+        program.archived_at = datetime.utcnow()
+        program.published_at = None
+    audit(
+        db,
+        company_id=program.company_id,
+        user=user,
+        action="company_training_assignment_removed",
+        entity_type="program",
+        entity_id=program.id,
+        details={
+            "assignment_count": assignment_count,
+            "history_preserved": True,
+            "ip": request.client.host if request and request.client else None,
+        },
+    )
+    return {
+        "program_id": program.id,
+        "removed": True,
+        "mode": "archived",
+        "assignment_count": assignment_count,
+        "history_preserved": True,
+        "already_removed": was_archived,
+    }
+
+
+@router.delete("/programs/{program_id}")
+def remove_remote_program_from_company(
+    program_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Remove one prepared training package from its company."""
+    program = _assert_program_assignment_manager(db, user, program_id)
+    result = _remove_company_program(db, user, program, request=request)
+    _commit(db, "Firma eğitim paketi firmadan kaldırılamadı.")
+    result["message"] = "Eğitim paketi firmadan kaldırıldı; çalışan geçmişi korunmuştur."
+    return result
+
+
+@router.delete("/programs")
+def remove_remote_programs_from_company(
+    payload: RemoteProgramBulkRemove,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Remove selected prepared training packages atomically."""
+    _manager(user)
+    _assert_catalog_distribution_manager(user)
+    programs = []
+    for program_id in payload.program_ids:
+        programs.append(_assert_program_assignment_manager(db, user, program_id))
+    company_ids = {program.company_id for program in programs}
+    if len(company_ids) != 1:
+        raise HTTPException(422, "Aynı işlemde yalnızca aynı firmaya ait paketler kaldırılabilir.")
+    results = [_remove_company_program(db, user, program, request=request) for program in programs]
+    _commit(db, "Seçilen firma eğitim paketleri firmadan kaldırılamadı.")
+    return {
+        "removed": True,
+        "removed_count": len(results),
+        "program_ids": [item["program_id"] for item in results],
+        "history_preserved": True,
+        "results": results,
+        "message": f"{len(results)} eğitim paketi firmadan kaldırıldı; çalışan geçmişi korunmuştur.",
+    }
 
 
 @router.post("/programs", status_code=201)
