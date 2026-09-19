@@ -1,9 +1,12 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  CalendarClock,
   CalendarRange,
   CheckCircle2,
+  Clock3,
   ExternalLink,
   Filter,
   RefreshCw,
@@ -23,10 +26,10 @@ import {
 import './workplace_status.css';
 
 const STATUS_CARDS = [
-  {code: 'overdue', label: 'Gecikmiş'},
-  {code: 'very_soon', label: 'Çok Yakın (0–7 gün)'},
-  {code: 'approaching', label: 'Yaklaşıyor (8–30 gün)'},
-  {code: 'completed', label: 'Tamamlandı'},
+  {code: 'overdue', label: 'Gecikmiş', meta: 'Öncelikli işlem', icon: AlertTriangle},
+  {code: 'very_soon', label: 'Çok Yakın', meta: '0–7 gün içinde', icon: Clock3},
+  {code: 'approaching', label: 'Yaklaşıyor', meta: '8–30 gün içinde', icon: CalendarClock},
+  {code: 'completed', label: 'Tamamlandı', meta: 'Kapatılan kayıtlar', icon: CheckCircle2},
 ];
 
 function StatusBadge({status}) {
@@ -109,9 +112,19 @@ export function WorkplaceObligationCenter({companyId, companyName, canOpenModule
             className={`workplace-obligation-metric workplace-obligation-metric--${item.code}${filters.status === item.code ? ' is-active' : ''}`}
             onClick={() => toggleStatus(item.code)}
             aria-pressed={filters.status === item.code}
+            aria-label={`${item.label}: ${summary[item.code] ?? 0} kayıt. Filtrelemek için seçin.`}
           >
-            <span>{item.label}</span>
-            <strong>{summary[item.code] ?? 0}</strong>
+            <span className="workplace-obligation-metric-head">
+              <span className="workplace-obligation-metric-icon" aria-hidden="true"><item.icon size={17}/></span>
+              <span className="workplace-obligation-metric-copy">
+                <span className="workplace-obligation-metric-label">{item.label}</span>
+                <span className="workplace-obligation-metric-meta">{item.meta}</span>
+              </span>
+            </span>
+            <span className="workplace-obligation-metric-value-row">
+              <strong className="workplace-obligation-metric-value">{summary[item.code] ?? 0}</strong>
+              <span className="workplace-obligation-metric-caption">kayıt</span>
+            </span>
           </button>
         ))}
       </div>
