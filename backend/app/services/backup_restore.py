@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -167,7 +168,29 @@ def _decrypt_if_needed(path: Path) -> Path:
     import hashlib
     import tempfile
 
+    from app.services.stream_encryption import (
+        StreamEncryptionError,
+        decrypt_chunked_fernet_file,
+        is_chunked_fernet_file,
+    )
     from cryptography.fernet import Fernet, InvalidToken
+
+    if is_chunked_fernet_file(path):
+        fd, raw_path = tempfile.mkstemp(suffix=".zip")
+        os.close(fd)
+        tmp = Path(raw_path)
+        try:
+            decrypt_chunked_fernet_file(path, candidates, tmp)
+        except (OSError, StreamEncryptionError) as exc:
+            try:
+                tmp.unlink()
+            except FileNotFoundError:
+                pass
+            raise HTTPException(
+                status_code=400,
+                detail="Yedek çözülemedi (şifreli akış bozuk veya anahtar uyuşmuyor).",
+            ) from exc
+        return tmp
 
     cipher = path.read_bytes()
     plain: bytes | None = None
