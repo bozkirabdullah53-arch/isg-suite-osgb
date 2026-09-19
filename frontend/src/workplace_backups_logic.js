@@ -13,3 +13,8 @@ export function backupStatusLabel(status) {
 export function backupSourceLabel(source) {
   return source === 'scheduled' ? 'Otomatik' : 'Manuel';
 }
+export function portableBackupFilename(originalName, backupId) {
+  const name = String(originalName || '').trim();
+  if (!name) return `isyeri-yedegi-${backupId}.zip`;
+  return name.toLowerCase().endsWith('.enc') ? name.slice(0, -4) : name;
+}
