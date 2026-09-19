@@ -804,15 +804,11 @@ def export_health_xlsx(
     ws.title = "Sağlık Gözetimi"
     if employer_view:
         headers = [
-            "Personel",
-            "Görev",
-            "Bölüm",
-            "Muayene Türü",
-            "Muayene Tarihi",
-            "Sonraki Muayene",
-            "İşe Uygunluk",
-            "İşyeri Hekimi",
-            "Çalışma Kısıtları / Uygunluk Şartları",
+            "Personel", "Görev", "Bölüm", "Muayene Türü", "Muayene Tarihi", "Sonraki Muayene",
+            "Uygunluk", "Hekim", "Özet", "Gizli Hekim Notu", "Bilgilendirme Onayı",
+            "Odyometri", "SFT", "Akciğer Grafisi", "Kan Kurşun", "Kurşun Değerlendirme",
+            "Önerilen Tetkikler", "Maruziyetler", "Takip Notu", "Diğer Biyolojik Tetkik",
+            "Çalışma Kısıtları", "Akıllı Özet", "Tetkik Özeti", "Rapor Dosyası",
         ]
         ws.append(headers)
 
@@ -834,16 +830,30 @@ def export_health_xlsx(
                 row.next_examination_date.isoformat() if row.next_examination_date else "",
                 excel_safe(FITNESS_LABELS.get(row.fitness_status, row.fitness_status.value)),
                 excel_safe(row.physician_name or ""),
+                excel_safe(view.summary or ""),
+                excel_safe(view.confidential_note or ""),
+                "Evet" if row.informed_consent else "Hayır",
+                excel_safe(f"{row.audiometry_date or ''} / {view.audiometry_result or ''}".strip(" /")),
+                excel_safe(f"{row.spirometry_date or ''} / {view.spirometry_result or ''}".strip(" /")),
+                excel_safe(f"{row.chest_xray_date or ''} / {view.chest_xray_result or ''}".strip(" /")),
+                excel_safe(f"{row.blood_lead_value if row.blood_lead_value is not None else ''} {row.blood_lead_unit or ''}".strip()),
+                excel_safe(row.blood_lead_eval or ""),
+                excel_safe(view.suggested_tests or ""),
+                excel_safe(view.exposures or ""),
+                excel_safe(view.follow_up_note or ""),
+                excel_safe(view.other_biological_test or ""),
                 excel_safe(view.restrictions or ""),
+                excel_safe(smart_summary(view, employee)),
+                excel_safe(tetkik_summary(view)),
+                excel_safe(row.report_file_name or ""),
             ])
         ws.freeze_panes = "A2"
         ws.auto_filter.ref = ws.dimensions
-        for column, width in zip(
-            "ABCDEFGHI",
-            (28, 22, 22, 24, 18, 18, 20, 24, 48),
-            strict=True,
+        for idx, width in enumerate(
+            (28, 22, 22, 24, 18, 18, 20, 24, 36, 36, 18, 30, 30, 30, 24, 22, 36, 36, 36, 36, 40, 40, 40, 30),
+            start=1,
         ):
-            ws.column_dimensions[column].width = width
+            ws.column_dimensions[chr(64 + idx) if idx <= 26 else "X"].width = width
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -856,8 +866,9 @@ def export_health_xlsx(
             metadata={
                 "format": "xlsx",
                 "record_count": len(rows),
-                "masked": True,
+                "masked": False,
                 "employer_view": True,
+                "readonly": True,
             },
         )
         db.commit()
@@ -866,7 +877,7 @@ def export_health_xlsx(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
                 "Content-Disposition": (
-                    f'attachment; filename="isyeri-saglik-takip-{effective}.xlsx"'
+                    f'attachment; filename="isyeri-saglik-takip-tam-{effective}.xlsx"'
                 )
             },
         )
