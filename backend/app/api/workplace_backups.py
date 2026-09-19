@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 import hmac
 from dataclasses import asdict
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -12,11 +13,16 @@ from app.core.config import settings, workplace_backups_active
 from app.core.database import get_db
 from app.core.database import SessionLocal
 from app.models.entities import ArchiveKind, BackupSource, BackupStatus, Company, EisaArchiveRecord, User
-from app.services.archive_store import resolve_archive_path
 from app.services.backup_safety import verify_archive_checksum
 from app.services.backup_restore import _decrypt_if_needed
-from app.services.workplace_backup import BackupStorageFullError, create_company_backup, read_company_backup_manifest
-from app.services.workplace_backup import run_scheduled_company_backups
+from app.services.workplace_backup import (
+    BackupIntegrityError,
+    BackupStorageFullError,
+    create_company_backup,
+    materialize_workplace_backup,
+    read_company_backup_manifest,
+    run_scheduled_company_backups,
+)
 
 router = APIRouter(prefix="/workplace-backups", tags=["İşyeri Yedekleri"])
 class CreateWorkplaceBackupRequest(BaseModel): model_config = ConfigDict(extra="forbid")
@@ -38,6 +44,14 @@ def _own_backup(db, user, backup_id):
         EisaArchiveRecord.entity_type == "workplace_backup_v4"))
     if row is None: raise HTTPException(404, "Yedek bulunamadı.")
     return row
+
+
+def _cleanup_paths(paths: list[Path]) -> None:
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 @router.post("/internal/run-scheduled", include_in_schema=False)
 def run_scheduled(x_workplace_backup_token: str = Header(default="")):
@@ -73,25 +87,49 @@ def create(_payload: CreateWorkplaceBackupRequest, db: Session = Depends(get_db)
 @router.get("/{backup_id}/download")
 def download(backup_id: int, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     row = _own_backup(db, user, backup_id)
-    if row.backup_status != BackupStatus.COMPLETED: raise HTTPException(409, "Yedek henüz hazır değil.")
-    path = resolve_archive_path(row)
-    if not path.is_file(): raise HTTPException(404, "Yedek dosyası bulunamadı.")
-    downloadable = _decrypt_if_needed(path)
-    cleanup = downloadable != path
+    if row.backup_status != BackupStatus.COMPLETED:
+        raise HTTPException(409, "Yedek henüz hazır değil.")
+    try:
+        path, remote_temporary = materialize_workplace_backup(row)
+    except BackupIntegrityError as exc:
+        raise HTTPException(409, "Yedek bütünlük kontrolünden geçemedi.") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Yedek dosyası bulunamadı.") from exc
+    try:
+        downloadable = _decrypt_if_needed(path)
+    except Exception:
+        if remote_temporary:
+            _cleanup_paths([path])
+        raise
+    cleanup_paths = [downloadable] if downloadable != path else []
+    if remote_temporary:
+        cleanup_paths.append(path)
     name = (row.original_name or path.name).removesuffix(".enc")
     return FileResponse(
         downloadable,
         filename=name,
         media_type="application/zip",
-        background=BackgroundTask(downloadable.unlink, missing_ok=True) if cleanup else None,
+        background=BackgroundTask(_cleanup_paths, cleanup_paths) if cleanup_paths else None,
     )
 @router.get("/{backup_id}/contents")
 def contents(backup_id: int, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
-    row = _own_backup(db, user, backup_id); path = resolve_archive_path(row)
-    if row.backup_status != BackupStatus.COMPLETED: raise HTTPException(409, "Yedek henüz hazır değil.")
-    if not path.is_file(): raise HTTPException(404, "Yedek dosyası bulunamadı.")
-    checksum = verify_archive_checksum(path, row.checksum)
-    if checksum.get("status") == "mismatch": raise HTTPException(409, "Yedek bütünlük kontrolünden geçemedi.")
-    manifest = read_company_backup_manifest(row)
-    if int(manifest.get("company_id", -1)) != int(user.company_id): raise HTTPException(409, "Yedek firma kapsamı doğrulanamadı.")
-    return {"checksum": checksum, "manifest": manifest}
+    row = _own_backup(db, user, backup_id)
+    if row.backup_status != BackupStatus.COMPLETED:
+        raise HTTPException(409, "Yedek henüz hazır değil.")
+    try:
+        path, remote_temporary = materialize_workplace_backup(row)
+    except BackupIntegrityError as exc:
+        raise HTTPException(409, "Yedek bütünlük kontrolünden geçemedi.") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Yedek dosyası bulunamadı.") from exc
+    try:
+        checksum = verify_archive_checksum(path, row.checksum)
+        if checksum.get("status") == "mismatch":
+            raise HTTPException(409, "Yedek bütünlük kontrolünden geçemedi.")
+        manifest = read_company_backup_manifest(row, path=path)
+        if int(manifest.get("company_id", -1)) != int(user.company_id):
+            raise HTTPException(409, "Yedek firma kapsamı doğrulanamadı.")
+        return {"checksum": checksum, "manifest": manifest}
+    finally:
+        if remote_temporary:
+            _cleanup_paths([path])
