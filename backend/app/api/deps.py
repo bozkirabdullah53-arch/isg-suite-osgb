@@ -77,12 +77,8 @@ def is_workplace_operations_account(user: User) -> bool:
 
 
 def is_workplace_manager_account(user: User) -> bool:
-    """Tek işyerine bağlı company_admin hesabı; QR kiosk hesabı ayrı tutulur."""
-    email = str(getattr(user, "email", "") or "").strip().lower()
-    return (
-        is_workplace_operations_account(user)
-        and not email.endswith("@kiosk.isgsuite.tr")
-    )
+    """Tek işyerine bağlı tek işyeri hesabı. Eski @kiosk.isgsuite.tr uzantısı teknik bir kayıttır."""
+    return is_workplace_operations_account(user)
 
 
 def reject_company_bound_admin_from_osgb_internal(
@@ -98,11 +94,7 @@ def reject_company_bound_admin_from_osgb_internal(
 
 
 def require_roles_or_workplace_manager(*roles: UserRole):
-    """Mevcut rollere ek olarak yalnız normal işyeri yetkilisini kabul eder.
-
-    QR kiosk hesabı ayrı bir güvenlik sınırı olarak tutulur ve bu bağımlılıkla
-    işyeri operasyon yetkisi kazanmaz.
-    """
+    """Mevcut rollere ek olarak tek işyeri hesabını kabul eder."""
     def dependency(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles and not is_workplace_manager_account(user):
             raise HTTPException(status_code=403, detail="Bu işlem için yetkiniz yok.")
