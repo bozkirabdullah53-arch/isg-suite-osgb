@@ -43,6 +43,7 @@ def _clear_tenant_vars(db: Session) -> None:
     _set(db, "app.current_company_id", "")
     _set(db, "app.current_osgb_id", "")
     _set(db, "app.health_clinical_access", "")
+    _set(db, "app.health_workplace_read", "")
 
 
 def _has_osgb_admin_rls_privilege(user: User) -> bool:
@@ -77,6 +78,12 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
         UserRole.OTHER_HEALTH_PERSONNEL,
     ) else ""
     _set(db, "app.health_clinical_access", health_clinical)
+    # Separate read flag: do not grant the existing clinical FOR ALL policy.
+    workplace_read = (
+        user.role == UserRole.COMPANY_ADMIN and bool(user.company_id)
+        and not str(user.email or "").strip().lower().endswith("@kiosk.isgsuite.tr")
+    )
+    _set(db, "app.health_workplace_read", "1" if workplace_read else "")
 
     if user.role == UserRole.GLOBAL_ADMIN:
         _set(db, "app.rls_bypass", "1")

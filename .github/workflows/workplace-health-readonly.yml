@@ -1,0 +1,48 @@
+name: Workplace health read-only
+on:
+  pull_request:
+    paths:
+      - 'backend/app/api/health.py'
+      - 'backend/app/core/rls.py'
+      - 'backend/alembic/versions/0115_workplace_health_read.py'
+      - 'backend/tests/test_workplace_health*'
+      - 'frontend/src/health*'
+      - '.github/workflows/workplace-health-readonly.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  health-access:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: health_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: "sqlite:///:memory:"
+      SECRET_KEY: test-secret-key-at-least-32-chars-long
+      ENVIRONMENT: development
+      HEALTH_RLS_TEST_DATABASE_URL: postgresql+psycopg://postgres:test-password@localhost:5432/health_test
+      PYTHONPATH: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements.txt
+      - run: python -m pytest backend/tests/test_workplace_health_postgres.py backend/tests/test_workplace_health_readonly.py backend/tests/test_health_consent_pro.py -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - run: npx vitest run src/health_readonly.test.js src/health_role_policy.test.js src/workplace_user_policy.test.js
+        working-directory: frontend

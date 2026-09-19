@@ -4,6 +4,42 @@ import {API_URL, api, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
 import {AppModal} from './ui_modal';
 import {canLoadHealthAnalysis} from './health_role_policy';
+import {isWorkplaceManagerUser} from './workplace_user_policy';
+
+const HEALTH_DETAIL_LABELS = {
+  "employee_name": "Çalışan",
+  "job_title": "Görev",
+  "department": "Bölüm",
+  "record_type": "Muayene türü",
+  "examination_date": "Muayene tarihi",
+  "next_examination_date": "Sonraki muayene",
+  "physician_name": "İşyeri hekimi",
+  "fitness_status": "Uygunluk",
+  "summary": "Muayene özeti",
+  "confidential_note": "Gizli hekim notu",
+  "restrictions": "Kısıtlamalar",
+  "informed_consent": "Bilgilendirilmiş onam",
+  "informed_consent_at": "Onam tarihi",
+  "audiometry_date": "Odyometri tarihi",
+  "audiometry_result": "Odyometri sonucu",
+  "spirometry_date": "SFT tarihi",
+  "spirometry_result": "SFT sonucu",
+  "chest_xray_date": "Akciğer grafisi tarihi",
+  "chest_xray_result": "Akciğer grafisi sonucu",
+  "blood_lead_date": "Kan kurşun tarihi",
+  "blood_lead_value": "Kan kurşun değeri",
+  "blood_lead_unit": "Birim",
+  "blood_lead_ref": "Referans",
+  "blood_lead_eval": "Kurşun değerlendirmesi",
+  "suggested_tests": "Önerilen tetkikler",
+  "exposures": "Maruziyetler",
+  "follow_up_note": "Takip notu",
+  "other_biological_test": "Diğer biyolojik tetkik",
+  "report_file_name": "Rapor dosyası",
+  "created_at": "Oluşturulma",
+  "updated_at": "Güncellenme",
+  "version": "Kayıt sürümü"
+};
 
 const TYPE_FALLBACK = {
   entry_exam: 'İşe Giriş',
@@ -162,6 +198,10 @@ function MiniTable({title, rows, empty}) {
 export function HealthPage({user}) {
   const canEdit = ['workplace_physician', 'other_health_personnel'].includes(user.role);
   const isPhysician = canLoadHealthAnalysis(user.role);
+  const isWorkplaceReader = isWorkplaceManagerUser(user);
+  const canRead = canEdit || isWorkplaceReader;
+  const canReadClinical = isPhysician || isWorkplaceReader;
+  const [detail, setDetail] = useState(null);
 
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -208,7 +248,7 @@ export function HealthPage({user}) {
   }, [companyId, employeeFilter, q, typeFilter, overdueOnly]);
 
   async function load() {
-    if (!canEdit) return;
+    if (!canRead) return;
     setMessage('');
     try {
       // Önce kullanıcının yetkili olduğu işyerlerini al. Birden fazla işyeri olan
@@ -242,7 +282,7 @@ export function HealthPage({user}) {
         api(`/health-records?${recordQs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
-        isPhysician ? api(`/health-records/analysis?${sumQs}`) : Promise.resolve(null),
+        canReadClinical ? api(`/health-records/analysis?${sumQs}`) : Promise.resolve(null),
       ]);
 
       setRows(Array.isArray(r) ? r : []);
@@ -251,7 +291,7 @@ export function HealthPage({user}) {
       setAnalysis(a);
 
       // Yalnız seçilen işyerinde bugün aktif görevlendirilmiş işyeri hekimleri.
-      const hekimler = nextCid
+      const hekimler = canEdit && nextCid
         ? await api(`/health-records/assigned-physicians?company_id=${encodeURIComponent(nextCid)}`).catch(() => [])
         : [];
       setPhysicians(hekimler);
@@ -356,6 +396,7 @@ export function HealthPage({user}) {
   }
 
   function openCreate() {
+    if (!canEdit) return;
     setEditing(null);
     setReportFile(null);
     setLeadLive(null);
@@ -371,6 +412,7 @@ export function HealthPage({user}) {
   }
 
   function openEdit(row) {
+    if (!canEdit) return;
     setEditing(row);
     setReportFile(null);
     const exp = row.exposures
@@ -447,6 +489,7 @@ export function HealthPage({user}) {
 
   async function save(e) {
     e.preventDefault();
+    if (!canEdit) return;
     if (!form.employee_id && !editing) {
       setMessage('Personeli listeden seçiniz.');
       return;
@@ -539,7 +582,7 @@ export function HealthPage({user}) {
     catch (err) { setMessage(err.message); }
   }
 
-  if (!canEdit) {
+  if (!canRead) {
     return (
       <div className="page-title">
         <h3>Sağlık Gözetimi</h3>
@@ -560,9 +603,9 @@ export function HealthPage({user}) {
         <h3>Sağlık Gözetimi</h3>
         <div className="actions">
           <button type="button" className="secondary" onClick={load} disabled={busy}><RefreshCw size={16} /> Yenile</button>
-          {isPhysician && <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>}
-          {isPhysician && <button type="button" className="secondary" onClick={exportXlsx}><Download size={16} /> Excel</button>}
-          <button type="button" onClick={openCreate} disabled={busy || !companyId}><Plus size={16} /> Yeni Kayıt</button>
+          {canReadClinical && <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>}
+          {canReadClinical && <button type="button" className="secondary" onClick={exportXlsx}><Download size={16} /> Excel</button>}
+          {canEdit && <button type="button" onClick={openCreate} disabled={busy || !companyId}><Plus size={16} /> Yeni Kayıt</button>}
         </div>
       </div>
 
@@ -625,7 +668,7 @@ export function HealthPage({user}) {
         <button type="button" className={tab === 'kayitlar' ? '' : 'secondary'} onClick={() => setTab('kayitlar')}>
           <HeartPulse size={16} /> Kayıtlar
         </button>
-        {isPhysician && (
+        {canReadClinical && (
           <button type="button" className={tab === 'analiz' ? '' : 'secondary'} onClick={() => setTab('analiz')}>
             Sağlık Analiz Merkezi
           </button>
@@ -693,13 +736,14 @@ export function HealthPage({user}) {
                     <td>{r.physician_name || '—'}</td>
                     <td style={{fontSize: 12, maxWidth: 180}}>{r.tetkik_summary || '—'}</td>
                     <td style={{fontSize: 12, maxWidth: 200}}>{r.smart_summary || '—'}</td>
-                    <td>{fitnessBadge(r.fitness_status, r.is_overdue, !isPhysician)}</td>
+                    <td>{fitnessBadge(r.fitness_status, r.is_overdue, !canReadClinical)}</td>
                     <td>
                       <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
-                        <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>
-                        {isPhysician && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> EK-2 / Klinik Dosya</button>}
-                        {isPhysician && r.fitness_status !== 'pending' && <button type="button" className="mini" onClick={() => openFitness(r)}><Printer size={12} /> İşveren Belgesi</button>}
-                        {isPhysician && r.has_report && (
+                        {canEdit && <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>}
+                        {canReadClinical && <button type="button" className="mini" onClick={() => setDetail(r)}>Ayrıntılar</button>}
+                        {canReadClinical && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> EK-2 / Klinik Dosya</button>}
+                        {canReadClinical && r.fitness_status !== 'pending' && <button type="button" className="mini" onClick={() => openFitness(r)}><Printer size={12} /> İşveren Belgesi</button>}
+                        {canReadClinical && r.has_report && (
                           <button type="button" className="mini" onClick={() => downloadReport(r)}><FileText size={12} /> Rapor</button>
                         )}
                         {isPhysician && <button type="button" className="mini" onClick={() => remove(r)}>Sil</button>}
@@ -707,7 +751,7 @@ export function HealthPage({user}) {
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={9} className="empty">Kayıt yok. Yeni muayene ekleyebilirsiniz.</td></tr>
+                  <tr><td colSpan={9} className="empty">Kayıt bulunamadı.</td></tr>
                 )}
               </tbody>
             </table>
@@ -715,7 +759,29 @@ export function HealthPage({user}) {
         </section>
       )}
 
-      {open && (
+      {detail && canReadClinical && (
+        <Modal title={`${detail.employee_name || 'Personel'} — Sağlık Kaydı`} close={() => setDetail(null)}>
+          <p>Salt okunur sağlık kaydı</p>
+          <dl className="form-grid">
+            {Object.entries(HEALTH_DETAIL_LABELS).map(([key, label]) => (
+              <div key={key}>
+                <dt style={{fontWeight: 700}}>{label}</dt>
+                <dd style={{margin: '4px 0 16px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere'}}>
+                  {key === 'fitness_status' ? (FITNESS_FALLBACK[detail[key]] || '—')
+                    : key === 'record_type' ? (typeMap[detail[key]] || detail[key])
+                    : typeof detail[key] === 'boolean' ? (detail[key] ? 'Evet' : 'Hayır')
+                    : String(detail[key] ?? '—')}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <div className="actions">
+            <button type="button" onClick={() => openForm(detail)}><Printer size={16} /> Klinik Dosyayı Yazdır / PDF</button>
+            {detail.has_report && <button type="button" onClick={() => downloadReport(detail)}><Download size={16} /> Tıbbi Raporu İndir</button>}
+          </div>
+        </Modal>
+      )}
+      {open && canEdit && (
         <Modal title={editing ? 'Sağlık Kaydını Düzenle' : 'Yeni Sağlık Kaydı'} close={() => setOpen(false)}>
           <form className="form-grid" onSubmit={save}>
             {!editing && (

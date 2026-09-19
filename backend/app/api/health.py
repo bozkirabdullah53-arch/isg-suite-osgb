@@ -22,7 +22,7 @@ from app.api.company_access import (
     ensure_company_access,
     find_professional_for_user,
 )
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_roles, is_workplace_manager_account
 from app.core.config import settings
 from app.core.input_rules import assert_date_order, assert_event_date
 from app.core.database import get_db
@@ -81,6 +81,26 @@ DSP_CREATE_FIELDS = {
     "blood_lead_date", "blood_lead_value", "blood_lead_unit", "blood_lead_ref",
 }
 DSP_UPDATE_FIELDS = DSP_CREATE_FIELDS - {"company_id", "employee_id"}
+
+
+def _read_access(*roles):
+    """Add named workplace managers to reads only; never to write roles."""
+    def dependency(
+        company_id: int | None = None,
+        user: User = Depends(get_current_user),
+    ) -> User:
+        if is_workplace_manager_account(user):
+            if company_id is not None and company_id != user.company_id:
+                raise HTTPException(403, "Yalnız kendi işyerinizin sağlık kayıtlarına erişebilirsiniz.")
+            return user
+        if user.role not in roles:
+            raise HTTPException(403, "Bu işlem için yetkiniz yok.")
+        return user
+    return dependency
+
+
+def _can_read_clinical(user: User) -> bool:
+    return user.role in PHYSICIAN_ROLES or is_workplace_manager_account(user)
 
 
 def _enforce_write_matrix(user: User, supplied_fields: set[str], *, create: bool) -> None:
@@ -166,6 +186,8 @@ FITNESS_LABELS = {
 
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
+    if is_workplace_manager_account(user) and company_id != user.company_id:
+        raise HTTPException(403, "Yalnız kendi işyerinizin sağlık kayıtlarına erişebilirsiniz.")
     ensure_company_access(db, user, company_id)
 
 
@@ -302,7 +324,7 @@ def _employees_map(db: Session, emp_ids: set[int]) -> dict[int, Employee]:
 
 
 @router.get("/meta")
-def health_meta(user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES))):
+def health_meta(user: User = Depends(_read_access(*HEALTH_SUPPORT_ROLES))):
     _ = user
     return {
         "record_types": [{"code": k.value, "label": v} for k, v in RECORD_TYPE_LABELS.items()],
@@ -375,7 +397,7 @@ def health_summary(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
+    user: User = Depends(_read_access(*HEALTH_SUPPORT_ROLES)),
 ):
     effective = effective_company_id(db, user, company_id)
     today = date.today()
@@ -420,7 +442,7 @@ def health_analysis(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(_read_access(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     records = _company_records(db, effective)
@@ -447,7 +469,7 @@ def health_analysis_txt(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(_read_access(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     records = _company_records(db, effective)
@@ -510,10 +532,11 @@ def list_health_records(
     overdue_only: bool = False,
     q: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
+    user: User = Depends(_read_access(*HEALTH_SUPPORT_ROLES)),
 ):
     query = _active().order_by(HealthRecord.examination_date.desc(), HealthRecord.id.desc())
-    company_ids = company_ids_for_query(db, user, company_id)
+    company_ids = ([user.company_id] if is_workplace_manager_account(user)
+                   else company_ids_for_query(db, user, company_id))
     if company_ids == []:
         return []
     if company_ids is not None:
@@ -523,7 +546,7 @@ def list_health_records(
     if record_type:
         query = query.where(HealthRecord.record_type == record_type)
     if fitness_status:
-        if user.role not in PHYSICIAN_ROLES:
+        if not _can_read_clinical(user):
             raise HTTPException(
                 status_code=403,
                 detail="Uygunluk kararı filtresi yalnızca işyeri hekimine açıktır.",
@@ -532,7 +555,7 @@ def list_health_records(
     rows = list(db.scalars(query).all())
     employees = _employees_map(db, {r.employee_id for r in rows})
     today = date.today()
-    include_conf = user.role in PHYSICIAN_ROLES
+    include_conf = _can_read_clinical(user)
     out = []
     for r in rows:
         emp = employees.get(r.employee_id)
@@ -663,7 +686,7 @@ def export_health_txt(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(_read_access(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
@@ -717,7 +740,7 @@ def export_health_xlsx(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(_read_access(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
@@ -1015,7 +1038,7 @@ def health_form_html(
     request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(_read_access(*PHYSICIAN_ONLY)),
 ):
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
@@ -1132,7 +1155,7 @@ def health_fitness_html(
     request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(_read_access(*PHYSICIAN_ONLY)),
 ):
     """Employer-facing minimum-necessary fitness document; no clinical findings."""
     record = db.get(HealthRecord, record_id)
@@ -1281,7 +1304,7 @@ def download_health_report(
     request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(_read_access(*PHYSICIAN_ONLY)),
 ):
     from app.services.stored_files import response_for_storage_key
 

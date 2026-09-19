@@ -141,7 +141,7 @@ def client(tmp_path, monkeypatch):
                     hashed_password=get_password_hash("OsgbPass123!"),
                     role=UserRole.COMPANY_ADMIN,
                     osgb_id=osgb.id,
-                    company_id=company.id,
+                    company_id=None,
                     is_active=True,
                 ),
                 User(
