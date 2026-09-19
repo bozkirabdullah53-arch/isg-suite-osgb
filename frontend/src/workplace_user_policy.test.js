@@ -28,6 +28,7 @@ describe('workplace user policy', () => {
   it('exposes the approved workplace operational modules in the intended order', () => {
     expect(WORKPLACE_MANAGER_MODULES).toEqual([
       'workplace_home',
+      'workplace_status',
       'employer_oversight',
       'employees',
       'ppe',
@@ -56,6 +57,7 @@ describe('workplace user policy', () => {
     expect(workplaceMenuSection(manager, 'employees')).toBe('Personel ve Eğitim');
     expect(workplaceMenuSection(manager, 'remote_training')).toBe('Personel ve Eğitim');
     expect(workplaceMenuSection(manager, 'workplace_home')).toBe('İşyeri Özeti');
+    expect(workplaceMenuSection(manager, 'workplace_status')).toBe('İşyeri Özeti');
     expect(workplaceMenuSection({...manager, company_id: null}, 'ppe')).toBe('');
   });
 
@@ -72,6 +74,7 @@ describe('workplace user policy', () => {
       expect(modules).not.toContain(id);
     }
     expect(modules).not.toContain('remote_training');
+    expect(modules).not.toContain('workplace_status');
     expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'read_only'})).toBe(null);
