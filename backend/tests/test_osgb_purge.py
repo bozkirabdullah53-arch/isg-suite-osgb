@@ -18,6 +18,7 @@ def client(tmp_path, monkeypatch):
     from sqlalchemy.orm import sessionmaker
     import app.core.database as dbmod
     import app.models.entities as ent
+    import app.models.remote_training  # noqa: F401
     # Dijital personel kartı tablolarını test metadata'sına kaydet.
     import app.models.personnel_profile  # noqa: F401
     import app.models.personnel_profile_document  # noqa: F401
@@ -468,3 +469,167 @@ def test_purge_company_with_emergency_teams(client: TestClient):
         assert db.get(Company, cid) is None
         left = db.scalars(select(EmergencyTeam).where(EmergencyTeam.company_id == cid)).all()
         assert left == []
+
+
+def test_purge_company_with_remote_training_assignments(client: TestClient):
+    """P0 regresyon: uzaktan eğitim atamaları Employee silmeyi kilitlemesin."""
+    from sqlalchemy import select
+
+    from app.api.companies import _purge_company_data
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, Employee, OsgbOrganization
+    from app.models.remote_training import RemoteTrainingAssignment, RemoteTrainingProgram
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Remote Purge OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(
+            name="Remote Purge Company",
+            osgb_id=osgb.id,
+            is_active=True,
+            hazard_class="Az Tehlikeli",
+        )
+        db.add(company)
+        db.flush()
+        employee = Employee(
+            company_id=company.id,
+            full_name="Uzaktan Eğitim Personeli",
+            national_id_masked="***********",
+            is_active=False,
+        )
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Purge Test Eğitimi",
+        )
+        db.add_all([employee, program])
+        db.flush()
+        assignment = RemoteTrainingAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+        )
+        db.add(assignment)
+        db.commit()
+        company_id = company.id
+        employee_id = employee.id
+        assignment_id = assignment.id
+
+    with SessionLocal() as db:
+        _purge_company_data(db, company_id)
+        db.delete(db.get(Company, company_id))
+        db.commit()
+        assert db.get(Company, company_id) is None
+        assert db.get(Employee, employee_id) is None
+        assert db.get(RemoteTrainingAssignment, assignment_id) is None
+
+
+def test_delete_company_archives_history_and_closes_workplace_account(client: TestClient):
+    """Firma silme düğmesi geçmişi koruyarak işyerini aktif listeden çıkarır."""
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.core.database import SessionLocal
+    from app.core.security import create_access_token, get_password_hash
+    from app.models.entities import (
+        Company,
+        Employee,
+        HealthFitnessStatus,
+        HealthRecord,
+        HealthRecordType,
+        OsgbOrganization,
+        User,
+        UserRole,
+    )
+    from app.models.remote_training import RemoteTrainingAssignment, RemoteTrainingProgram
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Archive Delete OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(
+            name="Archive Delete Company",
+            osgb_id=osgb.id,
+            is_active=True,
+            hazard_class="Az Tehlikeli",
+        )
+        db.add(company)
+        db.flush()
+        osgb_admin = User(
+            email="archive-delete-osgb@test.com",
+            full_name="Archive Delete OSGB Admin",
+            hashed_password=get_password_hash("Test1234!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        workplace_user = User(
+            email="archive-delete-workplace@test.com",
+            full_name="Archive Delete Workplace User",
+            hashed_password=get_password_hash("Test1234!"),
+            role=UserRole.COMPANY_ADMIN,
+            company_id=company.id,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        db.add_all([osgb_admin, workplace_user])
+        db.flush()
+        employee = Employee(
+            company_id=company.id,
+            full_name="Geçmişi Korunan Personel",
+            national_id_masked="***********",
+            is_active=False,
+        )
+        db.add(employee)
+        db.flush()
+        health = HealthRecord(
+            company_id=company.id,
+            employee_id=employee.id,
+            record_type=HealthRecordType.PERIODIC_EXAM,
+            examination_date=date(2026, 1, 1),
+            fitness_status=HealthFitnessStatus.FIT,
+            created_by_id=osgb_admin.id,
+        )
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Korunan Eğitim Geçmişi",
+        )
+        db.add_all([health, program])
+        db.flush()
+        assignment = RemoteTrainingAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+        )
+        db.add(assignment)
+        db.commit()
+        company_id = company.id
+        employee_id = employee.id
+        health_id = health.id
+        assignment_id = assignment.id
+        workplace_user_id = workplace_user.id
+        token = create_access_token(str(osgb_admin.id), token_version=osgb_admin.token_version)
+
+    response = client.delete(
+        f"/api/v1/companies/{company_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["archived"] is True
+
+    with SessionLocal() as db:
+        archived = db.get(Company, company_id)
+        assert archived is not None
+        assert archived.is_active is False
+        assert db.get(Employee, employee_id) is not None
+        assert db.get(HealthRecord, health_id) is not None
+        assert db.get(RemoteTrainingAssignment, assignment_id) is not None
+        assert db.get(User, workplace_user_id).is_active is False
+        assert db.scalars(select(Company).where(Company.is_active.is_(True))).all() == []

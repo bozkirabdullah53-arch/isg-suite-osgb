@@ -75,9 +75,9 @@ export function workplaceMenuSection(user, moduleId) {
 
 export function workplaceModulesForUser(user) {
   if (!isWorkplaceAccountUser(user)) return null;
-  const modules = isWorkplaceKioskUser(user) ? WORKPLACE_KIOSK_MODULES : WORKPLACE_MANAGER_MODULES;
+  const modules = [...WORKPLACE_MANAGER_MODULES];
   if (user.visit_qr_enabled === false) {
     return modules.filter((moduleId) => moduleId !== 'site_qr_kiosk');
   }
-  return [...modules];
+  return modules;
 }

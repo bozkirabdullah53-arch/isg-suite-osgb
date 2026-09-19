@@ -14,7 +14,7 @@ describe('health role request policy', () => {
     expect(canLoadHealthAnalysis('company_admin')).toBe(false);
   });
 
-  it('opens only the masked read-only view to a normal workplace manager', () => {
+  it('opens only the masked read-only view to the workplace account', () => {
     const manager = {
       role: 'company_admin',
       company_id: 42,
@@ -25,7 +25,7 @@ describe('health role request policy', () => {
     expect(canViewEmployerFitness(manager)).toBe(true);
 
     expect(canViewHealthRecords({...manager, company_id: null})).toBe(false);
-    expect(canViewHealthRecords({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(false);
+    expect(canViewHealthRecords({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(true);
   });
 
   it('keeps clinical editing and employer-document boundaries unchanged', () => {

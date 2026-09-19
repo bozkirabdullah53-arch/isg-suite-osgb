@@ -893,7 +893,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   }
   async function act(row,action){
     if(action==='delete'){
-      if(!window.confirm(`“${row.name}” işyerini KALICI olarak silmek istiyor musunuz?\n\nPersonel, eğitim, risk, sağlık ve diğer bağlı kayıtlar da silinir. Bu işlem geri alınamaz.`)) return;
+      if(!window.confirm(`“${row.name}” işyerini aktif listeden kaldırmak istiyor musunuz?\n\nSağlık, eğitim, QR/giriş-çıkış ve geçmiş kayıtlar korunur. İşyeri hesabı kapatılır; işyeri aktif çalışma alanından çıkarılır.`)) return;
     }else{
       const labels={deactivate:'pasife almak',activate:'yeniden aktifleştirmek'};
       if(!window.confirm(`“${row.name}” işyerini ${labels[action]||action} istiyor musunuz?`)) return;
@@ -912,7 +912,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   async function toggleVisitQr(row){
     if(!row?.id) return;
     const enabled=row.visit_qr_enabled===false;
-    if(!enabled&&!window.confirm(`“${row.name}” aktif kalacak; yalnızca uzman/hekim QR giriş-çıkışı pasifleştirilsin mi?\n\nİşyeri QR bağlantısı işyeri kullanıcısına görünmez; mevcut ziyaret kayıtları silinmez.`)) return;
+    if(!enabled&&!window.confirm(`“${row.name}” işyerinde uzman/hekim QR giriş-çıkışı pasifleştirilsin mi?\n\nİşyeri QR bağlantısı işyeri kullanıcısına görünmez; mevcut ziyaret kayıtları silinmez.`)) return;
     setBusy(true);setErr('');
     try{
       const result=await api(`/companies/${row.id}/visit-qr-policy`,{method:'PATCH',body:JSON.stringify({enabled})});

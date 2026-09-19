@@ -89,6 +89,7 @@ from app.models.field_inspection import (
     FieldInspectionPhoto,
     FieldInspectionSite,
 )
+from app.models.remote_training import RemoteTrainingAssignment
 from app.schemas.company import (
     CompanyCreate,
     CompanyCreateResponse,
@@ -323,6 +324,23 @@ def _purge_company_data(db: Session, company_id: int) -> None:
         db.execute(delete(PpeAssignment).where(PpeAssignment.employee_id.in_(emp_ids)))
         db.execute(
             delete(EmergencyTeamAssignment).where(EmergencyTeamAssignment.employee_id.in_(emp_ids))
+        )
+
+    # Uzaktan eğitim atamalarında employee_id RESTRICT'tir.  Atamanın
+    # company_id'si aynı olsa bile önce Employee silinirse PostgreSQL,
+    # remote_training_assignments_employee_id_fkey hatası verir.  Atama
+    # çocukları (ilerleme, sınav, cevap, belge ve olaylar) migration'da
+    # assignment_id -> CASCADE olduğu için ana atamaları önce kaldırmak
+    # onların da güvenli sırayla temizlenmesini sağlar.  Eski kurulumlarda
+    # tablo henüz yoksa şirket silme akışını bozmayız.
+    if inspect(db.get_bind()).has_table(RemoteTrainingAssignment.__tablename__):
+        remote_assignment_scope = [RemoteTrainingAssignment.company_id == company_id]
+        if emp_ids:
+            remote_assignment_scope.append(
+                RemoteTrainingAssignment.employee_id.in_(emp_ids)
+            )
+        db.execute(
+            delete(RemoteTrainingAssignment).where(or_(*remote_assignment_scope))
         )
 
     db.execute(delete(HealthRecord).where(HealthRecord.company_id == company_id))
@@ -592,12 +610,9 @@ def reset_company_kiosk_login(
 
 
 def _ensure_workplace_qr_page_available(user: User, company: Company) -> None:
-    """QR politikası pasifse işyeri hesabının QR/kiosk sayfasını kapatır.
+    """Pasif politika, işyeri hesabının QR/kiosk sayfasını da kapatır.
 
-    Bu ayar ``Company.is_active`` durumundan bağımsızdır: işyeri aktif kalır,
-    yalnızca uzman/hekim giriş-çıkış QR kullanımı kapatılır.
-
-    OSGB ve global yöneticiler pasif QR politikasının kodunu yönetmeye devam eder;
+    OSGB ve global yöneticiler pasif işyerinin kodunu yönetmeye devam edebilir;
     bu sayede ayar tekrar açılabilir ve mevcut QR yaşam döngüsü silinmez.
     """
     if (
@@ -924,7 +939,13 @@ def delete_company(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)),
 ):
-    """Kalıcı sil: bağlı operasyonel kayıtlar da silinir. Pasife alma yapılmaz."""
+    """İşyerini güvenli biçimde aktif listeden kaldırır.
+
+    Sağlık, eğitim, QR/giriş-çıkış ve diğer tarihsel kayıtlar mevzuat ve veri
+    bütünlüğü nedeniyle fiziksel olarak silinmez. Şirket hesabı pasifleştirilir
+    ve mevcut oturumları geçersizleştirilir; böylece ekran üzerindeki "Sil"
+    işlemi FK hatası üretmeden işyerini aktif çalışma alanından kaldırır.
+    """
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
@@ -934,8 +955,27 @@ def delete_company(
         _assert_company_admin_scope(user, obj)
     name = obj.name
     try:
-        _purge_company_data(db, company_id)
-        db.delete(obj)
+        obj.is_active = False
+        # İşyeri/kiosk hesapları silinen işyerine giriş yapamasın; kayıtlar ve
+        # kullanıcı kimlikleri korunur. Token sürümünü artırmak mevcut JWT'leri
+        # de anında geçersizleştirir.
+        db.execute(
+            update(User)
+            .where(User.company_id == company_id, User.is_active.is_(True))
+            .values(
+                is_active=False,
+                token_version=User.token_version + 1,
+            )
+        )
+        # Aktif işyeri üyelikleri de aynı işyerine erişimi genişletmemeli.
+        db.execute(
+            update(WorkplaceMembership)
+            .where(
+                WorkplaceMembership.company_id == company_id,
+                WorkplaceMembership.is_active.is_(True),
+            )
+            .values(is_active=False)
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -943,4 +983,13 @@ def delete_company(
             409,
             f"“{name}” silinemedi: beklenmeyen bağlı kayıt. Detay: {exc.orig or exc}",
         ) from None
-    return {"ok": True, "id": company_id, "deleted": True, "message": f"“{name}” ve bağlı kayıtlar kalıcı silindi."}
+    return {
+        "ok": True,
+        "id": company_id,
+        "deleted": True,
+        "archived": True,
+        "message": (
+            f"“{name}” aktif işyeri listesinden kaldırıldı. Sağlık, eğitim, "
+            "QR/giriş-çıkış ve geçmiş kayıtlar korundu; işyeri hesabı kapatıldı."
+        ),
+    }

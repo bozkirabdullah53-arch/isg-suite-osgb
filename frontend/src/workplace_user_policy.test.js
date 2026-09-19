@@ -17,11 +17,11 @@ describe('workplace user policy', () => {
     email: 'ik.yetkilisi@example.com',
   };
 
-  it('separates a workplace manager from the OSGB administrator and QR kiosk', () => {
+  it('treats the legacy QR address as the same workplace account', () => {
     expect(isWorkplaceManagerUser(manager)).toBe(true);
     expect(isWorkplaceManagerUser({...manager, company_id: null})).toBe(false);
     expect(isWorkplaceManagerUser({...manager, role: 'safety_specialist'})).toBe(false);
-    expect(isWorkplaceManagerUser({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(false);
+    expect(isWorkplaceManagerUser({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(true);
     expect(isWorkplaceKioskUser({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(true);
   });
 
@@ -72,11 +72,13 @@ describe('workplace user policy', () => {
       expect(workplaceMenuSection(kiosk, id)).not.toBe('');
     }
     expect(modules[0]).toBe('workplace_home');
-    for (const id of ['companies', 'users', 'finance', 'contracts', 'health', 'documents', 'training']) {
+    for (const id of ['companies', 'users', 'finance', 'contracts', 'training']) {
       expect(modules).not.toContain(id);
     }
     expect(modules).toContain('remote_training');
-    expect(modules).not.toContain('workplace_status');
+    expect(modules).toContain('workplace_status');
+    expect(modules).toContain('health');
+    expect(modules).toContain('documents');
     expect(modules).toContain('workplace_backups');
     expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);

@@ -367,7 +367,7 @@ def test_workplace_manager_can_manage_own_committee_without_eyas_assignment(monk
     assert committee_workflow.can_manage_company(SimpleNamespace(), osgb_admin, 42) is False
 
 
-def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
+def test_workplace_manager_account_includes_legacy_qr_kiosk_record():
     from app.api.deps import is_workplace_manager_account
     from app.core.rls import _has_workplace_health_read_privilege
     from app.models.entities import UserRole
@@ -390,10 +390,12 @@ def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
 
     assert is_workplace_manager_account(manager) is True
     assert is_workplace_manager_account(osgb_admin) is False
-    assert is_workplace_manager_account(kiosk) is False
+    # The old @kiosk address is now the same workplace account; the address is
+    # retained for backwards compatibility and no longer narrows permissions.
+    assert is_workplace_manager_account(kiosk) is True
     assert _has_workplace_health_read_privilege(manager) is True
     assert _has_workplace_health_read_privilege(osgb_admin) is False
-    assert _has_workplace_health_read_privilege(kiosk) is False
+    assert _has_workplace_health_read_privilege(kiosk) is True
 
 
 @pytest.mark.parametrize("account_key", ["manager_email", "kiosk_email"])
@@ -453,7 +455,7 @@ def test_workplace_manager_can_track_own_drills_and_download_report_only(workpla
     assert client.delete(f"/api/v1/drills/{own_id}", headers=headers).status_code == 403
 
 
-def test_workplace_health_view_is_own_company_only_and_excludes_kiosk(workplace_client):
+def test_workplace_health_view_is_own_company_only_for_legacy_qr_account(workplace_client):
     from app.core.database import SessionLocal
     from app.models.entities import (
         HealthFitnessStatus,
@@ -505,7 +507,11 @@ def test_workplace_health_view_is_own_company_only_and_excludes_kiosk(workplace_
     assert foreign.status_code == 403, foreign.text
 
     kiosk_headers = _headers(_token(client, seed["kiosk_email"], seed["password"]))
-    assert client.get("/api/v1/health-records", headers=kiosk_headers).status_code == 403
+    kiosk_listed = client.get("/api/v1/health-records", headers=kiosk_headers)
+    assert kiosk_listed.status_code == 200, kiosk_listed.text
+    assert len(kiosk_listed.json()) == 1
+    assert kiosk_listed.json()[0]["company_id"] == seed["own_company_id"]
+    assert "YABANCI_KLINIK_BILGI" not in kiosk_listed.text
 
     central_headers = _headers(
         _token(client, seed["osgb_admin_email"], seed["password"])

@@ -230,7 +230,7 @@ def test_osgb_can_toggle_workplace_visit_qr_without_deleting_the_qr_flow(client)
 
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import Company, User, UserRole
+    from app.models.entities import User, UserRole
 
     with SessionLocal() as db:
         db.add(
@@ -260,8 +260,6 @@ def test_osgb_can_toggle_workplace_visit_qr_without_deleting_the_qr_flow(client)
     )
     assert disabled.status_code == 200, disabled.text
     assert disabled.json()["visit_qr_enabled"] is False
-    with SessionLocal() as db:
-        assert db.get(Company, seed["company_id"]).is_active is True
 
     workplace = client.post(
         "/api/v1/auth/login",
