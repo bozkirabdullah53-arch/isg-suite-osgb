@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Iterator, Protocol
+from typing import BinaryIO, Iterator, Protocol
 
 from fastapi import HTTPException
 
@@ -27,6 +27,13 @@ def remote_mirror_required() -> bool:
 
 class ObjectStore(Protocol):
     def put_bytes(self, key: str, content: bytes) -> str: ...
+    def put_stream(
+        self,
+        key: str,
+        stream: BinaryIO,
+        *,
+        content_type: str | None = None,
+    ) -> str: ...
     def get_bytes(self, key: str) -> bytes: ...
     def remote_size(self, key: str) -> int | None: ...
     def iter_range(self, key: str, *, start: int, end: int) -> Iterator[bytes]: ...
@@ -221,6 +228,44 @@ class S3ObjectStore:
             raise RuntimeError(
                 f"Uzak depolama boyut doğrulaması başarısız: beklenen={expected_size}, gelen={remote_size}"
             )
+        return normalized
+
+    def put_stream(
+        self,
+        key: str,
+        stream: BinaryIO,
+        *,
+        content_type: str | None = None,
+    ) -> str:
+        """Upload a non-seekable stream with managed multipart transfer.
+
+        upload_fileobj supports pipe-backed streams, so the caller can
+        produce a ZIP while R2 consumes it without a local archive copy.
+        Callers still verify the remote size and checksum after upload.
+        """
+        normalized = _normalize_key(key)
+        full_key = self._full_key(normalized)
+        upload_kwargs: dict = {}
+        normalized_content_type = (content_type or "").strip()
+        if normalized_content_type:
+            upload_kwargs["ExtraArgs"] = {
+                "ContentType": normalized_content_type[:120]
+            }
+        from boto3.s3.transfer import TransferConfig  # type: ignore
+
+        transfer_config = TransferConfig(
+            multipart_threshold=8 * 1024 * 1024,
+            multipart_chunksize=8 * 1024 * 1024,
+            max_concurrency=1,
+            use_threads=False,
+        )
+        self._client.upload_fileobj(
+            stream,
+            self.bucket,
+            full_key,
+            Config=transfer_config,
+            **upload_kwargs,
+        )
         return normalized
 
     def get_range(self, key: str, *, start: int, end: int) -> bytes:

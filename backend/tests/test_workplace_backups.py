@@ -18,8 +18,15 @@ def setup(tmp_path, monkeypatch):
         a, b = Company(name="A", is_active=True), Company(name="B", is_active=True); db.add_all([a,b]); db.flush()
         user = User(email="manager@example.com", full_name="Manager", hashed_password="x", role=UserRole.COMPANY_ADMIN, company_id=a.id, is_active=True)
         db.add(user); db.commit(); db.refresh(user); ids=(a.id,b.id,user.id)
-    monkeypatch.setattr(settings, "workplace_backups_enabled", True); monkeypatch.setattr(settings, "workplace_backups_force_off", False)
-    monkeypatch.setattr(settings, "backup_dir", str(tmp_path/"backups")); monkeypatch.setattr(settings, "upload_dir", str(tmp_path/"uploads"))
+    monkeypatch.setattr(settings, "workplace_backups_enabled", True)
+    monkeypatch.setattr(settings, "workplace_backups_force_off", False)
+    monkeypatch.setattr(settings, "workplace_backup_remote_enabled", False)
+    monkeypatch.setattr(settings, "workplace_backup_remote_prefix", "workplace-backups")
+    monkeypatch.setattr(settings, "backup_encryption_key", "")
+    monkeypatch.setattr(settings, "backup_encryption_secret_fallback", False)
+    monkeypatch.setattr(settings, "backup_encryption_force_off", False)
+    monkeypatch.setattr(settings, "backup_dir", str(tmp_path/"backups"))
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path/"uploads"))
     return factory, ids
 
 def test_api_uses_authenticated_company_and_hides_foreign(setup):
@@ -218,6 +225,16 @@ class _FakeRemoteBackupStore:
         self.objects[key] = path.read_bytes()
         return key
 
+    def put_stream(self, key, stream, *, content_type=None):
+        chunks = []
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(bytes(chunk))
+        self.objects[key] = b"".join(chunks)
+        return key
+
     def iter_range(self, key, *, start, end):
         yield self.objects[key][start:end + 1]
 
@@ -226,6 +243,82 @@ class _FakeRemoteBackupStore:
 
     def delete(self, key):
         self.objects.pop(key, None)
+
+
+def test_new_workplace_backup_streams_directly_to_remote_without_local_capacity(setup, monkeypatch):
+    from app.core.config import settings
+    from app.models.entities import BackupSource, BackupStatus
+    from app.services import workplace_backup
+    from app.services.archive_store import archive_root
+
+    factory, (own, _foreign, _user_id) = setup
+    remote = _FakeRemoteBackupStore()
+    monkeypatch.setattr(settings, "workplace_backup_remote_enabled", True)
+    monkeypatch.setattr(workplace_backup, "_remote_backup_store", lambda: remote)
+
+    def disk_usage_must_not_be_called(_path):
+        raise AssertionError("remote-native backup must not preflight local capacity")
+
+    monkeypatch.setattr(workplace_backup.shutil, "disk_usage", disk_usage_must_not_be_called)
+
+    with factory() as db:
+        row = workplace_backup.create_company_backup(
+            db,
+            company_id=own,
+            actor_user_id=None,
+            source=BackupSource.MANUAL,
+        )
+        assert row.backup_status == BackupStatus.COMPLETED
+        assert row.original_name.endswith(".zip")
+        stored_id = row.id
+        storage_path = row.storage_path
+
+    key = f"workplace-backups/{storage_path}"
+    assert key in remote.objects
+    assert remote.objects[key].startswith(b"PK")
+    assert not (archive_root() / storage_path).exists()
+
+    with factory() as db:
+        stored = db.get(EisaArchiveRecord, stored_id)
+        manifest = workplace_backup.read_company_backup_manifest(stored)
+        assert manifest["company_id"] == own
+        assert stored.size_bytes == len(remote.objects[key])
+
+
+def test_encrypted_remote_workplace_backup_is_readable(setup, monkeypatch):
+    from app.core.config import settings
+    from app.models.entities import BackupSource
+    from app.services import workplace_backup
+
+    factory, (own, _foreign, _user_id) = setup
+    remote = _FakeRemoteBackupStore()
+    monkeypatch.setattr(settings, "workplace_backup_remote_enabled", True)
+    monkeypatch.setattr(
+        settings,
+        "backup_encryption_key",
+        "test-backup-key-with-at-least-32-characters",
+    )
+    monkeypatch.setattr(workplace_backup, "_remote_backup_store", lambda: remote)
+
+    with factory() as db:
+        row = workplace_backup.create_company_backup(
+            db,
+            company_id=own,
+            actor_user_id=None,
+            source=BackupSource.MANUAL,
+        )
+        stored_id = row.id
+        storage_path = row.storage_path
+
+    key = f"workplace-backups/{storage_path}"
+    assert storage_path.endswith(".zip.enc")
+    assert key in remote.objects
+    assert not remote.objects[key].startswith(b"PK")
+
+    with factory() as db:
+        stored = db.get(EisaArchiveRecord, stored_id)
+        manifest = workplace_backup.read_company_backup_manifest(stored)
+        assert manifest["company_id"] == own
 
 
 def test_completed_workplace_backup_moves_to_remote_only_after_checksum_verification(setup, monkeypatch):

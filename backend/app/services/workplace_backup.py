@@ -2,7 +2,8 @@
 from __future__ import annotations
 import errno
 import hashlib
-import json, logging, os, shutil, tempfile, zipfile
+import io
+import json, logging, os, shutil, tempfile, threading, zipfile
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
@@ -16,6 +17,7 @@ from app.core.config import settings
 from app.models import entities
 from app.models.entities import ArchiveKind, BackupSource, BackupStatus, Company, EisaArchiveRecord
 from app.services.archive_store import _checksum, _maybe_encrypt_file, _rel_store, archive_root, resolve_archive_path, upload_root
+from app.services.stream_encryption import ChunkedFernetWriter
 from app.services.workplace_backup_report import build_workplace_backup_report
 
 
@@ -81,9 +83,14 @@ def _company_file_bytes(company_id: int) -> int:
     return total
 
 
-def _backup_encryption_enabled() -> bool:
+def _backup_encryption_key() -> str:
     from app.services.backup_restore import backup_encryption_key_material
-    return bool(backup_encryption_key_material())
+
+    return str(backup_encryption_key_material() or "").strip()
+
+
+def _backup_encryption_enabled() -> bool:
+    return bool(_backup_encryption_key())
 
 
 def _required_backup_free_bytes(company_id: int) -> int:
@@ -461,7 +468,178 @@ def _write_company_files(zf: zipfile.ZipFile, company_id: int):
     root = upload_root() / str(company_id)
     if root.exists():
         for path in root.rglob("*"):
-            if path.is_file(): zf.write(path, f"files/{company_id}/{path.relative_to(root).as_posix()}")
+            if path.is_file():
+                zf.write(path, f"files/{company_id}/{path.relative_to(root).as_posix()}")
+
+
+def _write_company_backup_zip(
+    zf: zipfile.ZipFile,
+    *,
+    manifest: dict[str, Any],
+    domains: dict[str, list],
+    company_id: int,
+) -> None:
+    zf.writestr(
+        "manifest.json",
+        json.dumps(manifest, ensure_ascii=False, indent=2, default=str),
+    )
+    for domain, items in domains.items():
+        zf.writestr(
+            f"domains/{domain}.json",
+            json.dumps(items, ensure_ascii=False, indent=2, default=str),
+        )
+    zf.writestr("Yedek Raporu.html", build_workplace_backup_report(manifest, domains))
+    _write_company_files(zf, company_id)
+
+
+class _HashingWriter:
+    def __init__(self, destination) -> None:
+        self._destination = destination
+        self._digest = hashlib.sha256()
+        self.bytes_written = 0
+
+    @property
+    def checksum(self) -> str:
+        return self._digest.hexdigest()
+
+    def write(self, data) -> int:
+        payload = bytes(data)
+        if not payload:
+            return 0
+        written = self._destination.write(payload)
+        if written is None:
+            written = len(payload)
+        if int(written) != len(payload):
+            raise OSError("Yedek akışı tüm veriyi kabul etmedi.")
+        self._digest.update(payload)
+        self.bytes_written += len(payload)
+        return len(payload)
+
+    def flush(self) -> None:
+        flush = getattr(self._destination, "flush", None)
+        if callable(flush):
+            flush()
+
+    def tell(self) -> int:
+        return self.bytes_written
+
+    def seekable(self) -> bool:
+        return False
+
+    def writable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return False
+
+    def seek(self, *_args, **_kwargs):
+        raise io.UnsupportedOperation("Yedek akışı seek desteklemiyor.")
+
+
+def _delete_remote_backup_best_effort(remote: object, key: str) -> None:
+    deleter = getattr(remote, "delete", None)
+    if not callable(deleter):
+        return
+    try:
+        deleter(key)
+    except Exception:
+        logger.warning("Başarısız uzak yedek temizlenemedi: key=%s", key)
+
+
+def _stream_company_backup_to_remote(
+    remote: object,
+    *,
+    key: str,
+    manifest: dict[str, Any],
+    domains: dict[str, list],
+    company_id: int,
+    encryption_key: str,
+) -> tuple[int, str]:
+    uploader = getattr(remote, "put_stream", None)
+    if not callable(uploader):
+        raise BackupIntegrityError("Uzak depolama akışlı yüklemeyi desteklemiyor.")
+
+    read_fd, write_fd = os.pipe()
+    reader = os.fdopen(read_fd, "rb", buffering=0)
+    raw_writer = os.fdopen(write_fd, "wb", buffering=0)
+    buffered_writer = io.BufferedWriter(raw_writer, buffer_size=1024 * 1024)
+    hashed_writer = _HashingWriter(buffered_writer)
+    archive_writer = (
+        ChunkedFernetWriter(hashed_writer, encryption_key)
+        if encryption_key
+        else hashed_writer
+    )
+    producer_errors: list[BaseException] = []
+
+    def produce() -> None:
+        try:
+            with zipfile.ZipFile(
+                archive_writer,
+                "w",
+                compression=zipfile.ZIP_DEFLATED,
+            ) as zf:
+                _write_company_backup_zip(
+                    zf,
+                    manifest=manifest,
+                    domains=domains,
+                    company_id=company_id,
+                )
+            if encryption_key:
+                archive_writer.finish()
+            else:
+                archive_writer.flush()
+        except BaseException as exc:
+            producer_errors.append(exc)
+        finally:
+            try:
+                buffered_writer.close()
+            except BaseException as exc:
+                if not producer_errors:
+                    producer_errors.append(exc)
+
+    producer = threading.Thread(
+        target=produce,
+        name=f"workplace-backup-{company_id}",
+        daemon=True,
+    )
+    producer.start()
+    upload_error: BaseException | None = None
+    try:
+        uploader(key, reader, content_type="application/octet-stream")
+    except BaseException as exc:
+        upload_error = exc
+    finally:
+        try:
+            reader.close()
+        except OSError:
+            pass
+        producer.join()
+
+    if upload_error is not None:
+        _delete_remote_backup_best_effort(remote, key)
+        raise upload_error
+    if producer_errors:
+        _delete_remote_backup_best_effort(remote, key)
+        raise producer_errors[0]
+
+    expected_size = int(hashed_writer.bytes_written)
+    expected_checksum = hashed_writer.checksum
+    if expected_size <= 0:
+        _delete_remote_backup_best_effort(remote, key)
+        raise BackupIntegrityError("Uzak yedek boş üretildi.")
+
+    if not _remote_archive_matches(
+        remote,
+        key,
+        expected_size=expected_size,
+        expected_checksum=expected_checksum,
+    ):
+        _delete_remote_backup_best_effort(remote, key)
+        raise BackupIntegrityError(
+            "Uzak yedek yüklemesi boyut veya checksum doğrulamasından geçemedi."
+        )
+    return expected_size, expected_checksum
+
 
 def create_company_backup(db: Session, *, company_id: int, actor_user_id: int | None, source: BackupSource, schedule_key: str | None = None):
     company = db.scalar(select(Company).where(Company.id == company_id, Company.is_active.is_(True)))
@@ -479,24 +657,67 @@ def create_company_backup(db: Session, *, company_id: int, actor_user_id: int | 
     # hedef yolu baştan biliyoruz.
     encrypted: Path | None = partial.with_suffix(partial.suffix + ".enc")
     try:
+        remote = _remote_backup_store()
+        domains, unavailable = _load_direct_company_domains(db, company.id)
+        domains.update(_load_linked_domains(db, company.id))
+        counts = {name: len(items) for name, items in domains.items()}
+        manifest = {
+            "format_version": 4,
+            "created_at": now.isoformat() + "Z",
+            "backup_source": source.value,
+            "osgb_id": company.osgb_id,
+            "company_id": company.id,
+            "companies": [{"id": company.id, "name": company.name}],
+            "domain_counts": counts,
+            "unavailable_domains": unavailable,
+            "restore": {"supports_file_restore": True, "supports_db_row_restore": False},
+        }
+
+        if remote is not None:
+            encryption_key = _backup_encryption_key()
+            final_name = base + (".enc" if encryption_key else "")
+            row.original_name = final_name
+            row.storage_path = f"backups/company-{company.id}/{final_name}"
+            row.size_bytes, row.checksum = _stream_company_backup_to_remote(
+                remote,
+                key=_remote_backup_key(row),
+                manifest=manifest,
+                domains=domains,
+                company_id=company.id,
+                encryption_key=encryption_key,
+            )
+            row.backup_status = BackupStatus.COMPLETED
+            row.completed_at = datetime.utcnow()
+            row.notes = (
+                f"İşyeri yedeği v4 — {sum(counts.values())} kayıt, "
+                f"{len(domains)} alan — R2 akışlı"
+            )
+            db.commit()
+            db.refresh(row)
+            return row
+
         _maybe_reclaim_remote_backup_space(db, company.id)
         folder.mkdir(parents=True, exist_ok=True)
         _remove_stale_partial_files()
         _ensure_backup_capacity(company.id)
-        domains, unavailable = _load_direct_company_domains(db, company.id); domains.update(_load_linked_domains(db, company.id))
-        counts = {name: len(items) for name, items in domains.items()}
-        manifest = {"format_version": 4, "created_at": now.isoformat()+"Z", "backup_source": source.value,
-            "osgb_id": company.osgb_id, "company_id": company.id, "companies": [{"id": company.id, "name": company.name}],
-            "domain_counts": counts, "unavailable_domains": unavailable,
-            "restore": {"supports_file_restore": True, "supports_db_row_restore": False}}
         with zipfile.ZipFile(partial, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2, default=str))
-            for domain, items in domains.items(): zf.writestr(f"domains/{domain}.json", json.dumps(items, ensure_ascii=False, indent=2, default=str))
-            zf.writestr("Yedek Raporu.html", build_workplace_backup_report(manifest, domains))
-            _write_company_files(zf, company.id)
-        encrypted = _maybe_encrypt_file(partial); final = folder / (base + (".enc" if encrypted.name.endswith(".enc") else "")); encrypted.replace(final)
-        row.original_name = final.name; row.storage_path = _rel_store(final); row.size_bytes = final.stat().st_size
-        row.checksum = _checksum(final); row.backup_status = BackupStatus.COMPLETED; row.completed_at = datetime.utcnow()
+            _write_company_backup_zip(
+                zf,
+                manifest=manifest,
+                domains=domains,
+                company_id=company.id,
+            )
+        encrypted = _maybe_encrypt_file(partial)
+        final = folder / (
+            base + (".enc" if encrypted.name.endswith(".enc") else "")
+        )
+        encrypted.replace(final)
+        row.original_name = final.name
+        row.storage_path = _rel_store(final)
+        row.size_bytes = final.stat().st_size
+        row.checksum = _checksum(final)
+        row.backup_status = BackupStatus.COMPLETED
+        row.completed_at = datetime.utcnow()
         row.notes = f"İşyeri yedeği v4 — {sum(counts.values())} kayıt, {len(domains)} alan"
         db.commit()
         db.refresh(row)
