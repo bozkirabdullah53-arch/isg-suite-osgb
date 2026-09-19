@@ -467,9 +467,8 @@ def health_summary(
     if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
         for key in ("fit", "conditional", "tracking", "unfit", "lead_high"):
             payload[key] = None
-    elif employer_view:
-        # İşyeri yöneticisi kendi işyerinin sağlık özetindeki tüm takip
-        # metriklerini salt-okunur görebilir.
+    # İşyeri yöneticisi kendi işyerinin sağlık özetindeki tüm takip
+    # metriklerini salt-okunur görebilir; veri burada olduğu gibi döner.
     append_health_access(
         db, actor=user, company_id=effective, action="summary_view", request=request,
         metadata={"record_count": len(items), "employer_view": employer_view},
