@@ -96,6 +96,7 @@ import {
 } from './navigation_history';
 import {
   isWorkplaceAccountUser,
+  isWorkplaceManagerUser,
   workplaceMenuSection,
   workplaceModulesForUser,
 } from './workplace_user_policy';
@@ -1168,7 +1169,9 @@ function UserPage({user}){
   </Page>
 }
 function Employees({user}){
-  const isWorkplaceManager=isWorkplaceAccountUser(user);
+  // QR/kiosk hesapları personel ekranını kullanabilir; sağlık verisi ise
+  // yalnızca normal işyeri/İK hesabına ait salt-okunur bir yetkidir.
+  const isWorkplaceManager=isWorkplaceManagerUser(user);
   const[companies,setCompanies]=useState([]);
   const[branches,setBranches]=useState([]);
   const[data,setData]=useState([]);
