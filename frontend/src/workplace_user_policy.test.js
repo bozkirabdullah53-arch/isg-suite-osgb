@@ -76,6 +76,7 @@ describe('workplace user policy', () => {
     }
     expect(modules).not.toContain('remote_training');
     expect(modules).not.toContain('workplace_status');
+    expect(modules).toContain('workplace_backups');
     expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'read_only'})).toBe(null);

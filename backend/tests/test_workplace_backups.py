@@ -45,3 +45,23 @@ def test_scheduler_is_idempotent(setup):
     first=run_scheduled_company_backups(factory, now=now); second=run_scheduled_company_backups(factory, now=now+timedelta(minutes=5))
     assert first.created == 2 and second.skipped == 2 and second.created == 0
     with factory() as db: assert len(db.scalars(select(EisaArchiveRecord)).all()) == 2
+
+def test_qr_workplace_account_can_access_only_own_backups(setup):
+    from app.main import app
+    from app.api.deps import get_current_user
+    factory, (own, _foreign, user_id) = setup
+    with factory() as db:
+        db.get(User, user_id).email = "isyeri.1@kiosk.isgsuite.tr"
+        db.commit()
+    def db_dep():
+        with factory() as db: yield db
+    def user_dep():
+        with factory() as db: return db.get(User, user_id)
+    app.dependency_overrides[get_db] = db_dep
+    app.dependency_overrides[get_current_user] = user_dep
+    try:
+        response = TestClient(app).get("/api/v1/workplace-backups")
+        assert response.status_code == 200
+        assert all(row["company_id"] == own for row in response.json())
+    finally:
+        app.dependency_overrides.clear()

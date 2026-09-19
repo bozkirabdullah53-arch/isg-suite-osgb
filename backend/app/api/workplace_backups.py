@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.api.deps import get_current_user, is_workplace_manager_account
+from app.api.deps import get_current_user, is_workplace_operations_account
 from app.core.config import settings, workplace_backups_active
 from app.core.database import get_db
 from app.core.database import SessionLocal
@@ -24,7 +24,7 @@ class WorkplaceBackupResponse(BaseModel):
 
 def _require_workplace_manager(user: User = Depends(get_current_user)):
     if not workplace_backups_active(): raise HTTPException(404, "İşyeri yedekleri etkin değil.")
-    if not is_workplace_manager_account(user): raise HTTPException(403, "Bu işlem yalnız işyeri yetkilisine açıktır.")
+    if not is_workplace_operations_account(user): raise HTTPException(403, "Bu işlem yalnız işyeri hesabına açıktır.")
     return user
 def _response(row):
     return WorkplaceBackupResponse(id=row.id, company_id=int(row.company_id), original_name=row.original_name,
