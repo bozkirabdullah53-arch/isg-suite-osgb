@@ -22,7 +22,12 @@ from app.api.company_access import (
     ensure_company_access,
     find_professional_for_user,
 )
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    is_workplace_manager_account,
+    require_roles,
+    require_roles_or_workplace_manager,
+)
 from app.core.config import settings
 from app.core.input_rules import assert_date_order, assert_event_date
 from app.core.database import get_db
@@ -177,10 +182,62 @@ def _active():
     return select(HealthRecord).where(HealthRecord.deleted_at.is_(None))
 
 
-def _to_response(row: HealthRecord, employee: Employee | None, include_confidential: bool) -> HealthRecordResponse:
+def _to_response(
+    row: HealthRecord,
+    employee: Employee | None,
+    include_confidential: bool,
+    *,
+    employer_view: bool = False,
+) -> HealthRecordResponse:
     today = date.today()
     overdue = bool(row.next_examination_date and row.next_examination_date < today)
     view = DecryptedRecordView(row)
+    if employer_view:
+        # İşveren/İK görünümü açık bir izin listesi kullanır. Yeni klinik alanlar
+        # şemaya eklense bile yanlışlıkla bu yanıta taşınamaz.
+        return HealthRecordResponse(
+            id=row.id,
+            company_id=row.company_id,
+            employee_id=row.employee_id,
+            employee_name=employee.full_name if employee else None,
+            job_title=employee.job_title if employee else None,
+            department=employee.department if employee else None,
+            record_type=row.record_type,
+            examination_date=row.examination_date,
+            next_examination_date=row.next_examination_date,
+            fitness_status=row.fitness_status,
+            physician_professional_id=None,
+            physician_name=row.physician_name,
+            summary=None,
+            confidential_note=None,
+            informed_consent=False,
+            informed_consent_at=None,
+            restrictions=view.restrictions,
+            audiometry_date=None,
+            audiometry_result=None,
+            spirometry_date=None,
+            spirometry_result=None,
+            chest_xray_date=None,
+            chest_xray_result=None,
+            blood_lead_date=None,
+            blood_lead_value=None,
+            blood_lead_unit=None,
+            blood_lead_ref=None,
+            blood_lead_eval=None,
+            suggested_tests=None,
+            exposures=None,
+            follow_up_note=None,
+            other_biological_test=None,
+            report_file_name=None,
+            has_report=False,
+            smart_summary=None,
+            tetkik_summary=None,
+            is_overdue=overdue,
+            created_by_id=row.created_by_id,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+            version=row.version,
+        )
     data = HealthRecordResponse.model_validate(row)
     for field in (
         "confidential_note",
@@ -302,7 +359,7 @@ def _employees_map(db: Session, emp_ids: set[int]) -> dict[int, Employee]:
 
 
 @router.get("/meta")
-def health_meta(user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES))):
+def health_meta(user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES))):
     _ = user
     return {
         "record_types": [{"code": k.value, "label": v} for k, v in RECORD_TYPE_LABELS.items()],
@@ -375,9 +432,10 @@ def health_summary(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES)),
 ):
     effective = effective_company_id(db, user, company_id)
+    employer_view = is_workplace_manager_account(user)
     today = date.today()
     soon = today + timedelta(days=30)
     items = _company_records(db, effective)
@@ -407,9 +465,20 @@ def health_summary(
     if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
         for key in ("fit", "conditional", "tracking", "unfit", "lead_high"):
             payload[key] = None
+    elif employer_view:
+        # İşverene yalnız periyodik takip ve işe uygunluk özeti verilir; tetkik
+        # varlığı/değeri dahi klinik veri olarak gizli tutulur.
+        for key in (
+            "with_audiometry",
+            "with_spirometry",
+            "with_chest_xray",
+            "with_blood_lead",
+            "lead_high",
+        ):
+            payload[key] = None
     append_health_access(
         db, actor=user, company_id=effective, action="summary_view", request=request,
-        metadata={"record_count": len(items)},
+        metadata={"record_count": len(items), "employer_view": employer_view},
     )
     db.commit()
     return payload
@@ -510,8 +579,9 @@ def list_health_records(
     overdue_only: bool = False,
     q: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES)),
 ):
+    employer_view = is_workplace_manager_account(user)
     query = _active().order_by(HealthRecord.examination_date.desc(), HealthRecord.id.desc())
     company_ids = company_ids_for_query(db, user, company_id)
     if company_ids == []:
@@ -546,14 +616,18 @@ def list_health_records(
                 continue
         if overdue_only and not (r.next_examination_date and r.next_examination_date < today):
             continue
-        out.append(_to_response(r, emp, include_conf))
+        out.append(_to_response(r, emp, include_conf, employer_view=employer_view))
     counts: dict[int, int] = {}
     for row in out:
         counts[row.company_id] = counts.get(row.company_id, 0) + 1
     for cid in company_ids or []:
         append_health_access(
             db, actor=user, company_id=cid, action="record_list", request=request,
-            metadata={"returned_count": counts.get(cid, 0), "masked": not include_conf},
+            metadata={
+                "returned_count": counts.get(cid, 0),
+                "masked": not include_conf,
+                "employer_view": employer_view,
+            },
         )
     db.commit()
     return out
@@ -717,15 +791,85 @@ def export_health_xlsx(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(require_roles_or_workplace_manager(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
+    employer_view = is_workplace_manager_account(user)
     company = db.get(Company, effective)
     rows = _company_records(db, effective)
     employees = _employees_map(db, {r.employee_id for r in rows})
     wb = Workbook()
     ws = wb.active
     ws.title = "Sağlık Gözetimi"
+    if employer_view:
+        headers = [
+            "Personel",
+            "Görev",
+            "Bölüm",
+            "Muayene Türü",
+            "Muayene Tarihi",
+            "Sonraki Muayene",
+            "İşe Uygunluk",
+            "İşyeri Hekimi",
+            "Çalışma Kısıtları / Uygunluk Şartları",
+        ]
+        ws.append(headers)
+
+        def excel_safe(value) -> str:
+            text = "" if value is None else str(value)
+            if text.lstrip().startswith(("=", "+", "-", "@")):
+                return "'" + text
+            return text
+
+        for row in rows:
+            employee = employees.get(row.employee_id)
+            view = DecryptedRecordView(row)
+            ws.append([
+                excel_safe(employee.full_name if employee else f"#{row.employee_id}"),
+                excel_safe(employee.job_title if employee else ""),
+                excel_safe(employee.department if employee else ""),
+                excel_safe(RECORD_TYPE_LABELS.get(row.record_type, row.record_type.value)),
+                row.examination_date.isoformat() if row.examination_date else "",
+                row.next_examination_date.isoformat() if row.next_examination_date else "",
+                excel_safe(FITNESS_LABELS.get(row.fitness_status, row.fitness_status.value)),
+                excel_safe(row.physician_name or ""),
+                excel_safe(view.restrictions or ""),
+            ])
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+        for column, width in zip(
+            "ABCDEFGHI",
+            (28, 22, 22, 24, 18, 18, 20, 24, 48),
+            strict=True,
+        ):
+            ws.column_dimensions[column].width = width
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        append_health_access(
+            db,
+            actor=user,
+            company_id=effective,
+            action="employer_records_export",
+            request=request,
+            metadata={
+                "format": "xlsx",
+                "record_count": len(rows),
+                "masked": True,
+                "employer_view": True,
+            },
+        )
+        db.commit()
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="isyeri-saglik-takip-{effective}.xlsx"'
+                )
+            },
+        )
+
     headers = [
         "Personel", "Görev", "Bölüm", "Muayene Türü", "Muayene Tarihi", "Sonraki Muayene",
         "Durum", "Hekim", "Odyometri", "SFT", "Akciğer", "Kan Kurşun", "Kurşun Değerlendirme",
@@ -778,7 +922,7 @@ def export_health_xlsx(
     buf.seek(0)
     append_health_access(
         db, actor=user, company_id=effective, action="records_export", request=request,
-        metadata={"format": "xlsx", "record_count": len(rows)},
+        metadata={"format": "xlsx", "record_count": len(rows), "employer_view": False},
     )
     db.commit()
     return StreamingResponse(
@@ -1132,7 +1276,7 @@ def health_fitness_html(
     request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(require_roles_or_workplace_manager(*PHYSICIAN_ONLY)),
 ):
     """Employer-facing minimum-necessary fitness document; no clinical findings."""
     record = db.get(HealthRecord, record_id)
@@ -1144,17 +1288,26 @@ def health_fitness_html(
     company = db.get(Company, record.company_id)
     employee = db.get(Employee, record.employee_id)
     view = DecryptedRecordView(record)
-    revision = db.scalar(
-        select(HealthRecordRevision)
-        .where(HealthRecordRevision.record_id == record.id)
-        .order_by(HealthRecordRevision.version.desc())
-        .limit(1)
-    )
+    employer_view = is_workplace_manager_account(user)
+    revision = None
+    if not employer_view:
+        # İşveren hesabının klinik revision/snapshot tablosuna hiçbir sorgu
+        # göndermemesi, RLS izin yüzeyini yalnız ana kayıtla sınırlı tutar.
+        revision = db.scalar(
+            select(HealthRecordRevision)
+            .where(HealthRecordRevision.record_id == record.id)
+            .order_by(HealthRecordRevision.version.desc())
+            .limit(1)
+        )
 
     def safe(value) -> str:
         return html_escape(str(value), quote=True) if value is not None else ""
 
-    verification = (revision.entry_hash[:16].upper() if revision else "KAYIT-BEKLIYOR")
+    verification = (
+        f"ISG-{record.id}-S{record.version}"
+        if employer_view
+        else (revision.entry_hash[:16].upper() if revision else "KAYIT-BEKLIYOR")
+    )
     html = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <title>İşe Uygunluk ve Çalışma Kısıtları Belgesi</title>
 <style>
@@ -1184,7 +1337,7 @@ body{{margin:0;background:#eef2f7;font-family:Segoe UI,Arial,sans-serif;color:#0
     append_health_access(
         db, actor=user, company_id=record.company_id, record_id=record.id,
         action="fitness_document_view", request=request,
-        metadata={"record_version": record.version},
+        metadata={"record_version": record.version, "employer_view": employer_view},
     )
     db.commit()
     return HTMLResponse(html)

@@ -3,7 +3,13 @@ import {Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload
 import {API_URL, api, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
 import {AppModal} from './ui_modal';
-import {canLoadHealthAnalysis} from './health_role_policy';
+import {
+  canEditHealthRecords,
+  canLoadHealthAnalysis,
+  canViewEmployerFitness,
+  canViewHealthRecords,
+} from './health_role_policy';
+import {isWorkplaceManagerUser} from './workplace_user_policy';
 
 const TYPE_FALLBACK = {
   entry_exam: 'İşe Giriş',
@@ -160,7 +166,10 @@ function MiniTable({title, rows, empty}) {
 }
 
 export function HealthPage({user}) {
-  const canEdit = ['workplace_physician', 'other_health_personnel'].includes(user.role);
+  const canEdit = canEditHealthRecords(user);
+  const canView = canViewHealthRecords(user);
+  const isEmployerView = isWorkplaceManagerUser(user);
+  const canOpenFitness = canViewEmployerFitness(user);
   const isPhysician = canLoadHealthAnalysis(user.role);
 
   const [companies, setCompanies] = useState([]);
@@ -208,7 +217,7 @@ export function HealthPage({user}) {
   }, [companyId, employeeFilter, q, typeFilter, overdueOnly]);
 
   async function load() {
-    if (!canEdit) return;
+    if (!canView) return;
     setMessage('');
     try {
       // Önce kullanıcının yetkili olduğu işyerlerini al. Birden fazla işyeri olan
@@ -251,7 +260,7 @@ export function HealthPage({user}) {
       setAnalysis(a);
 
       // Yalnız seçilen işyerinde bugün aktif görevlendirilmiş işyeri hekimleri.
-      const hekimler = nextCid
+      const hekimler = canEdit && nextCid
         ? await api(`/health-records/assigned-physicians?company_id=${encodeURIComponent(nextCid)}`).catch(() => [])
         : [];
       setPhysicians(hekimler);
@@ -267,7 +276,7 @@ export function HealthPage({user}) {
   // gecikmeden seçebilir.
   useEffect(() => {
     const cid = form.company_id || companyId;
-    if (!cid) {
+    if (!canView || !cid) {
       setEmployees([]);
       return undefined;
     }
@@ -280,7 +289,7 @@ export function HealthPage({user}) {
         // Ana yükleme hata mesajını koru; personel seçimi için tekrar denenebilir.
       });
     return () => { cancelled = true; };
-  }, [form.company_id, companyId]);
+  }, [form.company_id, companyId, canView]);
 
   useEffect(() => {
     if (!isPhysician) {
@@ -539,7 +548,7 @@ export function HealthPage({user}) {
     catch (err) { setMessage(err.message); }
   }
 
-  if (!canEdit) {
+  if (!canView) {
     return (
       <div className="page-title">
         <h3>Sağlık Gözetimi</h3>
@@ -561,10 +570,24 @@ export function HealthPage({user}) {
         <div className="actions">
           <button type="button" className="secondary" onClick={load} disabled={busy}><RefreshCw size={16} /> Yenile</button>
           {isPhysician && <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>}
-          {isPhysician && <button type="button" className="secondary" onClick={exportXlsx}><Download size={16} /> Excel</button>}
-          <button type="button" onClick={openCreate} disabled={busy || !companyId}><Plus size={16} /> Yeni Kayıt</button>
+          {(isPhysician || isEmployerView) && (
+            <button type="button" className="secondary" onClick={exportXlsx}>
+              <Download size={16} /> {isEmployerView ? 'Excel İndir' : 'Excel'}
+            </button>
+          )}
+          {canEdit && <button type="button" onClick={openCreate} disabled={busy || !companyId}><Plus size={16} /> Yeni Kayıt</button>}
         </div>
       </div>
+
+      {isEmployerView && (
+        <section className="panel" style={{marginBottom: 16, borderColor: '#99f6e4', background: '#f0fdfa'}}>
+          <strong>İşyeri sağlık takip görünümü — salt okunur</strong>
+          <p style={{margin: '6px 0 0', color: '#115e59', fontSize: 14}}>
+            Tüm çalışanların muayene takvimi, işe uygunluk durumu ve çalışma kısıtları görüntülenebilir.
+            Tanılar, tetkik sonuçları, gizli hekim notları ve klinik dosyalar gösterilmez; kayıtlar değiştirilemez.
+          </p>
+        </section>
+      )}
 
       <section className="panel" style={{marginBottom: 16}}>
         <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', marginBottom: 0}}>
@@ -618,7 +641,18 @@ export function HealthPage({user}) {
         <article className="metric"><span>Toplam</span><strong>{summary?.total ?? '—'}</strong></article>
         <article className="metric"><span>Geciken</span><strong style={{color: '#b91c1c'}}>{summary?.overdue ?? '—'}</strong></article>
         <article className="metric"><span>30 gün içinde</span><strong style={{color: '#d97706'}}>{summary?.due_soon ?? '—'}</strong></article>
-        <article className="metric"><span>Kurşun yüksek</span><strong style={{color: '#b91c1c'}}>{summary?.lead_high ?? '—'}</strong></article>
+        {isEmployerView ? (
+          <article className="metric">
+            <span>Kısıtlı / takip</span>
+            <strong style={{color: '#d97706'}}>
+              {summary
+                ? Number(summary.conditional || 0) + Number(summary.tracking || 0) + Number(summary.unfit || 0)
+                : '—'}
+            </strong>
+          </article>
+        ) : (
+          <article className="metric"><span>Kurşun yüksek</span><strong style={{color: '#b91c1c'}}>{summary?.lead_high ?? '—'}</strong></article>
+        )}
       </div>
 
       <div className="actions" style={{marginBottom: 12, gap: 8}}>
@@ -674,8 +708,8 @@ export function HealthPage({user}) {
                   <th>Tarih</th>
                   <th>Sonraki</th>
                   <th>Hekim</th>
-                  <th>Tetkik</th>
-                  <th>Akıllı özet</th>
+                  <th>{isEmployerView ? 'Çalışma kısıtları' : 'Tetkik'}</th>
+                  {!isEmployerView && <th>Akıllı özet</th>}
                   <th>Durum</th>
                   <th>İşlem</th>
                 </tr>
@@ -691,14 +725,22 @@ export function HealthPage({user}) {
                     <td>{r.examination_date}</td>
                     <td>{r.next_examination_date || '—'}</td>
                     <td>{r.physician_name || '—'}</td>
-                    <td style={{fontSize: 12, maxWidth: 180}}>{r.tetkik_summary || '—'}</td>
-                    <td style={{fontSize: 12, maxWidth: 200}}>{r.smart_summary || '—'}</td>
-                    <td>{fitnessBadge(r.fitness_status, r.is_overdue, !isPhysician)}</td>
+                    <td style={{fontSize: 12, maxWidth: isEmployerView ? 320 : 180}}>
+                      {isEmployerView
+                        ? (r.restrictions || 'Kısıtlama bildirilmemiştir.')
+                        : (r.tetkik_summary || '—')}
+                    </td>
+                    {!isEmployerView && <td style={{fontSize: 12, maxWidth: 200}}>{r.smart_summary || '—'}</td>}
+                    <td>{fitnessBadge(r.fitness_status, r.is_overdue, !isPhysician && !isEmployerView)}</td>
                     <td>
                       <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
-                        <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>
+                        {canEdit && <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>}
                         {isPhysician && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> EK-2 / Klinik Dosya</button>}
-                        {isPhysician && r.fitness_status !== 'pending' && <button type="button" className="mini" onClick={() => openFitness(r)}><Printer size={12} /> İşveren Belgesi</button>}
+                        {canOpenFitness && r.fitness_status !== 'pending' && (
+                          <button type="button" className="mini" onClick={() => openFitness(r)}>
+                            <Printer size={12} /> İşveren Belgesi
+                          </button>
+                        )}
                         {isPhysician && r.has_report && (
                           <button type="button" className="mini" onClick={() => downloadReport(r)}><FileText size={12} /> Rapor</button>
                         )}
@@ -707,7 +749,13 @@ export function HealthPage({user}) {
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={9} className="empty">Kayıt yok. Yeni muayene ekleyebilirsiniz.</td></tr>
+                  <tr>
+                    <td colSpan={isEmployerView ? 8 : 9} className="empty">
+                      {isEmployerView
+                        ? 'Sağlık kaydı bulunamadı.'
+                        : 'Kayıt yok. Yeni muayene ekleyebilirsiniz.'}
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -715,7 +763,7 @@ export function HealthPage({user}) {
         </section>
       )}
 
-      {open && (
+      {open && canEdit && (
         <Modal title={editing ? 'Sağlık Kaydını Düzenle' : 'Yeni Sağlık Kaydı'} close={() => setOpen(false)}>
           <form className="form-grid" onSubmit={save}>
             {!editing && (

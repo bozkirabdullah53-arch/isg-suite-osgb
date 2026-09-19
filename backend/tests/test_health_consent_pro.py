@@ -1,8 +1,11 @@
 """Sağlık gözetimi: muayene rızası, aktif atama ve klinik mahremiyet."""
 from __future__ import annotations
 
+from io import BytesIO
+
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 
 @pytest.fixture()
@@ -137,11 +140,20 @@ def client(tmp_path, monkeypatch):
                 ),
                 User(
                     email="onam-osgb@test.com",
-                    full_name="OSGB Yonetici",
+                    full_name="Isyeri Yetkilisi",
                     hashed_password=get_password_hash("OsgbPass123!"),
                     role=UserRole.COMPANY_ADMIN,
                     osgb_id=osgb.id,
                     company_id=company.id,
+                    is_active=True,
+                ),
+                User(
+                    email="onam-osgb-central@test.com",
+                    full_name="OSGB Merkez Yonetici",
+                    hashed_password=get_password_hash("CentralPass123!"),
+                    role=UserRole.COMPANY_ADMIN,
+                    osgb_id=osgb.id,
+                    company_id=None,
                     is_active=True,
                 ),
                 User(
@@ -291,18 +303,158 @@ def test_special_policy_employee_defaults_to_six_months(client):
     assert created.json()["next_examination_date"] == "2026-09-10"
 
 
-def test_osgb_admin_cannot_reach_health_records(client):
-    """OSGB merkez yöneticisi çalışanların tıbbi kaydını göremez/açamaz."""
-    headers = _headers(client, "onam-osgb@test.com", "OsgbPass123!")
+def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
+    physician = _headers(client, "onam-hekim@test.com", "HekimPass123!")
     company_id, employee_id = _ids()
+    restrictions = "Gece vardiyasında çalışamaz; 10 kg üstü yük kaldıramaz"
+    secrets = {
+        "summary": "KLINIK_OZET_GIZLI",
+        "confidential_note": "HEKIM_NOTU_GIZLI",
+        "audiometry_result": "ODYO_SONUCU_GIZLI",
+        "spirometry_result": "SFT_SONUCU_GIZLI",
+        "chest_xray_result": "AKCIGER_SONUCU_GIZLI",
+        "suggested_tests": "TETKIK_ONERISI_GIZLI",
+        "exposures": "MARUZIYET_GIZLI",
+        "follow_up_note": "TAKIP_NOTU_GIZLI",
+        "other_biological_test": "BIYOLOJIK_TEST_GIZLI",
+    }
+    created = client.post(
+        "/api/v1/health-records",
+        headers=physician,
+        json=_payload(
+            company_id,
+            employee_id,
+            examination_date="2026-08-10",
+            next_examination_date="2027-08-10",
+            fitness_status="conditional",
+            restrictions=restrictions,
+            audiometry_date="2026-08-10",
+            spirometry_date="2026-08-10",
+            chest_xray_date="2026-08-10",
+            blood_lead_date="2026-08-10",
+            blood_lead_value=44,
+            blood_lead_ref=30,
+            **secrets,
+        ),
+    )
+    assert created.status_code in (200, 201), created.text
+    record_id = created.json()["id"]
+
+    headers = _headers(client, "onam-osgb@test.com", "OsgbPass123!")
+
+    meta = client.get("/api/v1/health-records/meta", headers=headers)
+    assert meta.status_code == 200, meta.text
 
     listed = client.get(f"/api/v1/health-records?company_id={company_id}", headers=headers)
-    assert listed.status_code == 403, listed.text
+    assert listed.status_code == 200, listed.text
+    row = next(item for item in listed.json() if item["id"] == record_id)
+    assert row["employee_name"] == "Personel A"
+    assert row["fitness_status"] == "conditional"
+    assert row["restrictions"] == restrictions
+    assert row["physician_name"] == "Hekim Kisi"
+    assert row["informed_consent"] is False
+    assert row["informed_consent_at"] is None
+    assert row["has_report"] is False
+    for field in (
+        "physician_professional_id",
+        "summary",
+        "confidential_note",
+        "audiometry_date",
+        "audiometry_result",
+        "spirometry_date",
+        "spirometry_result",
+        "chest_xray_date",
+        "chest_xray_result",
+        "blood_lead_date",
+        "blood_lead_value",
+        "blood_lead_unit",
+        "blood_lead_ref",
+        "blood_lead_eval",
+        "suggested_tests",
+        "exposures",
+        "follow_up_note",
+        "other_biological_test",
+        "report_file_name",
+        "smart_summary",
+        "tetkik_summary",
+    ):
+        assert row[field] is None, field
 
-    created = client.post(
+    summary = client.get(
+        f"/api/v1/health-records/summary?company_id={company_id}", headers=headers
+    )
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["conditional"] == 1
+    for field in (
+        "with_audiometry",
+        "with_spirometry",
+        "with_chest_xray",
+        "with_blood_lead",
+        "lead_high",
+    ):
+        assert summary.json()[field] is None
+
+    fitness = client.get(
+        f"/api/v1/health-records/{record_id}/fitness.html", headers=headers
+    )
+    assert fitness.status_code == 200, fitness.text
+    assert restrictions in fitness.text
+    for secret in secrets.values():
+        assert secret not in fitness.text
+
+    exported = client.get(
+        f"/api/v1/health-records/export.xlsx?company_id={company_id}", headers=headers
+    )
+    assert exported.status_code == 200, exported.text
+    workbook = load_workbook(BytesIO(exported.content), data_only=False)
+    assert workbook.sheetnames == ["Sağlık Gözetimi"]
+    values = [cell.value for row_cells in workbook.active.iter_rows() for cell in row_cells]
+    exported_text = "\n".join(str(value) for value in values if value is not None)
+    assert "Personel A" in exported_text
+    assert restrictions in exported_text
+    assert "Kan Kurşun" not in exported_text
+    assert 44 not in values
+    for secret in secrets.values():
+        assert secret not in exported_text
+
+    create_attempt = client.post(
         "/api/v1/health-records", headers=headers, json=_payload(company_id, employee_id)
     )
-    assert created.status_code == 403, created.text
+    assert create_attempt.status_code == 403, create_attempt.text
+    assert client.patch(
+        f"/api/v1/health-records/{record_id}",
+        headers=headers,
+        json={"restrictions": "Yetkisiz değişiklik"},
+    ).status_code == 403
+    assert client.delete(
+        f"/api/v1/health-records/{record_id}?reason=Yetkisiz+silme",
+        headers=headers,
+    ).status_code == 403
+    assert client.post(
+        f"/api/v1/health-records/{record_id}/report",
+        headers=headers,
+        files={"file": ("rapor.pdf", b"%PDF-1.4\n", "application/pdf")},
+    ).status_code == 403
+    assert client.get(
+        f"/api/v1/health-records/{record_id}/form.html", headers=headers
+    ).status_code == 403
+    assert client.get(
+        f"/api/v1/health-records/{record_id}/report", headers=headers
+    ).status_code == 403
+
+
+def test_osgb_central_admin_cannot_reach_health_records(client):
+    """OSGB merkez yöneticisi çalışanların tıbbi kaydını göremez/açamaz."""
+    headers = _headers(client, "onam-osgb-central@test.com", "CentralPass123!")
+    company_id, employee_id = _ids()
+
+    assert client.get(
+        f"/api/v1/health-records?company_id={company_id}", headers=headers
+    ).status_code == 403
+    assert client.get("/api/v1/health-records/meta", headers=headers).status_code == 403
+    assert client.post(
+        "/api/v1/health-records", headers=headers, json=_payload(company_id, employee_id)
+    ).status_code == 403
 
 
 def test_global_admin_cannot_reach_clinical_health_records(client):
