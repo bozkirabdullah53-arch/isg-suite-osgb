@@ -962,7 +962,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       {key:'phone',label:'Telefon'},
       {key:'address',label:'Adres'},
       {key:'hazard_class',label:'Tehlike Sınıfı',render:r=>naceInfoForCompany(r,naceCatalog).hazardClass||'—'},
-      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
+      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active===true}/>},
       ...(onOpen360?[{key:'c360',label:'360',render:r=>(
         <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
           <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
@@ -1182,6 +1182,7 @@ function Employees({user}){
   const[editingRow,setEditingRow]=useState(null);
   const[q,setQ]=useState('');
   const[activeFilter,setActiveFilter]=useState('active');
+  const isArchiveView=activeFilter==='inactive';
   const[busy,setBusy]=useState(false);
   const[healthOpen,setHealthOpen]=useState(false);
   const[healthEmployee,setHealthEmployee]=useState(null);
@@ -1503,7 +1504,7 @@ function Employees({user}){
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
     <label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Doldurulan Excel'i Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
-    {activeFilter!=='inactive'&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
+    {!isArchiveView&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
     <button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>
      <button data-ai-action="employee.create" disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
@@ -1553,9 +1554,9 @@ function Employees({user}){
       {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
         {isWorkplaceManager&&<button type="button" className="mini" disabled={busy||healthBusy} onClick={()=>openHealthInfo(r)}><HeartPulse size={14}/>Sağlık Bilgileri</button>}
         <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)}>Düzenle</button>
-        {r.is_active && activeFilter!=='inactive'
+        {r.is_active===true && !isArchiveView
           ? <button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Pasife Al</button>
-          : !r.is_active
+          : r.is_active===false
             ? <button type="button" className="mini secondary" disabled={busy} onClick={()=>reactivateOne(r)}>Aktifleştir</button>
             : null}
         <button type="button" className="mini danger" disabled={busy} onClick={()=>purgeOne(r)}>Kalıcı Sil</button>
