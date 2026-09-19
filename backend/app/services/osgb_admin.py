@@ -149,7 +149,7 @@ def provision_professional_login(db: Session, professional) -> tuple[User, str, 
                 409,
                 "Bu e-posta OSGB yönetici hesabına ait. Profesyonel için farklı e-posta kullanın.",
             )
-        user.full_name = name[:160]
+        user.full_name = name
         user.role = role
         user.osgb_id = professional.osgb_id
         user.is_active = True
@@ -158,7 +158,7 @@ def provision_professional_login(db: Session, professional) -> tuple[User, str, 
         temp_password = generate_temporary_password()
         user = User(
             email=email,
-            full_name=name[:160],
+            full_name=name,
             hashed_password=get_password_hash(temp_password),
             role=role,
             osgb_id=professional.osgb_id,
@@ -178,7 +178,7 @@ def provision_workplace_kiosk_login(
     *,
     reset_password: bool = False,
 ) -> tuple[User, str | None, bool]:
-    """İşyeri QR kiosk hesabı.
+    """Tek işyeri hesabını oluşturur (eski fonksiyon adı korunmuştur).
 
     Şifre yalnızca ilk oluşturmada (veya reset_password=True) üretilir.
     Mevcut hesapta şifre her seferinde yenilenmez.
@@ -190,7 +190,7 @@ def provision_workplace_kiosk_login(
         raise HTTPException(500, "Geçersiz işyeri kaydı.")
 
     email = f"isyeri.{company.id}@kiosk.isgsuite.tr"
-    name = f"{(company.name or 'İşyeri')[:120]} QR"
+    name = (company.name or "İşyeri")[:160]
 
     user = db.scalar(select(User).where(func.lower(User.email) == email.lower()).limit(1))
     if not user:
