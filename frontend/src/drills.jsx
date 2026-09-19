@@ -35,11 +35,13 @@ const empty = {
 
 export function DrillsPage({user}) {
   const canEdit = user.role === 'safety_specialist' || user.role === 'global_admin';
+  const isWorkplaceReadonly = user.role === 'company_admin' && Number(user.company_id) > 0;
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({types: [], statuses: []});
   const [q, setQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({...empty, company_id: user.company_id || ''});
   const [photoFiles, setPhotoFiles] = useState([]);
@@ -88,9 +90,13 @@ export function DrillsPage({user}) {
   }, []);
 
   useEffect(() => {
+    if (!canEdit) {
+      setEmployees([]);
+      return;
+    }
     void loadEmployees(form.company_id || user.company_id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.company_id]);
+  }, [form.company_id, canEdit]);
 
   function toggleEmployee(id) {
     setForm((f) => {
@@ -171,6 +177,11 @@ export function DrillsPage({user}) {
   }
 
   const companyName = (id) => companies.find((c) => c.id === id)?.name || id;
+  const visibleRows = statusFilter ? rows.filter((row) => row.status === statusFilter) : rows;
+  const statusCounts = rows.reduce((counts, row) => {
+    counts[row.status] = (counts[row.status] || 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <div className="page">
@@ -184,15 +195,27 @@ export function DrillsPage({user}) {
         .drill-search-clear{position:absolute;right:8px;width:30px;height:30px;display:grid;place-items:center;padding:0;border:0;border-radius:8px;color:#607984;background:transparent;box-shadow:none}
         .drill-search-clear:hover{background:#edf5f6;color:#17343d;transform:none}
         .drill-search-button{height:44px;min-width:104px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 18px;border-radius:11px;white-space:nowrap}
+        .drill-status-filter{display:flex;align-items:center;gap:8px;min-width:170px}
+        .drill-status-filter select{height:44px;width:100%;border:1px solid #cbdde3;border-radius:11px;background:#fff;padding:0 12px;color:#17343d}
+        .drill-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px}
+        .drill-summary-card{border:1px solid #dbe7eb;border-radius:14px;padding:13px 15px;background:#fff;box-shadow:0 8px 24px rgba(30,64,73,.05)}
+        .drill-summary-card span{display:block;color:#5f7b86;font-size:12px;margin-bottom:5px}
+        .drill-summary-card strong{font-size:23px;color:#17343d}
+        .drill-readonly-note{margin:0 0 14px;padding:11px 14px;border:1px solid #c7e9e2;border-radius:12px;background:#f0fdfa;color:#155e75;font-size:13px}
+        @media (max-width:780px){.drill-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.drill-status-filter{width:100%}}
         @media (max-width:640px){.drill-search-panel{align-items:stretch;flex-direction:column;padding:9px}.drill-search-button{width:100%}}
       `}</style>
       <div className="page-head">
         <div>
           <h2>
             <Activity size={22} style={{marginRight: 8, verticalAlign: 'middle'}} />
-            Tatbikat Yönetimi
+            {isWorkplaceReadonly ? 'Tatbikat Kayıtları' : 'Tatbikat Yönetimi'}
           </h2>
-          <p className="muted">Yangın, deprem, tahliye ve diğer acil durum tatbikat kayıtları.</p>
+          <p className="muted">
+            {isWorkplaceReadonly
+              ? 'Tatbikat tarihlerini ve durumlarını takip edin; tutanak raporlarını PDF olarak indirin.'
+              : 'Yangın, deprem, tahliye ve diğer acil durum tatbikat kayıtları.'}
+          </p>
         </div>
         <div className="actions">
           {canEdit && (
@@ -208,6 +231,19 @@ export function DrillsPage({user}) {
 
       {err && <div className="banner danger">{err}</div>}
       {msg && <div className="banner ok">{msg}</div>}
+
+      {isWorkplaceReadonly && (
+        <div className="drill-readonly-note">
+          Bu ekran salt okunurdur. Yalnızca bağlı olduğunuz işyerinin tatbikat kayıtlarını görebilir ve belge PDF'lerini indirebilirsiniz.
+        </div>
+      )}
+
+      <div className="drill-summary-grid" aria-label="Tatbikat özeti">
+        <div className="drill-summary-card"><span>Toplam kayıt</span><strong>{rows.length}</strong></div>
+        <div className="drill-summary-card"><span>Planlandı</span><strong>{statusCounts.planlandi || 0}</strong></div>
+        <div className="drill-summary-card"><span>Yapıldı</span><strong>{statusCounts.yapildi || 0}</strong></div>
+        <div className="drill-summary-card"><span>Takip gereken</span><strong>{(statusCounts.eksik || 0) + (statusCounts.iptal || 0)}</strong></div>
+      </div>
 
       <div className="drill-search-panel" role="search" aria-label="Tatbikat kayıtlarında ara">
         <div className="drill-search-input-wrap">
@@ -235,6 +271,15 @@ export function DrillsPage({user}) {
             </button>
           )}
         </div>
+        <label className="drill-status-filter">
+          <span className="sr-only">Durum filtrele</span>
+          <select aria-label="Tatbikat durumuna göre filtrele" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">Tüm durumlar</option>
+            {(meta.statuses || Object.keys(STATUS_LABEL)).map((status) => (
+              <option key={status} value={status}>{STATUS_LABEL[status] || status}</option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           className="drill-search-button"
@@ -262,10 +307,12 @@ export function DrillsPage({user}) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={9} className="muted">Henüz tatbikat kaydı yok.</td></tr>
+            {visibleRows.length === 0 && (
+              <tr><td colSpan={9} className="muted">
+                {rows.length === 0 ? 'Henüz tatbikat kaydı yok.' : 'Bu filtreye uygun tatbikat kaydı yok.'}
+              </td></tr>
             )}
-            {rows.map((r) => (
+            {visibleRows.map((r) => (
               <tr key={r.id}>
                 <td><strong>{r.drill_type}</strong></td>
                 <td>{companyName(r.company_id)}</td>
@@ -286,11 +333,13 @@ export function DrillsPage({user}) {
                 <td>
                   <div className="actions">
                     <button type="button" className="secondary mini" onClick={() => exportPdf(r)}>
-                      <Download size={14} /> PDF
+                      <Download size={14} /> {isWorkplaceReadonly ? 'Belge PDF' : 'PDF'}
                     </button>
-                    <button type="button" className="secondary mini" onClick={() => exportTxt(r)}>
-                      TXT
-                    </button>
+                    {!isWorkplaceReadonly && (
+                      <button type="button" className="secondary mini" onClick={() => exportTxt(r)}>
+                        TXT
+                      </button>
+                    )}
                     {canEdit && (
                       <button type="button" className="secondary mini" disabled={busy} onClick={() => remove(r)}>
                         Sil

@@ -8,7 +8,7 @@ from app.api.deps import get_current_user, is_workplace_operations_account
 from app.core.database import get_db
 from app.models.entities import (
     ChemicalProduct, Company, Employee, IncidentDof, IncidentEvent,
-    PeriodicControl, PpeAssignment, RiskAssessment, RiskDof, User,
+    PeriodicControl, PpeAssignment, RiskAssessment, RiskDof, DrillRecord, User,
     WorkplaceMeasurement,
 )
 
@@ -58,5 +58,6 @@ def workplace_summary(
             "nearMiss": total(IncidentEvent, IncidentEvent.event_type == "ramak_kala"),
             "accidents": total(IncidentEvent, IncidentEvent.event_type == "is_kazasi"),
             "capa": int(incident_dofs + risk_dofs),
+            "drills": total(DrillRecord, DrillRecord.is_active.is_(True)),
         },
     }

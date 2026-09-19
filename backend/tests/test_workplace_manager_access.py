@@ -332,7 +332,7 @@ def test_workplace_summary_counts_all_rows_and_both_dof_sources(workplace_client
         assert response.status_code == 200, response.text
         assert response.json()['counts'] == {
             'employees': 1, 'ppe': 501, 'sds': 0, 'periodic': 0, 'measurements': 0,
-            'nearMiss': 1, 'accidents': 0, 'capa': 3,
+            'nearMiss': 1, 'accidents': 0, 'capa': 3, 'drills': 0,
         }
     headers = _headers(_token(client, seed['osgb_admin_email'], seed['password']))
     assert client.get('/api/v1/workplace-portal/summary', headers=headers).status_code == 403
@@ -394,6 +394,63 @@ def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
     assert _has_workplace_health_read_privilege(manager) is True
     assert _has_workplace_health_read_privilege(osgb_admin) is False
     assert _has_workplace_health_read_privilege(kiosk) is False
+
+
+@pytest.mark.parametrize("account_key", ["manager_email", "kiosk_email"])
+def test_workplace_manager_can_track_own_drills_and_download_report_only(workplace_client, account_key):
+    client, seed = workplace_client
+    global_headers = _headers(_token(client, seed["global_admin_email"], seed["password"]))
+
+    def create(company_id: int, drill_type: str):
+        response = client.post(
+            "/api/v1/drills",
+            headers=global_headers,
+            json={
+                "company_id": company_id,
+                "drill_type": drill_type,
+                "drill_date": date.today().isoformat(),
+                "status": "yapildi",
+                "scenario": "Alarm sonrası kontrollü tahliye senaryosu",
+                "result": "Tatbikat tamamlandı",
+            },
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["id"]
+
+    own_id = create(seed["own_company_id"], "Yangın")
+    foreign_id = create(seed["foreign_company_id"], "Deprem")
+    headers = _headers(_token(client, seed[account_key], seed["password"]))
+
+    meta = client.get("/api/v1/drills/meta", headers=headers)
+    assert meta.status_code == 200, meta.text
+
+    listed = client.get("/api/v1/drills", headers=headers)
+    assert listed.status_code == 200, listed.text
+    assert {row["id"] for row in listed.json()} == {own_id}
+    assert client.get(
+        f"/api/v1/drills?company_id={seed['foreign_company_id']}", headers=headers
+    ).status_code == 403
+
+    report = client.get(f"/api/v1/drills/{own_id}/export.pdf", headers=headers)
+    assert report.status_code == 200, report.text
+    assert report.headers["content-type"].startswith("application/pdf")
+
+    foreign_report = client.get(f"/api/v1/drills/{foreign_id}/export.pdf", headers=headers)
+    assert foreign_report.status_code == 403
+
+    create_attempt = client.post(
+        "/api/v1/drills",
+        headers=headers,
+        json={
+            "company_id": seed["own_company_id"],
+            "drill_type": "Yangın",
+            "drill_date": date.today().isoformat(),
+            "status": "planlandi",
+            "scenario": "Yetkisiz oluşturma denemesi",
+        },
+    )
+    assert create_attempt.status_code == 403
+    assert client.delete(f"/api/v1/drills/{own_id}", headers=headers).status_code == 403
 
 
 def test_workplace_health_view_is_own_company_only_and_excludes_kiosk(workplace_client):

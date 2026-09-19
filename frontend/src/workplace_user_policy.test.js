@@ -39,6 +39,7 @@ describe('workplace user policy', () => {
       'accident',
       'capa',
       'isg_kurulu',
+      'tatbikat',
       'personnel_training_records',
       'remote_training',
       'documents',

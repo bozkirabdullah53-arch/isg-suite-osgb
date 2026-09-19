@@ -1,4 +1,4 @@
-"""0.9.131 — Tatbikat yönetimi API (İSG uzmanı; mevcut modüllere dokunmaz)."""
+"""0.9.131 — Tatbikat yönetimi API (uzman yazma, işyeri salt-okunur erişim)."""
 from __future__ import annotations
 
 import json
@@ -7,13 +7,13 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import require_roles, require_roles_or_workplace_manager
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Company, DrillPhoto, DrillRecord, Employee, User, UserRole
@@ -110,12 +110,12 @@ def _load(db: Session, drill_id: int) -> DrillRecord:
 
 
 @router.get("/meta")
-def drills_meta(user: User = Depends(get_current_user)):
+def drills_meta(user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES))):
     return {
         "engine": ENGINE,
         "types": list(DRILL_TYPES),
         "statuses": list(DRILL_STATUSES),
-        "note": "Tatbikat yönetimi — oluştur, listele, fotoğraf, TXT tutanak; soft silme.",
+        "note": "İSG uzmanı oluşturur; işyeri hesabı kendi kayıtlarını salt-okunur izler ve tutanak indirir.",
     }
 
 
@@ -125,7 +125,7 @@ def list_drills(
     q: str | None = None,
     active_only: bool = True,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     stmt = (
         select(DrillRecord)
@@ -284,7 +284,7 @@ def get_photo(
 def export_txt(
     drill_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     row = _load(db, drill_id)
     ensure_company_access(db, user, row.company_id)
@@ -330,7 +330,7 @@ def export_txt(
 def export_pdf(
     drill_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     """Tatbikat tutanağı PDF."""
     from io import BytesIO
