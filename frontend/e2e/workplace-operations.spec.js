@@ -217,9 +217,10 @@ test('workplace manager sees every own employee health record in a masked read-o
   const content = page.locator('main.content');
   await expect(content.getByRole('heading', {name: 'Sağlık Gözetimi'})).toBeVisible();
   await expect(content.getByText('İşyeri sağlık takip görünümü — salt okunur')).toBeVisible();
-  await expect(content.getByText('Ayşe Örnek').first()).toBeVisible();
-  await expect(content.getByText('Gece vardiyasında çalışamaz')).toBeVisible();
-  await expect(content.getByText('Kısıtlı', {exact: true})).toBeVisible();
+  const healthRow = content.locator('tbody tr').filter({hasText: 'Ayşe Örnek'});
+  await expect(healthRow).toHaveCount(1);
+  await expect(healthRow).toContainText('Gece vardiyasında çalışamaz');
+  await expect(healthRow.getByText('Kısıtlı', {exact: true})).toBeVisible();
   await expect(content.getByRole('button', {name: 'Excel İndir'})).toBeVisible();
   await expect(content.getByRole('button', {name: /İşveren Belgesi/})).toBeVisible();
 

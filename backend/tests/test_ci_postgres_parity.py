@@ -40,6 +40,8 @@ EXPECTED_RLS_TABLES = {
     "eyas_events",
     "eyas_steps",
     "eyas_workflows",
+    "health_access_logs",
+    "health_record_revisions",
     "health_records",
     "incident_events",
     "isg_records",
@@ -69,6 +71,15 @@ EXPECTED_RLS_TABLES = {
     "workplace_departments",
     "workplace_measurements",
     "workplace_memberships",
+}
+
+EXPECTED_RLS_POLICY_COUNTS = {
+    # Sağlık kayıtlarında işveren için ayrı, yalnız SELECT policy gerekir;
+    # klinik FOR ALL policy'sini genişletmek DELETE yetkisi doğururdu.
+    "health_records": 2,
+    # Erişim kaydı hash zinciri önceki olayı okur ve yeni audit olayı ekler.
+    # UPDATE/DELETE policy'si yoktur; append-only trigger ayrıca korur.
+    "health_access_logs": 3,
 }
 
 
@@ -141,7 +152,43 @@ def test_expected_rls_policies_are_enabled_and_forced(pg_session: Session):
         row = by_table[table_name]
         assert row["rls_enabled"] is True, table_name
         assert row["force_rls"] is True, table_name
-        assert row["policy_count"] == 1, table_name
+        assert row["policy_count"] == EXPECTED_RLS_POLICY_COUNTS.get(table_name, 1), table_name
+
+
+def test_health_employer_rls_policies_are_command_scoped(pg_session: Session):
+    rows = pg_session.execute(
+        text(
+            """
+            SELECT tablename, policyname, cmd
+            FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = ANY(:tables)
+            """
+        ),
+        {
+            "tables": [
+                "health_records",
+                "health_record_revisions",
+                "health_access_logs",
+            ]
+        },
+    ).mappings().all()
+    policies = {
+        (row["tablename"], row["policyname"], row["cmd"])
+        for row in rows
+    }
+    assert policies == {
+        ("health_records", "health_records_clinical_scope", "ALL"),
+        ("health_records", "health_records_employer_read_scope", "SELECT"),
+        ("health_record_revisions", "health_record_revisions_clinical_scope", "ALL"),
+        ("health_access_logs", "health_access_logs_clinical_scope", "ALL"),
+        (
+            "health_access_logs",
+            "health_access_logs_employer_chain_read_scope",
+            "SELECT",
+        ),
+        ("health_access_logs", "health_access_logs_employer_append_scope", "INSERT"),
+    }
 
 
 def test_training_nace_snapshot_schema(pg_session: Session):
