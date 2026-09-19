@@ -340,6 +340,11 @@ class RemoteTrainingProgram(Base):
     )
     source_catalog_code: Mapped[str | None] = mapped_column(String(96), nullable=True, index=True)
     source_catalog_revision_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Existing programs remain workplace-operable. New manually-created
+    # programs explicitly opt out; catalog materialization opts in.
+    workplace_assignment_allowed: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
     branch_id: Mapped[int | None] = mapped_column(
         ForeignKey("branches.id", ondelete="SET NULL"), nullable=True, index=True
     )

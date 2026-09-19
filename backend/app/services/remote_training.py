@@ -463,6 +463,16 @@ def is_manager(user: User) -> bool:
     )
 
 
+def is_workplace_account(user: User) -> bool:
+    """Return whether this is a company-scoped workplace administrator.
+
+    ``company_admin`` is also used by OSGB administrators. The populated
+    ``company_id`` distinguishes a workplace account from an OSGB admin and
+    must be checked together with the role wherever this feature grants access.
+    """
+    return user.role == UserRole.COMPANY_ADMIN and user.company_id is not None
+
+
 def is_catalog_content_manager(user: User) -> bool:
     """Return whether the user may add/change remote training content.
 

@@ -2,10 +2,9 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api, API_URL, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
 import {consumeEmployeeTrainingAssignment} from './employee_self_service_logic';
-import {isWorkplaceKioskUser, isWorkplaceManagerUser} from './workplace_user_policy';
+import {isWorkplaceManagerUser} from './workplace_user_policy';
 import './remote_basic_ohs_training.css';
 
-const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
 const CONTENT_EDIT_ROLES = ['company_admin'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
 const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
@@ -1878,6 +1877,13 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   }, []);
 
   useEffect(() => {
+    if (!workplaceMode || !user?.company_id) return;
+    const fixedCompanyId = String(user.company_id);
+    setCompanyId(fixedCompanyId);
+    onCompanyChange?.(fixedCompanyId);
+  }, [workplaceMode, user?.company_id]);
+
+  useEffect(() => {
     if (!companyId) return;
     loadBranches(companyId);
     loadPrograms(companyId).catch((err) => setError(err.message || 'Eğitim listesi alınamadı.'));
@@ -2941,8 +2947,9 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [programRefreshToken, setProgramRefreshToken] = useState(0);
-  const canManage = MANAGE_ROLES.includes(user?.role) && !isWorkplaceKioskUser(user);
-  const workplaceMode = isWorkplaceManagerUser(user);
+  const canManage = Boolean(meta?.can_manage);
+  const canOperate = Boolean(meta?.can_operate);
+  const workplaceMode = Boolean(meta?.workplace_scoped) || isWorkplaceManagerUser(user);
   const canEditContent = canEditRemoteContent(user);
   // Ortak merkezi paketler de kullanıcı arayüzünden değiştirilemez. OSGB
   // yöneticisi yalnız kendi OSGB özel kopyasını düzenler.

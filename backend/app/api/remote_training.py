@@ -94,7 +94,6 @@ from app.services.remote_training import (
     REMOTE_AUTO_EXAM_QUESTION_COUNT,
     VIEW_ROLES,
     assert_assignment_access,
-    assert_program_access,
     assignment_allows_sector,
     assignment_sector_codes,
     audit,
@@ -119,6 +118,7 @@ from app.services.remote_training import (
     feature_active,
     is_catalog_content_manager,
     is_manager,
+    is_workplace_account,
     load_assignment,
     load_program,
     load_section,
@@ -180,6 +180,39 @@ def _manager(user: User) -> None:
         raise HTTPException(403, "Bu uzaktan eğitim işlemi için eğitici/yönetici yetkisi gerekir.")
 
 
+def _assert_catalog_reader(user: User) -> None:
+    """Central package content is not part of the workplace operation view."""
+    _manager(user)
+    if is_workplace_account(user):
+        raise HTTPException(
+            403,
+            "İşyeri hesabı merkezi eğitim kataloğunu görüntüleyemez; yalnızca "
+            "uzmanı tarafından işyerine tanımlanan paketleri yönetebilir.",
+        )
+
+
+def _assert_catalog_distribution_manager(user: User) -> None:
+    """Only OSGB-side operators may prepare a catalog package for a company."""
+    _manager(user)
+    if is_workplace_account(user):
+        raise HTTPException(
+            403,
+            "İşyeri hesabı eğitim paketini işyerine tanımlayamaz; yalnızca "
+            "işyerine tanımlanmış paketi çalışanlarına atayabilir.",
+        )
+
+
+def _workplace_program_is_allowed(program: RemoteTrainingProgram) -> bool:
+    """Keep pre-catalog programs usable while closing new manual leakage.
+
+    The migration default is true so existing rows remain operational. New
+    manually-created programs explicitly opt out, while catalog materialized
+    snapshots opt in.
+    """
+    return bool(
+        program.source_catalog_package_id is not None
+        or bool(getattr(program, "workplace_assignment_allowed", False))
+    )
 def _catalog_manager(user: User) -> None:
     """Keep catalog/workplace-definition actions outside workplace accounts.
 
@@ -252,6 +285,10 @@ def _assert_program_manager(db: Session, user: User, program_id: int) -> RemoteT
     _manager(user)
     program = load_program(db, program_id)
     ensure_company_access(db, user, program.company_id)
+    if is_workplace_account(user) and not _workplace_program_is_allowed(program):
+        # Do not disclose newly blocked manual programs to a workplace
+        # account. Pre-feature rows remain available for backward compatibility.
+        raise HTTPException(404, "Uzaktan eğitim paketi bulunamadı.")
     if is_workplace_manager_account(user) and program.status != "published":
         # Workplace users see only the assignment-ready programs explicitly
         # prepared for their workplace; draft/unpublished records remain an
@@ -772,7 +809,7 @@ def _catalog_package_for_manager(
     db: Session, user: User, package_id: int
 ) -> RemoteTrainingCatalogPackage:
     require_feature()
-    _catalog_manager(user)
+    _assert_catalog_reader(user)
     package = db.get(RemoteTrainingCatalogPackage, package_id)
     if package is None:
         raise HTTPException(404, "Merkezi eğitim paketi bulunamadı.")
@@ -1065,7 +1102,12 @@ def remote_training_meta(
         "video_statuses": list(VIDEO_STATUSES),
         "asset_types": list(ASSET_TYPES),
         "catalog_statuses": list(PROGRAM_STATUSES),
-        "can_manage": is_manager(user),
+        # Workplace accounts retain the manager/operations capability flag so
+        # existing clients keep rendering the panel; the workplace branch and
+        # all privileged catalog/content operations remain separately scoped.
+        "can_manage": bool(is_manager(user)),
+        "can_operate": bool(is_manager(user)),
+        "workplace_scoped": bool(is_workplace_account(user)),
         "can_view_employee_panel": bool(feature_active() and employee_access(db, user) is not None),
         "strict_policy": {
             "enabled": bool(getattr(settings, "remote_basic_ohs_strict_policy_enabled", False)),
@@ -1084,7 +1126,7 @@ def list_catalog_packages(
     user: User = Depends(get_current_user),
 ):
     require_feature()
-    _catalog_manager(user)
+    _assert_catalog_reader(user)
     _ensure_catalog_seed(db, user)
     scope = _catalog_scope(db, user)
     if scope is not None:
@@ -1290,6 +1332,7 @@ def materialize_catalog_package(
     assignment or progress records.  This operation never assigns employees;
     it only makes the selected company revision available for assignment.
     """
+    _assert_catalog_distribution_manager(user)
     package = _catalog_package_for_manager(db, user, package_id)
     if package.status != "published":
         raise HTTPException(409, "Yalnızca yayımlanmış merkezi paket firmaya hazırlanabilir.")
@@ -1435,6 +1478,7 @@ def materialize_catalog_package(
         source_catalog_package_id=package.id,
         source_catalog_code=package.code,
         source_catalog_revision_no=package.revision_no,
+        workplace_assignment_allowed=True,
         title=(payload.title or package.title).strip(),
         # The central package is already published and its automatic exam was
         # validated above.  Publish only this new, unassigned company snapshot;
@@ -2077,8 +2121,20 @@ def list_remote_programs(
             return []
         stmt = stmt.where(RemoteTrainingProgram.status == "published")
     if status:
+        if status not in PROGRAM_STATUSES:
+            raise HTTPException(422, "Geçersiz eğitim durumu.")
         if not is_workplace_manager_account(user):
             stmt = stmt.where(RemoteTrainingProgram.status == status)
+    if is_workplace_account(user):
+        # New company-scoped operation is limited to immutable catalog
+        # snapshots. Existing rows remain visible during the transition so
+        # current assignments are not broken.
+        stmt = stmt.where(
+            or_(
+                RemoteTrainingProgram.source_catalog_package_id.is_not(None),
+                RemoteTrainingProgram.workplace_assignment_allowed.is_(True),
+            )
+        )
     rows = db.scalars(stmt.order_by(RemoteTrainingProgram.updated_at.desc())).all()
     return [_program_output(row) for row in rows]
 
@@ -2113,6 +2169,7 @@ def create_remote_program(
         attempt_limit=payload.attempt_limit,
         requires_final_exam=payload.requires_final_exam,
         created_by_id=user.id,
+        workplace_assignment_allowed=False,
     )
     db.add(row)
     db.flush()
@@ -4148,6 +4205,13 @@ def list_remote_certificate_records(
     )
     if company_ids is not None:
         stmt = stmt.where(RemoteTrainingAssignment.company_id.in_(company_ids))
+    if is_workplace_account(user):
+        stmt = stmt.where(
+            or_(
+                RemoteTrainingProgram.source_catalog_package_id.is_not(None),
+                RemoteTrainingProgram.workplace_assignment_allowed.is_(True),
+            )
+        )
     if branch_id is not None:
         stmt = stmt.where(RemoteTrainingAssignment.branch_id == branch_id)
     # "failed" is a report status: an assignment can still be retryable while
