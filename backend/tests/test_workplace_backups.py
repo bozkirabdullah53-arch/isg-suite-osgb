@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from io import BytesIO
+from zipfile import ZipFile
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -89,5 +91,34 @@ def test_encrypted_backup_downloads_as_offline_openable_zip(setup, monkeypatch):
         assert response.content.startswith(b"PK")
         assert ".zip.enc" not in response.headers["content-disposition"]
         assert ".zip" in response.headers["content-disposition"]
+        with ZipFile(BytesIO(response.content)) as archive:
+            assert "Yedek Raporu.html" in archive.namelist()
     finally:
         app.dependency_overrides.clear()
+
+def test_backup_contains_safe_offline_printable_turkish_report(setup):
+    from app.services.workplace_backup import create_company_backup
+    from app.services.archive_store import resolve_archive_path
+    from app.models.entities import BackupSource
+    factory, (own, _foreign, _user_id) = setup
+    with factory() as db:
+        db.get(Company, own).name = '<script>alert("x")</script> Test İşyeri'
+        db.commit()
+        row = create_company_backup(
+            db,
+            company_id=own,
+            actor_user_id=None,
+            source=BackupSource.MANUAL,
+        )
+        backup_bytes = resolve_archive_path(row).read_bytes()
+
+    with ZipFile(BytesIO(backup_bytes)) as archive:
+        assert "Yedek Raporu.html" in archive.namelist()
+        report = archive.read("Yedek Raporu.html").decode("utf-8")
+
+    assert "İşyeri Yedek Raporu" in report
+    assert "Yazdır / PDF Kaydet" in report
+    assert "Çalışanlar" in report
+    assert "window.print()" in report
+    assert '<script>alert("x")</script>' not in report
+    assert "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; Test İşyeri" in report

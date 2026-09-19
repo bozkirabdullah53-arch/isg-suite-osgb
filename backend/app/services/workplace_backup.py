@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.models import entities
 from app.models.entities import ArchiveKind, BackupSource, BackupStatus, Company, EisaArchiveRecord
 from app.services.archive_store import _checksum, _maybe_encrypt_file, _rel_store, archive_root, resolve_archive_path, upload_root
+from app.services.workplace_backup_report import build_workplace_backup_report
 
 COMPANY_DOMAIN_MODELS = (
     ("branches", "Branch"), ("employees", "Employee"), ("personnel_profiles", "PersonnelProfile"),
@@ -94,6 +95,7 @@ def create_company_backup(db: Session, *, company_id: int, actor_user_id: int | 
         with zipfile.ZipFile(partial, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2, default=str))
             for domain, items in domains.items(): zf.writestr(f"domains/{domain}.json", json.dumps(items, ensure_ascii=False, indent=2, default=str))
+            zf.writestr("Yedek Raporu.html", build_workplace_backup_report(manifest, domains))
             _write_company_files(zf, company.id)
         encrypted = _maybe_encrypt_file(partial); final = folder / (base + (".enc" if encrypted.name.endswith(".enc") else "")); encrypted.replace(final)
         row.original_name = final.name; row.storage_path = _rel_store(final); row.size_bytes = final.stat().st_size
