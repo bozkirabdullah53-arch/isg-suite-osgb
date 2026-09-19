@@ -1402,6 +1402,23 @@ function Employees({user}){
       `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.xlsx`);
   }
 
+  async function openAllHealthInfo(){
+    if(!requireCompany()) return;
+    setHealthEmployee(null);
+    setHealthRows([]);
+    setHealthError('');
+    setHealthOpen(true);
+    setHealthBusy(true);
+    try{
+      const result=await api(`/health-records?company_id=${selectedCompanyId}`);
+      setHealthRows(Array.isArray(result)?result:(result?.items||result?.records||[]));
+    }catch(ex){
+      setHealthError(ex.message||'Sağlık bilgileri yüklenemedi.');
+    }finally{
+      setHealthBusy(false);
+    }
+  }
+
   async function openHealthInfo(row){
     if(!requireCompany()) return;
     if(Number(row.company_id)!==Number(selectedCompanyId)){
@@ -1438,6 +1455,7 @@ function Employees({user}){
   }
 
   return <Page title="Personel Yönetimi" action={<div className="actions">
+    {isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||healthBusy} onClick={openAllHealthInfo}><HeartPulse/>Sağlık Bilgileri</button>}
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
     <label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Doldurulan Excel'i Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
@@ -1489,7 +1507,7 @@ function Employees({user}){
       </div>},
     ]} rows={selectedCompanyId?data:[]}/>
 
-    {healthOpen&&<Modal title={`Sağlık Bilgileri — ${healthEmployee?.full_name||'Personel'}`} close={closeHealthInfo}>
+    {healthOpen&&<Modal title={healthEmployee?`Sağlık Bilgileri — ${healthEmployee.full_name||'Personel'}`:'Sağlık Bilgileri — Seçili İşyeri'} close={closeHealthInfo}>
       <div style={{display:'grid',gap:12}}>
         <div style={{padding:'12px 14px',borderRadius:12,background:'#f0fdfa',border:'1px solid #99f6e4',color:'#115e59'}}>
           <strong>{healthEmployee?.full_name||'—'}</strong>
@@ -1503,7 +1521,7 @@ function Employees({user}){
           <section key={r.id||index} className="panel" style={{margin:0}}>
             <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
               <div>
-                <strong>{r.record_type_label||r.record_type||'Sağlık Kaydı'}</strong>
+                <strong>{r.employee_name||r.full_name||r.employee_full_name||'Personel'} — {r.record_type_label||r.record_type||'Sağlık Kaydı'}</strong>
                 <div style={{fontSize:12,color:'#64748b',marginTop:4}}>Muayene: {r.examination_date||'—'} · Sonraki: {r.next_examination_date||'—'}</div>
               </div>
               {r.report_file_name&&<button type="button" className="mini secondary" onClick={()=>downloadHealthReport(r)}><Download size={14}/>Raporu İndir</button>}
