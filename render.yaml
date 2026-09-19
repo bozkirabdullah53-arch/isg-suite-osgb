@@ -243,6 +243,10 @@ services:
         value: "2"
       - key: WORKPLACE_BACKUP_CRON_TOKEN
         sync: false
+      - key: WORKPLACE_BACKUP_REMOTE_ENABLED
+        value: "false"
+      - key: WORKPLACE_BACKUP_REMOTE_PREFIX
+        value: "workplace-backups"
 
   # 23:00 UTC = Türkiye saatiyle 02:00. Yedek dosyasını geçici cron diskinde
   # üretmez; imzalı çağrıyla API servisinin kalıcı diskinde oluşturur.

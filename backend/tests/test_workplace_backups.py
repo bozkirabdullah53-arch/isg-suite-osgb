@@ -204,3 +204,98 @@ def test_backup_fails_cleanly_when_disk_is_full(setup, monkeypatch):
         assert row is not None
         assert row.backup_status == BackupStatus.FAILED
         assert "depolama alanı" in (row.error_summary or "")
+
+
+class _FakeRemoteBackupStore:
+    def __init__(self):
+        self.objects = {}
+
+    def remote_size(self, key):
+        content = self.objects.get(key)
+        return None if content is None else len(content)
+
+    def put_file(self, key, path, *, content_type=None):
+        self.objects[key] = path.read_bytes()
+        return key
+
+    def iter_range(self, key, *, start, end):
+        yield self.objects[key][start:end + 1]
+
+    def get_range(self, key, *, start, end):
+        return self.objects[key][start:end + 1]
+
+    def delete(self, key):
+        self.objects.pop(key, None)
+
+
+def test_completed_workplace_backup_moves_to_remote_only_after_checksum_verification(setup, monkeypatch):
+    import hashlib
+    from app.core.config import settings
+    from app.models.entities import ArchiveKind, BackupSource, BackupStatus
+    from app.services import workplace_backup
+    from app.services.archive_store import archive_root
+
+    factory, (own, _foreign, _user_id) = setup
+    remote = _FakeRemoteBackupStore()
+    monkeypatch.setattr(settings, "workplace_backup_remote_enabled", True)
+    monkeypatch.setattr(workplace_backup, "_remote_backup_store", lambda: remote)
+
+    local = archive_root() / "backups" / f"company-{own}" / "remote-test.zip"
+    local.parent.mkdir(parents=True, exist_ok=True)
+    payload = b"verified remote workplace backup"
+    local.write_bytes(payload)
+    with factory() as db:
+        row = EisaArchiveRecord(
+            kind=ArchiveKind.TENANT_BACKUP,
+            company_id=own,
+            entity_type="workplace_backup_v4",
+            storage_path=str(local.relative_to(archive_root())).replace("\\", "/"),
+            size_bytes=len(payload),
+            checksum=hashlib.sha256(payload).hexdigest(),
+            backup_source=BackupSource.MANUAL,
+            backup_status=BackupStatus.COMPLETED,
+        )
+        db.add(row)
+        db.commit()
+
+        summary = workplace_backup.migrate_completed_workplace_backups(db)
+
+    assert summary["migrated"] == 1
+    assert summary["bytes_freed"] == len(payload)
+    assert not local.exists()
+    assert remote.objects["workplace-backups/backups/company-%s/remote-test.zip" % own] == payload
+
+
+def test_remote_only_workplace_backup_can_be_read_as_manifest(setup, monkeypatch):
+    import hashlib
+    import json
+    from app.core.config import settings
+    from app.models.entities import ArchiveKind, BackupSource, BackupStatus
+    from app.services import workplace_backup
+
+    factory, (own, _foreign, _user_id) = setup
+    remote = _FakeRemoteBackupStore()
+    monkeypatch.setattr(settings, "workplace_backup_remote_enabled", True)
+    monkeypatch.setattr(workplace_backup, "_remote_backup_store", lambda: remote)
+
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        archive.writestr("manifest.json", json.dumps({"company_id": own, "format_version": 4}))
+    payload = buffer.getvalue()
+    storage_path = f"backups/company-{own}/remote-only.zip"
+    remote.objects[f"workplace-backups/{storage_path}"] = payload
+    row = EisaArchiveRecord(
+        kind=ArchiveKind.TENANT_BACKUP,
+        company_id=own,
+        entity_type="workplace_backup_v4",
+        storage_path=storage_path,
+        size_bytes=len(payload),
+        checksum=hashlib.sha256(payload).hexdigest(),
+        backup_source=BackupSource.MANUAL,
+        backup_status=BackupStatus.COMPLETED,
+    )
+
+    with factory() as db:
+        manifest = workplace_backup.read_company_backup_manifest(row)
+
+    assert manifest == {"company_id": own, "format_version": 4}

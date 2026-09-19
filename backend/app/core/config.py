@@ -144,6 +144,8 @@ class Settings(BaseSettings):
     workplace_backup_hour_tr: int = 2
     workplace_backup_cron_token: str = ""
     workplace_backup_trigger_url: str = ""
+    workplace_backup_remote_enabled: bool = False
+    workplace_backup_remote_prefix: str = "workplace-backups"
     employee_self_service_force_off: bool = False
     # Saha fotoğrafı → yapay zeka destekli risk analizi (0.9.246).
     # Tümü default-off; mevcut risk/medya/etiketleme akışı değişmez.
