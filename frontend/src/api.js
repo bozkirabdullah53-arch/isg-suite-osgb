@@ -135,6 +135,17 @@ function requestSignal(ms = 25_000) {
   return undefined;
 }
 
+function isTimeoutError(e) {
+  const name = String(e?.name || "").toLowerCase();
+  const msg = String(e?.message || e || "").toLowerCase();
+  return (
+    name === "timeouterror" ||
+    msg.includes("timeout") ||
+    msg.includes("timed out") ||
+    msg.includes("signal timed out")
+  );
+}
+
 function isNetworkError(e) {
   // HTTP cevapları (4xx/5xx) asla "API uyanıyor" sanılmasın
   if (e?.httpStatus != null) return false;
@@ -143,11 +154,11 @@ function isNetworkError(e) {
   return (
     e instanceof TypeError ||
     name === "aborterror" ||
+    isTimeoutError(e) ||
     msg.includes("failed to fetch") ||
     msg.includes("networkerror") ||
     msg.includes("load failed") ||
-    msg.includes("aborted") ||
-    msg.includes("timeout")
+    msg.includes("aborted")
   );
 }
 
@@ -526,10 +537,16 @@ export async function api(path, options = {}) {
             http_method: e?.httpMethod || method,
             http_path: e?.httpPath || path,
           });
+          if (isTimeoutError(e)) {
+            const timeoutMessage = String(path || "").startsWith("/workplace-backups")
+              ? "Yedek işlemi zaman aşımına uğradı. Yeni yedek başlatmadan önce Yenile'ye basın; sunucu işlemi tamamlıyor olabilir."
+              : "Sunucu yanıtı zamanında gelmedi. Birkaç saniye sonra tekrar deneyin.";
+            throw new Error(timeoutMessage);
+          }
           const detail = String(e?.message || e || "").slice(0, 120);
           throw new Error(
             detail && !detail.toLowerCase().includes("failed to fetch")
-              ? `Sunucuya bağlanılamadı (${detail}). Birkaç saniye sonra tekrar deneyin.`
+              ? "Sunucuya bağlanılamadı (" + detail + "). Birkaç saniye sonra tekrar deneyin."
               : "Sunucuya bağlanılamadı. Sayfayı yenileyip (Ctrl+F5) tekrar deneyin.",
           );
         }
@@ -580,8 +597,7 @@ export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
     });
   } catch (e) {
     if (isNetworkError(e)) {
-      const timedOut = String(e?.name || "").toLowerCase() === "timeouterror" ||
-        String(e?.message || "").toLowerCase().includes("timeout");
+      const timedOut = isTimeoutError(e);
       throw new Error(
         timedOut
           ? "Belge sunucuda zamanında oluşturulamadı. İşlem durduruldu; tekrar deneyin veya soru havuzunu kontrol edin."

@@ -1,6 +1,7 @@
 """Versioned, company-isolated workplace backup production."""
 from __future__ import annotations
-import json, zipfile
+import errno
+import json, shutil, zipfile
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
@@ -43,6 +44,114 @@ class BackupRunSummary:
     failed: int = 0
     purged: int = 0
 
+
+BACKUP_MIN_FREE_BYTES = 128 * 1024 * 1024
+BACKUP_ESTIMATE_OVERHEAD_BYTES = 64 * 1024 * 1024
+STALE_BACKUP_ARTIFACT_AGE = timedelta(hours=1)
+
+
+class BackupStorageFullError(RuntimeError):
+    """Yedek üretimi için yerel disk alanı yetmediğinde kullanılır."""
+
+
+def _is_no_space_error(exc: BaseException) -> bool:
+    return isinstance(exc, OSError) and getattr(exc, "errno", None) == errno.ENOSPC
+
+
+def _company_file_bytes(company_id: int) -> int:
+    root = upload_root() / str(company_id)
+    if not root.exists():
+        return 0
+    total = 0
+    for path in root.rglob("*"):
+        try:
+            if path.is_file():
+                total += int(path.stat().st_size)
+        except OSError:
+            continue
+    return total
+
+
+def _backup_encryption_enabled() -> bool:
+    from app.services.backup_restore import backup_encryption_key_material
+    return bool(backup_encryption_key_material())
+
+
+def _required_backup_free_bytes(company_id: int) -> int:
+    source_bytes = _company_file_bytes(company_id)
+    estimate = max(BACKUP_MIN_FREE_BYTES, source_bytes + BACKUP_ESTIMATE_OVERHEAD_BYTES)
+    # Şifreleme sırasında geçici ZIP ve .enc dosyası kısa süre birlikte tutulur.
+    return estimate * (2 if _backup_encryption_enabled() else 1)
+
+
+def _ensure_backup_capacity(company_id: int) -> None:
+    try:
+        free_bytes = int(shutil.disk_usage(archive_root()).free)
+    except OSError as exc:
+        if _is_no_space_error(exc):
+            raise BackupStorageFullError(
+                "Yedek oluşturulamadı: depolama alanı dolu. Başarılı yedekler korunmuştur."
+            ) from exc
+        raise
+    required_bytes = _required_backup_free_bytes(company_id)
+    if free_bytes < required_bytes:
+        free_mb = max(0, free_bytes // (1024 * 1024))
+        required_mb = max(1, required_bytes // (1024 * 1024))
+        raise BackupStorageFullError(
+            "Yedek oluşturulamadı: depolama alanı yetersiz "
+            f"(boş alan {free_mb} MB, tahmini ihtiyaç {required_mb} MB). "
+            "Başarılı yedekler korunmuştur."
+        )
+
+
+def _remove_stale_partial_files(*, stale_after: timedelta = STALE_BACKUP_ARTIFACT_AGE) -> int:
+    root = archive_root() / "backups"
+    if not root.exists():
+        return 0
+    cutoff = datetime.now().timestamp() - stale_after.total_seconds()
+    deleted = 0
+    for candidate in root.glob("company-*/.partial-*"):
+        try:
+            if candidate.is_file() and candidate.stat().st_mtime < cutoff:
+                candidate.unlink()
+                deleted += 1
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+    return deleted
+
+
+def cleanup_incomplete_workplace_backups(
+    db: Session,
+    *,
+    stale_after: timedelta = STALE_BACKUP_ARTIFACT_AGE,
+) -> dict[str, int]:
+    """Başarısız kayıtları ve eski geçici ZIP parçalarını temizler.
+
+    COMPLETED kayıtlar ve onların dosyaları özellikle hiç dokunulmadan bırakılır.
+    """
+    deleted_partial_files = _remove_stale_partial_files(stale_after=stale_after)
+    cutoff = datetime.utcnow() - stale_after
+    rows = db.scalars(
+        select(EisaArchiveRecord).where(
+            EisaArchiveRecord.kind == ArchiveKind.TENANT_BACKUP,
+            EisaArchiveRecord.entity_type == "workplace_backup_v4",
+            EisaArchiveRecord.backup_status.in_(
+                (BackupStatus.RUNNING, BackupStatus.FAILED)
+            ),
+            EisaArchiveRecord.created_at < cutoff,
+        )
+    ).all()
+    for row in rows:
+        db.delete(row)
+    if rows:
+        db.commit()
+    return {
+        "deleted_rows": len(rows),
+        "deleted_partial_files": deleted_partial_files,
+    }
+
 def _json_value(value: Any) -> Any:
     if isinstance(value, Enum): return value.value
     if isinstance(value, (date, datetime)): return value.isoformat()
@@ -82,10 +191,16 @@ def create_company_backup(db: Session, *, company_id: int, actor_user_id: int | 
         size_bytes=0, backup_source=source, backup_status=BackupStatus.RUNNING, started_at=now,
         schedule_key=schedule_key, created_by_user_id=actor_user_id)
     db.add(row); db.flush()
-    folder = archive_root() / "backups" / f"company-{company.id}"; folder.mkdir(parents=True, exist_ok=True)
+    folder = archive_root() / "backups" / f"company-{company.id}"
     base = f"workplace-{company.id}-{now:%Y%m%d-%H%M%S}-{uuid4().hex[:8]}.zip"
-    partial = folder / f".partial-{uuid4().hex}.zip"; encrypted: Path | None = None
+    partial = folder / f".partial-{uuid4().hex}.zip"
+    # Şifreleme başarısız olursa yarım .enc dosyasını da güvenle temizleyebilmek için
+    # hedef yolu baştan biliyoruz.
+    encrypted: Path | None = partial.with_suffix(partial.suffix + ".enc")
     try:
+        folder.mkdir(parents=True, exist_ok=True)
+        _remove_stale_partial_files()
+        _ensure_backup_capacity(company.id)
         domains, unavailable = _load_direct_company_domains(db, company.id); domains.update(_load_linked_domains(db, company.id))
         counts = {name: len(items) for name, items in domains.items()}
         manifest = {"format_version": 4, "created_at": now.isoformat()+"Z", "backup_source": source.value,
@@ -103,8 +218,29 @@ def create_company_backup(db: Session, *, company_id: int, actor_user_id: int | 
         row.notes = f"İşyeri yedeği v4 — {sum(counts.values())} kayıt, {len(domains)} alan"; db.commit(); db.refresh(row); return row
     except Exception as exc:
         for candidate in (partial, encrypted):
-            if candidate is not None and candidate.exists(): candidate.unlink()
-        row.backup_status = BackupStatus.FAILED; row.error_summary = str(exc)[:1000]; row.completed_at = datetime.utcnow(); db.commit(); raise
+            if candidate is not None and candidate.exists():
+                try:
+                    candidate.unlink()
+                except OSError:
+                    pass
+        storage_full = isinstance(exc, BackupStorageFullError) or _is_no_space_error(exc)
+        message = (
+            str(exc)
+            if isinstance(exc, BackupStorageFullError)
+            else (
+                "Yedek oluşturulamadı: depolama alanı dolu. "
+                "Başarılı yedekler korunmuştur."
+                if storage_full
+                else str(exc)[:1000]
+            )
+        )
+        row.backup_status = BackupStatus.FAILED
+        row.error_summary = message[:1000]
+        row.completed_at = datetime.utcnow()
+        db.commit()
+        if storage_full and not isinstance(exc, BackupStorageFullError):
+            raise BackupStorageFullError(message) from exc
+        raise
 
 def read_company_backup_manifest(row):
     from app.services.backup_restore import _decrypt_if_needed
@@ -134,11 +270,23 @@ def run_scheduled_company_backups(db_factory, *, now: datetime | None = None):
     now = now or datetime.utcnow()
     with db_factory() as db: ids = list(db.scalars(select(Company.id).where(Company.is_active.is_(True)).order_by(Company.id)).all())
     created = skipped = failed = 0
+    cutoff = now - timedelta(days=max(1, settings.workplace_backup_retention_days))
+    # Alan doluyken önce eski otomatik yedekleri sil; üretimden sonra temizlemek
+    # disk doluluğu senaryosunda artık çok geç kalır.
+    with db_factory() as db:
+        purge_before = purge_expired_scheduled_backups(db, cutoff=cutoff)
     for company_id in ids:
         with db_factory() as db:
             key = schedule_key(company_id, now)
             if db.scalar(select(EisaArchiveRecord.id).where(EisaArchiveRecord.schedule_key == key)) is not None: skipped += 1; continue
             try: create_company_backup(db, company_id=company_id, actor_user_id=None, source=BackupSource.SCHEDULED, schedule_key=key); created += 1
             except Exception: db.rollback(); failed += 1
-    with db_factory() as db: purge = purge_expired_scheduled_backups(db, cutoff=now-timedelta(days=max(1, settings.workplace_backup_retention_days)))
-    return BackupRunSummary(len(ids), created, skipped, failed, purge.deleted)
+    with db_factory() as db:
+        purge_after = purge_expired_scheduled_backups(db, cutoff=cutoff)
+    return BackupRunSummary(
+        len(ids),
+        created,
+        skipped,
+        failed,
+        purge_before.deleted + purge_after.deleted,
+    )
