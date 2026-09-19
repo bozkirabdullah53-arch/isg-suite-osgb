@@ -1181,6 +1181,11 @@ function Employees({user}){
   const[editingRow,setEditingRow]=useState(null);
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(false);
+  const[healthOpen,setHealthOpen]=useState(false);
+  const[healthEmployee,setHealthEmployee]=useState(null);
+  const[healthRows,setHealthRows]=useState([]);
+  const[healthBusy,setHealthBusy]=useState(false);
+  const[healthError,setHealthError]=useState('');
   const emptyEmployeeForm=(branchId='')=>({full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',special_status:'',branch_id:branchId});
   const[form,setForm]=useState(emptyEmployeeForm());
 
@@ -1397,6 +1402,41 @@ function Employees({user}){
       `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.xlsx`);
   }
 
+  async function openHealthInfo(row){
+    if(!requireCompany()) return;
+    if(Number(row.company_id)!==Number(selectedCompanyId)){
+      alert('Bu personel seçili işyerine ait değil. İşlem durduruldu.');
+      return;
+    }
+    setHealthEmployee(row);
+    setHealthRows([]);
+    setHealthError('');
+    setHealthOpen(true);
+    setHealthBusy(true);
+    try{
+      const result=await api(`/health-records?company_id=${selectedCompanyId}&employee_id=${row.id}`);
+      setHealthRows(Array.isArray(result)?result:(result?.items||result?.records||[]));
+    }catch(ex){
+      setHealthError(ex.message||'Sağlık bilgileri yüklenemedi.');
+    }finally{
+      setHealthBusy(false);
+    }
+  }
+
+  function closeHealthInfo(){
+    if(healthBusy) return;
+    setHealthOpen(false);
+    setHealthEmployee(null);
+    setHealthRows([]);
+    setHealthError('');
+  }
+
+  function downloadHealthReport(record){
+    if(!record?.id) return;
+    downloadFile(`/health-records/${record.id}/report`,
+      `saglik-raporu-${(healthEmployee?.full_name||'personel').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.pdf`);
+  }
+
   return <Page title="Personel Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
@@ -1443,11 +1483,54 @@ function Employees({user}){
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
       {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+        {isWorkplaceManager&&<button type="button" className="mini" disabled={busy||healthBusy} onClick={()=>openHealthInfo(r)}><HeartPulse size={14}/>Sağlık Bilgileri</button>}
         <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)}>Düzenle</button>
         <button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>
       </div>},
     ]} rows={selectedCompanyId?data:[]}/>
 
+    {healthOpen&&<Modal title={`Sağlık Bilgileri — ${healthEmployee?.full_name||'Personel'}`} close={closeHealthInfo}>
+      <div style={{display:'grid',gap:12}}>
+        <div style={{padding:'12px 14px',borderRadius:12,background:'#f0fdfa',border:'1px solid #99f6e4',color:'#115e59'}}>
+          <strong>{healthEmployee?.full_name||'—'}</strong>
+          <span style={{marginLeft:10}}>{healthEmployee?.job_title||'Görev belirtilmemiş'}</span>
+          <span style={{marginLeft:10}}>{selectedCompany?.name||'—'}</span>
+        </div>
+        {healthBusy&&<p style={{margin:0,color:'#475569'}}>Sağlık kayıtları yükleniyor…</p>}
+        {healthError&&<p style={{margin:0,color:'#b91c1c'}}>{healthError}</p>}
+        {!healthBusy&&!healthError&&!healthRows.length&&<p style={{margin:0,color:'#64748b'}}>Bu personel için sağlık kaydı bulunamadı.</p>}
+        {healthRows.map((r,index)=>(
+          <section key={r.id||index} className="panel" style={{margin:0}}>
+            <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+              <div>
+                <strong>{r.record_type_label||r.record_type||'Sağlık Kaydı'}</strong>
+                <div style={{fontSize:12,color:'#64748b',marginTop:4}}>Muayene: {r.examination_date||'—'} · Sonraki: {r.next_examination_date||'—'}</div>
+              </div>
+              {r.report_file_name&&<button type="button" className="mini secondary" onClick={()=>downloadHealthReport(r)}><Download size={14}/>Raporu İndir</button>}
+            </div>
+            <div className="form-grid" style={{marginTop:12}}>
+              <Field label="Uygunluk" value={r.fitness_status_label||r.fitness_status||'—'} readOnly/>
+              <Field label="Hekim" value={r.physician_name||r.physician_professional_id||'—'} readOnly/>
+              <Field label="Özet" value={r.summary||'—'} readOnly/>
+              <Field label="Çalışma Kısıtları" value={r.restrictions||'—'} readOnly/>
+              <Field label="Odyometri" value={[r.audiometry_date,r.audiometry_result].filter(Boolean).join(' — ')||'—'} readOnly/>
+              <Field label="Spirometri" value={[r.spirometry_date,r.spirometry_result].filter(Boolean).join(' — ')||'—'} readOnly/>
+              <Field label="Akciğer Grafisi" value={[r.chest_xray_date,r.chest_xray_result].filter(Boolean).join(' — ')||'—'} readOnly/>
+              <Field label="Kan Kurşun" value={[r.blood_lead_date,r.blood_lead_value,r.blood_lead_unit].filter(Boolean).join(' — ')||'—'} readOnly/>
+              <Field label="Önerilen Tetkikler" value={r.suggested_tests||'—'} readOnly/>
+              <Field label="Maruziyetler" value={Array.isArray(r.exposures)?r.exposures.join(', '):(r.exposures||'—')} readOnly/>
+              <Field label="Takip Notu" value={r.follow_up_note||'—'} readOnly/>
+              <Field label="Diğer Biyolojik Test" value={r.other_biological_test||'—'} readOnly/>
+              <Field label="Tetkik Özeti" value={r.tetkik_summary||'—'} readOnly/>
+              <Field label="Akıllı Özet" value={r.smart_summary||'—'} readOnly/>
+              <Field label="Hekim Notu" value={r.confidential_note||'—'} readOnly/>
+              <Field label="Aydınlatılmış Onam" value={r.informed_consent?'Var':'Yok'} readOnly/>
+            </div>
+          </section>
+        ))}
+      </div>
+    </Modal>}
+    
     {open&&<Modal title={`${editingRow?'Personel Bilgilerini Düzenle':'Yeni Personel'} — ${selectedCompany?.name||''}`} close={closeEditor}><form className="form-grid" onSubmit={save}>
       <div style={{gridColumn:'1/-1',padding:'10px 12px',borderRadius:10,background:'#f0fdfa',color:'#115e59'}}>
         {editingRow?'Güncellenecek personel:':'Personel şu işyerine kaydedilecek:'} <strong>{selectedCompany?.name}</strong>
