@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0117_remote_workplace_training_scope"
+revision: str = "0117_remote_workplace_scope"
 down_revision: Union[str, None] = "0116_workplace_backups"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
