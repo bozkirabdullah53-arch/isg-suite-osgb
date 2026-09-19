@@ -177,6 +177,36 @@ def test_status_never_exposes_sensitive_medical_fields_or_ibys_ready_claim(clien
     assert ibys["status"] == "pending_official_validation"
 
 
+def test_empty_workplace_does_not_report_missing_records_as_completed(client):
+    seed = _seed()
+    from app.core.database import SessionLocal
+    from app.models.entities import Company
+
+    with SessionLocal() as db:
+        source = db.get(Company, seed["company_1"])
+        empty_company = Company(
+            name="Yeni Boş İşyeri",
+            osgb_id=source.osgb_id,
+            is_active=True,
+            hazard_class="Tehlikeli",
+        )
+        db.add(empty_company)
+        db.commit()
+        empty_company_id = empty_company.id
+
+    headers = {"Authorization": f"Bearer {_token(client, seed['users'][0], seed['password'])}"}
+    response = client.get(f"/api/v1/companies/{empty_company_id}/status", headers=headers)
+    assert response.status_code == 200, response.text
+    items = {row["code"]: row for row in response.json()["status_center"]["items"]}
+
+    assert items["health_examinations"]["status"] == "informational"
+    assert items["health_examinations"]["status_label"] == "Bilgi"
+    assert "Aktif çalışan kaydı bulunmuyor" in items["health_examinations"]["detail"]
+    assert items["capa"]["status"] == "informational"
+    assert items["capa"]["status_label"] == "Bilgi"
+    assert items["capa"]["detail"] == "Henüz DÖF kaydı bulunmuyor."
+
+
 def test_status_combines_workplace_deadlines_without_cross_company_data(client):
     seed = _seed()
     from app.core.database import SessionLocal

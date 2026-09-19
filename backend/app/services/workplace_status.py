@@ -492,29 +492,77 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
     health_total = int(health.get("total") or 0)
     health_overdue = int(health.get("overdue") or 0)
     health_due = int(health.get("due_soon") or 0)
-    health_status = "missing" if employee_count and not health_total else "overdue" if health_overdue else "due_soon" if health_due else "completed"
+    active_employee_count = int(counts.get("active_employees") or 0)
+    if not health_total and not active_employee_count:
+        health_status = "informational"
+        health_detail = "Aktif çalışan kaydı bulunmuyor; sağlık muayenesi kaydı oluşmamış."
+    elif not health_total:
+        health_status = "missing"
+        health_detail = "Aktif çalışanlar için sağlık muayenesi kaydı bulunmuyor."
+    elif health_overdue:
+        health_status = "overdue"
+        health_detail = f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. Kişisel sağlık detayı gösterilmez."
+    elif health_due:
+        health_status = "due_soon"
+        health_detail = f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. Kişisel sağlık detayı gösterilmez."
+    else:
+        health_status = "completed"
+        health_detail = f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. Kişisel sağlık detayı gösterilmez."
     items.append(
         _item(
             code="health_examinations",
             title="Sağlık gözetimi",
             status=health_status,
-            detail=f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. Kişisel sağlık detayı gösterilmez.",
+            detail=health_detail,
             module="health",
             responsible_role="İşyeri Hekimi",
             source="health_records (aggregate-only)",
             count=health_total,
-            critical=bool(health_overdue or (employee_count and not health_total)),
+            critical=bool(health_overdue or (active_employee_count and not health_total)),
         )
     )
 
-    open_dofs = int(counts.get("open_dofs") or 0)
-    overdue_dofs = int(counts.get("overdue_dofs") or 0)
+    risk_id_scope = select(RiskAssessment.id).where(RiskAssessment.company_id == cid)
+    incident_id_scope = select(IncidentEvent.id).where(IncidentEvent.company_id == cid)
+    risk_dof_total = _count(db, RiskDof, RiskDof.risk_id.in_(risk_id_scope))
+    incident_dof_total = _count(db, IncidentDof, IncidentDof.incident_id.in_(incident_id_scope))
+    incident_open_dofs = _count(
+        db,
+        IncidentDof,
+        IncidentDof.incident_id.in_(incident_id_scope),
+        IncidentDof.status != "Tamamlandı",
+    )
+    incident_overdue_dofs = _count(
+        db,
+        IncidentDof,
+        IncidentDof.incident_id.in_(incident_id_scope),
+        IncidentDof.status != "Tamamlandı",
+        IncidentDof.term_date.is_not(None),
+        IncidentDof.term_date < today,
+    )
+    dof_total = risk_dof_total + incident_dof_total
+    open_dofs = int(counts.get("open_dofs") or 0) + incident_open_dofs
+    overdue_dofs = int(counts.get("overdue_dofs") or 0) + incident_overdue_dofs
+    capa_status = (
+        "informational"
+        if not dof_total
+        else "overdue"
+        if overdue_dofs
+        else "attention"
+        if open_dofs
+        else "completed"
+    )
+    capa_detail = (
+        "Henüz DÖF kaydı bulunmuyor."
+        if not dof_total
+        else f"{open_dofs} açık DÖF; {overdue_dofs} gecikmiş."
+    )
     items.append(
         _item(
             code="capa",
             title="Düzeltici ve önleyici faaliyetler",
-            status="overdue" if overdue_dofs else "attention" if open_dofs else "completed",
-            detail=f"{open_dofs} açık DÖF; {overdue_dofs} gecikmiş.",
+            status=capa_status,
+            detail=capa_detail,
             module="capa",
             responsible_role="Kayıt sorumlusu / İşveren",
             source="risk_dofs + incident_dofs",
