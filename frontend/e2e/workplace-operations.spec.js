@@ -3,7 +3,8 @@ import {test, expect} from '@playwright/test';
 const company = {id: 42, name: 'ÖRNEK AKÜ VE OTOMOTİV SAN. TİC. LTD. ŞTİ.', is_active: true};
 const counts = {employees: 24, ppe: 620, sds: 12, periodic: 18, measurements: 9, nearMiss: 4, accidents: 1, capa: 8};
 const modules = [
-  ['employees', /Personel/], ['ppe', /KKD/], ['sds', /SDS/],
+  ['employees', /Personel/], ['remote_training', /Uzaktan Eğitim Atama/],
+  ['ppe', /KKD/], ['sds', /SDS/],
   ['periyodik_kontrol', /Periyodik/], ['ortam_olcum', /Ortam/],
   ['near_miss', /Ramak/], ['accident', /Kaz/], ['capa', /DÖF Yönetimi/],
   ['isg_kurulu', /İSG Kurulu/],
@@ -42,6 +43,13 @@ async function setup(page, {
       company_id: company.id, osgb_id: 7, subscription_write_allowed: true,
     });
     if (path === '/dashboard/summary') return json(route, {});
+    if (path === '/trainings/remote/meta') return json(route, {
+      enabled: true,
+      can_manage: true,
+      can_operate: true,
+      workplace_scoped: true,
+      strict_policy: {},
+    });
     if (path === '/workplace-portal/summary') return json(route,
       summaryError ? {detail: 'Özet servisine ulaşılamıyor.'} : {company_id: company.id, company_name: company.name, counts},
       summaryError ? 500 : 200);
@@ -132,12 +140,11 @@ async function setup(page, {
 for (const email of ['isyeri.42@kiosk.isgsuite.tr', 'yetkili@example.com']) {
   test(`${email}: workplace modules open through the common sidebar`, async ({page}, testInfo) => {
     const state = await setup(page, {email});
-    const isKiosk = email.endsWith('@kiosk.isgsuite.tr');
     await page.goto('/');
     await expect(page.getByRole('heading', {name: company.name})).toBeVisible();
-    await expect(page.locator('.workplace-module-card')).toHaveCount(isKiosk ? 9 : 10);
-    await expect(page.getByRole('button', {name: 'Uzaktan Eğitim modülünü aç'})).toHaveCount(isKiosk ? 0 : 1);
-    await expect(page.locator('.nav-desktop [data-nav="remote_training"]')).toHaveCount(isKiosk ? 0 : 1);
+    await expect(page.locator('.workplace-module-card')).toHaveCount(10);
+    await expect(page.getByRole('button', {name: 'Uzaktan Eğitim modülünü aç'})).toHaveCount(1);
+    await expect(page.locator('.nav-desktop [data-nav="remote_training"]')).toHaveCount(1);
     await expect(page.getByRole('button', {name: 'KKD Takip modülünü aç'})).toContainText('620 kayıt');
     await page.screenshot({path: testInfo.outputPath('workplace-home.png'), fullPage: true});
     for (const forbidden of ['companies', 'users', 'finance', 'contracts']) {
@@ -357,7 +364,7 @@ test('summary failure remains visible without blocking the modules', async ({pag
   await expect(page).toHaveURL(/m=sds$/);
 });
 
-test('mobile workplace navigation exposes all nine modules without overflow', async ({page}, testInfo) => {
+test('mobile workplace navigation exposes all modules without overflow', async ({page}, testInfo) => {
   await page.setViewportSize({width: 390, height: 844});
   await setup(page);
   await page.goto('/');

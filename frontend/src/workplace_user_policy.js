@@ -23,7 +23,7 @@ export function isWorkplaceManagerUser(user) {
 export const WORKPLACE_KIOSK_MODULES = Object.freeze([
   'workplace_home', 'employer_oversight', 'employees', 'ppe', 'sds',
   'periyodik_kontrol', 'ortam_olcum', 'near_miss', 'accident', 'capa',
-  'isg_kurulu', 'workplace_backups', 'site_qr_kiosk',
+  'isg_kurulu', 'remote_training', 'workplace_backups', 'site_qr_kiosk',
 ]);
 
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([

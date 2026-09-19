@@ -66,7 +66,7 @@ describe('workplace user policy', () => {
     const kiosk = {...manager, email: 'isyeri.42@kiosk.isgsuite.tr'};
     expect(isWorkplaceAccountUser(kiosk)).toBe(true);
     const modules = workplaceModulesForUser(kiosk);
-    for (const id of ['employees', 'ppe', 'sds', 'periyodik_kontrol', 'ortam_olcum', 'near_miss', 'accident', 'capa', 'isg_kurulu', 'site_qr_kiosk']) {
+    for (const id of ['employees', 'remote_training', 'ppe', 'sds', 'periyodik_kontrol', 'ortam_olcum', 'near_miss', 'accident', 'capa', 'isg_kurulu', 'site_qr_kiosk']) {
       expect(modules).toContain(id);
       expect(workplaceMenuSection(kiosk, id)).not.toBe('');
     }
@@ -74,7 +74,6 @@ describe('workplace user policy', () => {
     for (const id of ['companies', 'users', 'finance', 'contracts', 'health', 'documents', 'training']) {
       expect(modules).not.toContain(id);
     }
-    expect(modules).not.toContain('remote_training');
     expect(modules).not.toContain('workplace_status');
     expect(modules).toContain('workplace_backups');
     expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);

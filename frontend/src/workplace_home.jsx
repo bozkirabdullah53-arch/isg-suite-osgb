@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {api} from './api';
 import {
-  isWorkplaceManagerUser,
+  isWorkplaceAccountUser,
 } from './workplace_user_policy';
 import {
   workplaceAlertDeadlines,
@@ -42,7 +42,7 @@ export function WorkplaceHomePage({user, onNavigate}) {
   const [obligationLoading, setObligationLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const moduleCards = MODULE_CARDS.filter(
-    (card) => card.id !== 'remote_training' || isWorkplaceManagerUser(user),
+    (card) => card.id !== 'remote_training' || isWorkplaceAccountUser(user),
   );
   const alertDeadlines = obligationFeed?.items?.filter((row) => row.status !== 'completed')
     || workplaceAlertDeadlines(statusCenter);
