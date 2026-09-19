@@ -955,10 +955,26 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={openCreate}><Plus/>Firma Ekle</button>}>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
+    {onOpen360&&(
+      <div className="company-reporting-guide" role="note" aria-label="Firma raporlama açıklaması">
+        <div className="company-reporting-guide__main">
+          <FileText size={19} aria-hidden="true" />
+          <div>
+            <strong>Firma 360 / Tam Firma Dosyası</strong>
+            <span>Her firmanın satırındaki <b>Firma Raporları</b> düğmesinden PDF ve Detaylı Excel çıktısına ulaşabilirsiniz.</span>
+          </div>
+        </div>
+        <span className="company-reporting-guide__badge">PDF · EXCEL</span>
+      </div>
+    )}
+
     <Table cols={[
       {key:'name',label:'Firma'},
       ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
         <div className="actions company-actions">
+          {onOpen360&&<button type="button" className="mini company-report-button" disabled={busy} onClick={()=>onOpen360(r.id)} title="Firma 360 / Tam Firma Dosyası">
+            <FileText size={14} style={{verticalAlign:'middle',marginRight:4}}/>Firma Raporları
+          </button>}
           <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
             <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
           </button>

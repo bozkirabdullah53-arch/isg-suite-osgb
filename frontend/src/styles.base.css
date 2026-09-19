@@ -1728,6 +1728,72 @@ header.workspace-header,
 }
 
 
+.companies-table .company-actions .company-report-button {
+  grid-column: 1 / -1;
+  border: 1px solid #0f766e !important;
+  background: linear-gradient(135deg, #0f766e, #0e7490) !important;
+  color: #fff !important;
+  box-shadow: 0 5px 14px rgba(15, 118, 110, .18);
+}
+.companies-table .company-actions .company-report-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0b625c, #0b5f75) !important;
+}
+
+.company-reporting-guide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: -2px 0 16px;
+  padding: 11px 14px;
+  border: 1px solid #bfe3df;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f0fdfa, #f7fbff);
+  color: #24515e;
+}
+.company-reporting-guide__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.company-reporting-guide__main > svg {
+  flex: 0 0 auto;
+  color: #0f766e;
+  margin-top: 1px;
+}
+.company-reporting-guide__main strong,
+.company-reporting-guide__main span {
+  display: block;
+}
+.company-reporting-guide__main strong {
+  color: #0f3d47;
+  font-size: 13px;
+}
+.company-reporting-guide__main span {
+  margin-top: 2px;
+  color: #58717c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.company-reporting-guide__badge {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid #99f6e4;
+  border-radius: 999px;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+@media (max-width: 620px) {
+  .company-reporting-guide {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .companies-table--editable td:nth-child(9),
 .companies-table--editable td:nth-child(10),
 .companies-table--editable td:nth-child(11),
