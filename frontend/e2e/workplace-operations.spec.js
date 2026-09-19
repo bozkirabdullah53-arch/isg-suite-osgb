@@ -14,6 +14,7 @@ async function setup(page, {
   summaryError = false,
   committeeCandidates = {mandatory: [], other: [], missing_mandatory: []},
   employees = [],
+  healthRows = [],
 } = {}) {
   const errors = [];
   let qrRequests = 0;
@@ -45,6 +46,27 @@ async function setup(page, {
       summaryError ? {detail: 'Özet servisine ulaşılamıyor.'} : {company_id: company.id, company_name: company.name, counts},
       summaryError ? 500 : 200);
     if (path === '/companies') return json(route, [company]);
+    if (path === '/health-records') return json(route, healthRows);
+    if (path === '/health-records/summary') return json(route, {
+      company_id: company.id,
+      total: healthRows.length,
+      overdue: 0,
+      due_soon: 1,
+      fit: 0,
+      conditional: healthRows.filter((row) => row.fitness_status === 'conditional').length,
+      tracking: healthRows.filter((row) => row.fitness_status === 'tracking').length,
+      unfit: healthRows.filter((row) => row.fitness_status === 'unfit').length,
+      with_audiometry: null,
+      with_spirometry: null,
+      with_chest_xray: null,
+      with_blood_lead: null,
+      lead_high: null,
+    });
+    if (path === '/health-records/meta') return json(route, {
+      record_types: [{code: 'periodic_exam', label: 'Periyodik Muayene'}],
+      fitness_statuses: [{code: 'conditional', label: 'Kısıtlı / Şartlı'}],
+      exposure_options: [],
+    });
     if (path === '/employees/import-template.xlsx' && request.method() === 'GET') {
       employeeTemplateRequests += 1;
       return route.fulfill({
@@ -149,6 +171,64 @@ test('the existing QR link keeps its sidebar and manual refresh', async ({page})
   const afterLeaving = state.qrRequests();
   await page.clock.fastForward(360000);
   expect(state.qrRequests()).toBe(afterLeaving);
+  expect(state.errors).toEqual([]);
+});
+
+test('workplace manager sees every own employee health record in a masked read-only view', async ({page}) => {
+  const clinicalSecrets = [
+    'KLINIK_OZET_GIZLI',
+    'ODYO_SONUCU_GIZLI',
+    'AKILLI_OZET_GIZLI',
+    'HEKIM_RAPORU_GIZLI.pdf',
+  ];
+  const state = await setup(page, {
+    email: 'yetkili@example.com',
+    employees: [{
+      id: 101,
+      company_id: company.id,
+      full_name: 'Ayşe Örnek',
+      job_title: 'Üretim Personeli',
+      department: 'Üretim',
+      is_active: true,
+    }],
+    healthRows: [{
+      id: 501,
+      company_id: company.id,
+      employee_id: 101,
+      employee_name: 'Ayşe Örnek',
+      job_title: 'Üretim Personeli',
+      department: 'Üretim',
+      record_type: 'periodic_exam',
+      examination_date: '2026-09-01',
+      next_examination_date: '2027-09-01',
+      fitness_status: 'conditional',
+      physician_name: 'Dr. Hekim',
+      restrictions: 'Gece vardiyasında çalışamaz',
+      summary: clinicalSecrets[0],
+      tetkik_summary: clinicalSecrets[1],
+      smart_summary: clinicalSecrets[2],
+      report_file_name: clinicalSecrets[3],
+      has_report: true,
+      is_overdue: false,
+    }],
+  });
+
+  await page.goto('/#m=health');
+  const content = page.locator('main.content');
+  await expect(content.getByRole('heading', {name: 'Sağlık Gözetimi'})).toBeVisible();
+  await expect(content.getByText('İşyeri sağlık takip görünümü — salt okunur')).toBeVisible();
+  await expect(content.getByText('Ayşe Örnek').first()).toBeVisible();
+  await expect(content.getByText('Gece vardiyasında çalışamaz')).toBeVisible();
+  await expect(content.getByText('Kısıtlı', {exact: true})).toBeVisible();
+  await expect(content.getByRole('button', {name: 'Excel İndir'})).toBeVisible();
+  await expect(content.getByRole('button', {name: /İşveren Belgesi/})).toBeVisible();
+
+  for (const label of ['Yeni Kayıt', 'Düzenle', 'EK-2 / Klinik Dosya', 'Rapor', 'Sil']) {
+    await expect(content.getByRole('button', {name: label, exact: true})).toHaveCount(0);
+  }
+  for (const secret of clinicalSecrets) {
+    await expect(content).not.toContainText(secret);
+  }
   expect(state.errors).toEqual([]);
 });
 

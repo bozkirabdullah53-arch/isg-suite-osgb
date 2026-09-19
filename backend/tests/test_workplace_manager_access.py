@@ -369,6 +369,7 @@ def test_workplace_manager_can_manage_own_committee_without_eyas_assignment(monk
 
 def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
     from app.api.deps import is_workplace_manager_account
+    from app.core.rls import _has_workplace_health_read_privilege
     from app.models.entities import UserRole
 
     manager = SimpleNamespace(
@@ -390,6 +391,69 @@ def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
     assert is_workplace_manager_account(manager) is True
     assert is_workplace_manager_account(osgb_admin) is False
     assert is_workplace_manager_account(kiosk) is False
+    assert _has_workplace_health_read_privilege(manager) is True
+    assert _has_workplace_health_read_privilege(osgb_admin) is False
+    assert _has_workplace_health_read_privilege(kiosk) is False
+
+
+def test_workplace_health_view_is_own_company_only_and_excludes_kiosk(workplace_client):
+    from app.core.database import SessionLocal
+    from app.models.entities import (
+        HealthFitnessStatus,
+        HealthRecord,
+        HealthRecordType,
+    )
+
+    client, seed = workplace_client
+    with SessionLocal() as db:
+        db.add_all([
+            HealthRecord(
+                company_id=seed["own_company_id"],
+                employee_id=seed["own_employee_id"],
+                record_type=HealthRecordType.PERIODIC_EXAM,
+                examination_date=date(2026, 7, 1),
+                fitness_status=HealthFitnessStatus.CONDITIONAL,
+                physician_name="Dr. Kendi",
+                restrictions="Gece vardiyası yok",
+                created_by_id=seed["manager_id"],
+            ),
+            HealthRecord(
+                company_id=seed["foreign_company_id"],
+                employee_id=seed["foreign_employee_id"],
+                record_type=HealthRecordType.PERIODIC_EXAM,
+                examination_date=date(2026, 7, 2),
+                fitness_status=HealthFitnessStatus.FIT,
+                physician_name="Dr. Yabancı",
+                summary="YABANCI_KLINIK_BILGI",
+                created_by_id=seed["foreign_user_id"],
+            ),
+        ])
+        db.commit()
+
+    manager_headers = _headers(
+        _token(client, seed["manager_email"], seed["password"])
+    )
+    listed = client.get("/api/v1/health-records", headers=manager_headers)
+    assert listed.status_code == 200, listed.text
+    assert len(listed.json()) == 1
+    assert listed.json()[0]["company_id"] == seed["own_company_id"]
+    assert listed.json()[0]["employee_name"] == "Mevcut Çalışan"
+    assert listed.json()[0]["restrictions"] == "Gece vardiyası yok"
+    assert "YABANCI_KLINIK_BILGI" not in listed.text
+
+    foreign = client.get(
+        f"/api/v1/health-records?company_id={seed['foreign_company_id']}",
+        headers=manager_headers,
+    )
+    assert foreign.status_code == 403, foreign.text
+
+    kiosk_headers = _headers(_token(client, seed["kiosk_email"], seed["password"]))
+    assert client.get("/api/v1/health-records", headers=kiosk_headers).status_code == 403
+
+    central_headers = _headers(
+        _token(client, seed["osgb_admin_email"], seed["password"])
+    )
+    assert client.get("/api/v1/health-records", headers=central_headers).status_code == 403
 
 
 @pytest.mark.parametrize("account_key", ["manager_email", "kiosk_email"])

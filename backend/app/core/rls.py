@@ -7,6 +7,7 @@ Vars:
   hesabında geçici (chicken-egg önleme)
 - app.allowed_company_ids — CSV firma id (doküman/sağlık RLS)
 - app.current_company_id / app.current_osgb_id — yardımcı bağlam
+- app.health_employer_access — normal işyeri yetkilisi için sağlık SELECT izni
 """
 from __future__ import annotations
 
@@ -43,12 +44,23 @@ def _clear_tenant_vars(db: Session) -> None:
     _set(db, "app.current_company_id", "")
     _set(db, "app.current_osgb_id", "")
     _set(db, "app.health_clinical_access", "")
+    _set(db, "app.health_employer_access", "")
 
 
 def _has_osgb_admin_rls_privilege(user: User) -> bool:
     """RLS yönetici bayrağı yalnız global ve işyerine bağlı olmayan OSGB adminindir."""
     return user.role == UserRole.GLOBAL_ADMIN or (
         user.role == UserRole.COMPANY_ADMIN and user.company_id is None
+    )
+
+
+def _has_workplace_health_read_privilege(user: User) -> bool:
+    """Klinik olmayan sağlık takibini yalnız normal işyeri hesabına aç."""
+    email = str(getattr(user, "email", "") or "").strip().lower()
+    return (
+        user.role == UserRole.COMPANY_ADMIN
+        and bool(getattr(user, "company_id", None))
+        and not email.endswith("@kiosk.isgsuite.tr")
     )
 
 
@@ -77,6 +89,8 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
         UserRole.OTHER_HEALTH_PERSONNEL,
     ) else ""
     _set(db, "app.health_clinical_access", health_clinical)
+    health_employer = "1" if _has_workplace_health_read_privilege(user) else ""
+    _set(db, "app.health_employer_access", health_employer)
 
     if user.role == UserRole.GLOBAL_ADMIN:
         _set(db, "app.rls_bypass", "1")
