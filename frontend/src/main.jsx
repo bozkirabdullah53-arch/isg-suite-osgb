@@ -2071,20 +2071,76 @@ function notificationModule(row){
 }
 
 function NotificationsPage({onNavigate, user}){
+  const canSelectCompany=['global_admin','company_admin','safety_specialist','workplace_physician','other_health_personnel'].includes(user?.role)&&!user?.company_id;
   const[rows,setRows]=useState([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
-  const load=()=>api('/notifications').then(setRows).catch(e=>setMessage(e.message));
-  useEffect(()=>{load()},[]);
+  const[companies,setCompanies]=useState([]);
+  const[companyId,setCompanyId]=useState(()=>String(user?.company_id||readPersistedCompanyId()||''));
+  const[companiesReady,setCompaniesReady]=useState(!canSelectCompany);
+  const selectedCompany=companies.find(c=>String(c.id)===String(companyId))||null;
+
+  useEffect(()=>{
+    let cancelled=false;
+    if(!canSelectCompany){
+      setCompaniesReady(true);
+      return()=>{cancelled=true};
+    }
+    setCompaniesReady(false);
+    api('/companies').then((items)=>{
+      if(cancelled) return;
+      const list=Array.isArray(items)?items:[];
+      setCompanies(list);
+      setCompanyId(current=>{
+        if(current&&list.some(row=>String(row.id)===String(current))) return current;
+        const persisted=readPersistedCompanyId();
+        if(persisted&&list.some(row=>String(row.id)===persisted)) return persisted;
+        if(list.length===1){
+          persistSelectedCompanyId(list[0].id);
+          return String(list[0].id);
+        }
+        return '';
+      });
+    }).catch((error)=>{
+      if(!cancelled) setMessage(error.message);
+    }).finally(()=>{
+      if(!cancelled) setCompaniesReady(true);
+    });
+    return()=>{cancelled=true};
+  },[canSelectCompany,user?.id,user?.company_id]);
+
+  function notificationsPath(selectedId=companyId){
+    const value=String(selectedId||'');
+    return value?`/notifications?company_id=${encodeURIComponent(value)}`:'/notifications';
+  }
+  function load(selectedId=companyId){
+    return api(notificationsPath(selectedId)).then(setRows).catch(e=>setMessage(e.message));
+  }
+  useEffect(()=>{
+    if(!companiesReady) return;
+    void load(companyId);
+  },[companyId,companiesReady]);
+
+  function chooseCompany(value){
+    const next=String(value||'');
+    const selected=companies.find(c=>String(c.id)===next);
+    setCompanyId(next);
+    persistSelectedCompanyId(next);
+    setRows([]);
+    setMessage('');
+    window.dispatchEvent(new CustomEvent('isg:company-selected',{detail:next?{companyId:next,company:selected}:{}}));
+  }
+
   async function refresh(){
     setBusy(true);setMessage('');
     try{
-      const r=await api('/notifications/refresh',{method:'POST'});
+      const query=companyId?`?company_id=${encodeURIComponent(companyId)}`:'';
+      const r=await api(`/notifications/refresh${query}`,{method:'POST'});
       setMessage(`${r.count} bildirim oluşturuldu. ${r.message||''}`);
-      await load();
+      await load(companyId);
     }catch(e){setMessage(e.message)}
     finally{setBusy(false)}
   }
-  async function read(id){await api(`/notifications/${id}/read`,{method:'PATCH'});load()}
-  async function complete(id){await api(`/notifications/${id}/complete`,{method:'PATCH'});load()}
+  async function read(id){await api(`/notifications/${id}/read`,{method:'PATCH'});load(companyId)}
+  async function complete(id){await api(`/notifications/${id}/complete`,{method:'PATCH'});load(companyId)}
   const cols=[
     {key:'type',label:'Seviye',render:r=><span className={'notice '+r.type}>{notificationTypeNames[r.type]}</span>},
     {key:'title',label:'Başlık'},
@@ -2092,15 +2148,16 @@ function NotificationsPage({onNavigate, user}){
     {key:'created_at',label:'Tarih',render:r=>String(r.created_at||'').slice(0,16).replace('T',' ')},
     {key:'action',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>{notificationModule(r)&&<button type="button" className="mini secondary" onClick={()=>onNavigate?.(notificationModule(r))}>Aç</button>}{r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>}{r.is_completed?'Tamamlandı':<button type="button" className="mini secondary" onClick={()=>complete(r.id)}>Tamamlandı Yap</button>}</div>},
   ];
-  return <Page title="Bildirim Merkezi" action={<button type="button" disabled={busy} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button>}>
+  return <Page title="Bildirim Merkezi" action={<div className="actions" style={{alignItems:'flex-end',flexWrap:'wrap'}}>{canSelectCompany&&<label className="field" style={{minWidth:260,margin:0}}><span>İşyeri / Firma</span><select value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={!companiesReady}><option value="">Tüm işyerleri</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}<button type="button" disabled={busy||!companiesReady} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button></div>}>
     <p style={{marginTop:0,color:'#64748b',fontSize:13,maxWidth:720}}>
       Bu merkez otomatik süre uyarısı üretir: görevlendirme / sözleşme bitişi, KATİP no eksikliği,
       atanmamış profesyonel, doküman geçerliliği, sağlık muayenesi, geciken yıllık plan ve SDS / PKD
       gözden geçirme terminleri. Liste boşsa «Süreleri Kontrol Et» ile tarayın; gerçek kayıt yoksa bilgi bildirimi gelir.
       {user?.role==='safety_specialist'&&' Uzman görünümünde klinik sağlık bildirimleri gösterilmez.'}
+      {selectedCompany&&<> <strong>{selectedCompany.name}</strong> işyerinin bildirimleri gösteriliyor.</>}
     </p>
     {message&&<p style={{color:message.includes('oluşturuldu')?'#166534':'#b91c1c'}}>{message}</p>}
-    <Table cols={cols} rows={rows} empty="Henüz bildirim yok. Süreleri Kontrol Et ile tarayın."/>
+    <Table cols={cols} rows={rows} empty={selectedCompany?`“${selectedCompany.name}” için bildirim bulunamadı. Süreleri Kontrol Et ile tarayın.`:'Henüz bildirim yok. Süreleri Kontrol Et ile tarayın.'}/>
   </Page>;
 }
 
