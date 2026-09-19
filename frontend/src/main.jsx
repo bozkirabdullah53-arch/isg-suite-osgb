@@ -297,7 +297,7 @@ const menuCatalog={
   employee_training:['Çalışan Eğitimleri',GraduationCap],
   personnel_training_records:['Personel Eğitim & Belgeleme',FileText],
   employee_self_service:['Çalışan Panelim',ShieldCheck],
-  health:['Sağlık',HeartPulse],
+  health:['Sağlık Bilgileri',HeartPulse],
   prescriptions:['e-Reçete',Pill],
   documents:['Dokümanlar',FileText],
   annual_plans:['Yıllık Plan',ClipboardCheck],
