@@ -3046,7 +3046,7 @@ function RemoteTrainingGuide() {
   );
 }
 
-export function RemoteBasicOhsTrainingPanel({user}) {
+export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
   const [meta, setMeta] = useState(null);
   const [error, setError] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
@@ -3059,6 +3059,11 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   // Ortak merkezi paketler de kullanıcı arayüzünden değiştirilemez. OSGB
   // yöneticisi yalnız kendi OSGB özel kopyasını düzenler.
   const canEditSharedContent = false;
+
+  function handleCompanySelectionChange(value) {
+    setSelectedCompanyId(value);
+    onCompanySelectionChange?.(value);
+  }
 
   useEffect(() => {
     api('/trainings/remote/meta').then(setMeta).catch((err) => setError(err.message || 'Uzaktan eğitim modülü yüklenemedi.'));
@@ -3125,10 +3130,10 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       <a className="remote-training-flow-item" href="#remote-training-employee-preview" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-employee-preview')}><span>4</span><div><strong>Çalışan tamamlasın</strong><small>%100 video + sınavda en az %70.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-certificate-hub" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-certificate-hub')}><span>5</span><div><strong>Belgeyi al</strong><small>Başarılı çalışanın PDF belgesini indirin.</small></div></a>
     </div>
-    {canManage && <div id="remote-training-catalog"><CatalogManagerPanel companyId={selectedCompanyId} branchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} onPrepared={() => setProgramRefreshToken((value) => value + 1)} rollout={meta.strict_policy} canEditContent={canEditContent} canEditSharedContent={canEditSharedContent} /></div>}
+    {canManage && <div id="remote-training-catalog"><CatalogManagerPanel companyId={selectedCompanyId} branchId={selectedBranchId} onCompanyChange={(value) => { handleCompanySelectionChange(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} onPrepared={() => setProgramRefreshToken((value) => value + 1)} rollout={meta.strict_policy} canEditContent={canEditContent} canEditSharedContent={canEditSharedContent} /></div>}
     {canManage && <details open id="remote-training-assignment-manager">
       <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Firma eğitim atama ve çalışan takip yönetimi</summary>
-      <div style={{marginTop: 12}}><ManagerPanel user={user} initialCompanyId={selectedCompanyId} initialBranchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} refreshToken={programRefreshToken} canEditContent={canEditContent} /></div>
+      <div style={{marginTop: 12}}><ManagerPanel user={user} initialCompanyId={selectedCompanyId} initialBranchId={selectedBranchId} onCompanyChange={(value) => { handleCompanySelectionChange(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} refreshToken={programRefreshToken} canEditContent={canEditContent} /></div>
     </details>}
     {canManage && <details className="remote-training-employee-preview" id="remote-training-employee-preview">
       <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Çalışan ekranı önizlemesi / kendi eğitimlerim</summary>
