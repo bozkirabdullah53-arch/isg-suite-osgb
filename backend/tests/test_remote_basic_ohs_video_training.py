@@ -2694,11 +2694,13 @@ def test_workplace_manager_only_sees_published_company_programs_and_can_assign(r
     kiosk_headers = {"Authorization": f"Bearer {kiosk_login.json()['access_token']}"}
     kiosk_meta = remote_client.get("/api/v1/trainings/remote/meta", headers=kiosk_headers)
     assert kiosk_meta.status_code == 200, kiosk_meta.text
-    assert kiosk_meta.json()["can_manage"] is False
-    assert remote_client.get(
+    assert kiosk_meta.json()["can_manage"] is True
+    kiosk_programs = remote_client.get(
         "/api/v1/trainings/remote/programs",
         headers=kiosk_headers,
-    ).status_code == 403
+    )
+    assert kiosk_programs.status_code == 200, kiosk_programs.text
+    assert all(row["company_id"] == company_id for row in kiosk_programs.json())
 
 
 def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(remote_client):

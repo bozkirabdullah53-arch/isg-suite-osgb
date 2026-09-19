@@ -448,19 +448,10 @@ def strict_exam_gate_enabled(program: RemoteTrainingProgram) -> bool:
 
 
 def is_manager(user: User) -> bool:
-    if user.role not in MANAGE_ROLES:
-        return False
-    # The permanent workplace QR account intentionally has a narrower
-    # operational surface than a named workplace authority/HR account.  Both
-    # currently use ``company_admin`` for backwards compatibility, so keep the
-    # QR boundary explicit here instead of granting remote-training management
-    # merely because the role name matches.
-    email = str(getattr(user, "email", "") or "").strip().lower()
-    return not (
-        user.role == UserRole.COMPANY_ADMIN
-        and getattr(user, "company_id", None) is not None
-        and email.endswith("@kiosk.isgsuite.tr")
-    )
+    # Company-scoped workplace accounts, including the QR-created account,
+    # may operate only their own already-assigned remote training packages.
+    # Catalog/content guards below keep central package administration closed.
+    return user.role in MANAGE_ROLES
 
 
 def is_workplace_account(user: User) -> bool:

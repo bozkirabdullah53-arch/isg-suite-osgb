@@ -23,7 +23,7 @@ export function isWorkplaceManagerUser(user) {
 export const WORKPLACE_KIOSK_MODULES = Object.freeze([
   'workplace_home', 'employer_oversight', 'employees', 'ppe', 'sds',
   'periyodik_kontrol', 'ortam_olcum', 'near_miss', 'accident', 'capa',
-  'isg_kurulu', 'workplace_backups', 'site_qr_kiosk',
+  'isg_kurulu', 'remote_training', 'workplace_backups', 'site_qr_kiosk',
 ]);
 
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
@@ -51,7 +51,6 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
 export const WORKPLACE_MENU_SECTIONS = Object.freeze([
   {label: 'İşyeri Özeti', items: ['workplace_home', 'workplace_status', 'employer_oversight']},
   {label: 'Personel ve Eğitim', items: ['employees', 'personnel_training_records', 'remote_training']},
-  {label: 'SAĞLIK BİLGİLERİ', items: ['health']},
   {
     label: 'İSG Kayıtları',
     items: [
@@ -66,6 +65,7 @@ export const WORKPLACE_MENU_SECTIONS = Object.freeze([
     ],
   },
   {label: 'Belgeler ve Onay', items: ['documents', 'eyas_inbox']},
+  {label: 'Sağlık', items: ['health']},
   {label: 'Veri Güvenliği', items: ['workplace_backups']},
   {label: 'İşyeri QR', items: ['site_qr_kiosk']},
 ]);

@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access
-from app.api.deps import get_current_user, is_workplace_manager_account
+from app.api.deps import get_current_user
 from app.core.config import (
     remote_basic_ohs_strict_policy_active,
     remote_basic_ohs_strict_policy_package_codes,
@@ -223,7 +223,7 @@ def _catalog_manager(user: User) -> None:
     assigned safety specialists retain their current catalog workflow.
     """
     _manager(user)
-    if is_workplace_manager_account(user):
+    if is_workplace_account(user):
         raise HTTPException(
             403,
             "Uzaktan eğitim paketini işyerine yalnız İSG uzmanı veya OSGB yönetimi tanımlayabilir.",
@@ -289,7 +289,7 @@ def _assert_program_manager(db: Session, user: User, program_id: int) -> RemoteT
         # Do not disclose newly blocked manual programs to a workplace
         # account. Pre-feature rows remain available for backward compatibility.
         raise HTTPException(404, "Uzaktan eğitim paketi bulunamadı.")
-    if is_workplace_manager_account(user) and program.status != "published":
+    if is_workplace_account(user) and program.status != "published":
         # Workplace users see only the assignment-ready programs explicitly
         # prepared for their workplace; draft/unpublished records remain an
         # OSGB/specialist concern and are deliberately hidden as not found.
@@ -2113,7 +2113,7 @@ def list_remote_programs(
     stmt = _program_query_for_user(db, user, company_id)
     if status and status not in PROGRAM_STATUSES:
         raise HTTPException(422, "Geçersiz eğitim durumu.")
-    if is_workplace_manager_account(user):
+    if is_workplace_account(user):
         # A workplace authority/HR account receives only packages already
         # defined and published for its own workplace.  Passing a different
         # status must not reveal draft, unpublished or archived snapshots.
@@ -2123,7 +2123,7 @@ def list_remote_programs(
     if status:
         if status not in PROGRAM_STATUSES:
             raise HTTPException(422, "Geçersiz eğitim durumu.")
-        if not is_workplace_manager_account(user):
+        if not is_workplace_account(user):
             stmt = stmt.where(RemoteTrainingProgram.status == status)
     if is_workplace_account(user):
         # New company-scoped operation is limited to immutable catalog
