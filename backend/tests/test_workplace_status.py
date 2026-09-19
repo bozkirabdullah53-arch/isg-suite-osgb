@@ -75,11 +75,15 @@ def _seed() -> dict:
             email="employer@birinci.example.com", full_name="İşveren", hashed_password=get_password_hash(password),
             role=UserRole.READ_ONLY, company_id=company_1.id, osgb_id=osgb_1.id, is_active=True,
         )
+        workplace_manager = User(
+            email="ik@birinci.example.com", full_name="İK Yetkilisi", hashed_password=get_password_hash(password),
+            role=UserRole.COMPANY_ADMIN, company_id=company_1.id, osgb_id=osgb_1.id, is_active=True,
+        )
         specialist = User(
             email="uzman@birinci.example.com", full_name="Atanmış Uzman", hashed_password=get_password_hash(password),
             role=UserRole.SAFETY_SPECIALIST, osgb_id=osgb_1.id, is_active=True,
         )
-        db.add_all([admin, employer, specialist])
+        db.add_all([admin, employer, workplace_manager, specialist])
         db.flush()
         professional = IsgProfessional(
             osgb_id=osgb_1.id,
@@ -124,7 +128,9 @@ def _seed() -> dict:
             "password": password,
             "company_1": company_1.id,
             "company_2": company_2.id,
-            "users": [admin.email, employer.email, specialist.email],
+            "employee_id": employee.id,
+            "admin_id": admin.id,
+            "users": [admin.email, employer.email, workplace_manager.email, specialist.email],
         }
 
 
@@ -169,6 +175,212 @@ def test_status_never_exposes_sensitive_medical_fields_or_ibys_ready_claim(clien
     assert ibys["officially_verified"] is False
     assert ibys["readiness_claim"] is False
     assert ibys["status"] == "pending_official_validation"
+
+
+def test_status_combines_workplace_deadlines_without_cross_company_data(client):
+    seed = _seed()
+    from app.core.database import SessionLocal
+    from app.models.entities import (
+        ChemicalProduct,
+        Company,
+        DrillRecord,
+        OhsCommitteeMeeting,
+        PeriodicControl,
+        PpeAssignment,
+        TrainingSession,
+        TrainingStatus,
+        WorkplaceMeasurement,
+    )
+    from app.models.remote_training import RemoteTrainingAssignment
+
+    today = date.today()
+    with SessionLocal() as db:
+        RemoteTrainingAssignment.__table__.create(bind=db.get_bind(), checkfirst=True)
+        company = db.get(Company, seed["company_1"])
+        company.risk_assessment_date = today - timedelta(days=4 * 365)
+        db.add_all([
+            PpeAssignment(
+                company_id=seed["company_1"], employee_id=seed["employee_id"],
+                delivery_date=today - timedelta(days=300), category="Baş", item_type="Baret",
+                renewal_date=today + timedelta(days=7), created_by_id=seed["admin_id"],
+            ),
+            TrainingSession(
+                company_id=seed["company_1"], title="Temel İSG Yenileme",
+                start_date=today - timedelta(days=365), next_training_date=today - timedelta(days=1),
+                duration_hours=8, renewal_years=1, hazard_class="Tehlikeli",
+                instructor_name="Test Uzmanı", status=TrainingStatus.COMPLETED,
+                created_by_id=seed["admin_id"],
+            ),
+            DrillRecord(
+                company_id=seed["company_1"], drill_type="Yangın",
+                drill_date=today + timedelta(days=5), status="planlandi",
+                scenario="Yangın tahliye senaryosu", created_by_id=seed["admin_id"],
+            ),
+            PeriodicControl(
+                company_id=seed["company_1"], category="kaldirma",
+                equipment_name="Yük asansörü", next_due_date=today - timedelta(days=2),
+                created_by_id=seed["admin_id"],
+            ),
+            WorkplaceMeasurement(
+                company_id=seed["company_1"], measurement_type="Gürültü",
+                location="Üretim", measured_at=today - timedelta(days=300),
+                next_due_date=today + timedelta(days=10), created_by_id=seed["admin_id"],
+            ),
+            ChemicalProduct(
+                company_id=seed["company_1"], product_name="Test Kimyasalı",
+                has_sds_file=True, next_review_date=today + timedelta(days=8),
+                created_by_id=seed["admin_id"],
+            ),
+            OhsCommitteeMeeting(
+                company_id=seed["company_1"], meeting_date=today - timedelta(days=20),
+                next_meeting_date=today + timedelta(days=9), created_by_id=seed["admin_id"],
+            ),
+            RemoteTrainingAssignment(
+                company_id=seed["company_1"], program_id=999,
+                employee_id=seed["employee_id"], employee_name_snapshot="Gizli Çalışan",
+                status="in_progress", due_date=today + timedelta(days=6),
+                assigned_by_id=seed["admin_id"],
+            ),
+        ])
+        db.commit()
+
+    headers = {"Authorization": f"Bearer {_token(client, seed['users'][2], seed['password'])}"}
+    response = client.get(f"/api/v1/companies/{seed['company_1']}/status", headers=headers)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    center = payload["status_center"]
+
+    assert "finance" not in payload
+    assert "contracts" not in payload
+    assert center["schema_version"] == "1.1"
+    assert center["deadline_summary"]["overdue"] >= 2
+    assert center["deadline_summary"]["due_soon"] >= 5
+    assert {row["source"] for row in center["deadlines"]}.issuperset({
+        "Risk Değerlendirmesi",
+        "Eğitim Yenileme",
+        "Uzaktan Eğitim",
+        "KKD Değişim",
+        "Tatbikat",
+        "Periyodik Kontrol",
+        "SDS / PKD",
+        "Ortam Ölçümü",
+        "İSG Kurulu",
+    })
+    assert {row["code"] for row in center["items"]}.issuperset({
+        "risk_assessment_validity",
+        "training",
+        "ppe",
+        "drills",
+        "periodic_controls",
+        "sds",
+        "workplace_measurements",
+        "ohs_committee",
+    })
+
+
+def test_obligations_are_paginated_filterable_and_keep_renewals_separate(client):
+    seed = _seed()
+    from app.core.database import SessionLocal
+    from app.models.entities import Branch, PeriodicControl, TrainingSession, TrainingStatus
+
+    today = date.today()
+    with SessionLocal() as db:
+        own_branch = Branch(company_id=seed["company_1"], name="Üretim Şubesi", is_active=True)
+        foreign_branch = Branch(company_id=seed["company_2"], name="Yabancı Şube", is_active=True)
+        db.add_all([own_branch, foreign_branch])
+        db.flush()
+
+        due_dates = [
+            today - timedelta(days=2),
+            today + timedelta(days=7),
+            today + timedelta(days=8),
+            *[today + timedelta(days=60 + index) for index in range(104)],
+        ]
+        db.add_all([
+            PeriodicControl(
+                company_id=seed["company_1"],
+                category="kaldirma",
+                equipment_name=f"Ekipman {index:03d}",
+                next_due_date=due,
+                created_by_id=seed["admin_id"],
+            )
+            for index, due in enumerate(due_dates)
+        ])
+        training = TrainingSession(
+            company_id=seed["company_1"],
+            branch_id=own_branch.id,
+            title="Şube Temel İSG Eğitimi",
+            start_date=today - timedelta(days=90),
+            end_date=today - timedelta(days=89),
+            next_training_date=today + timedelta(days=4),
+            duration_hours=8,
+            renewal_years=1,
+            hazard_class="Tehlikeli",
+            instructor_name="Test Uzmanı",
+            status=TrainingStatus.COMPLETED,
+            created_by_id=seed["admin_id"],
+        )
+        db.add(training)
+        db.commit()
+        own_branch_id = own_branch.id
+        foreign_branch_id = foreign_branch.id
+        training_id = training.id
+
+    headers = {"Authorization": f"Bearer {_token(client, seed['users'][2], seed['password'])}"}
+    response = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/obligations",
+        params={"category": "periodic_control", "page": 1, "page_size": 50},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["pagination"] == {
+        "page": 1,
+        "page_size": 50,
+        "total": 107,
+        "total_pages": 3,
+        "has_previous": False,
+        "has_next": True,
+    }
+    assert len(payload["items"]) == 50
+    assert payload["items"][0]["status"] == "overdue"
+    assert payload["items"][0]["target"]["entity_type"] == "periodic_control"
+    assert payload["summary"]["overdue"] == 1
+    assert payload["summary"]["very_soon"] == 1
+    assert payload["summary"]["approaching"] == 1
+    assert payload["summary"]["scheduled"] == 104
+
+    overdue = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/obligations",
+        params={"category": "periodic_control", "status": "overdue"},
+        headers=headers,
+    )
+    assert overdue.status_code == 200, overdue.text
+    assert overdue.json()["pagination"]["total"] == 1
+
+    training_response = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/obligations",
+        params={"category": "training", "branch_id": own_branch_id},
+        headers=headers,
+    )
+    assert training_response.status_code == 200, training_response.text
+    training_items = training_response.json()["items"]
+    assert {row["status"] for row in training_items} == {"very_soon", "completed"}
+    assert {row["target"]["record_id"] for row in training_items} == {training_id}
+    assert len({row["key"] for row in training_items}) == 2
+
+    foreign_branch = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/obligations",
+        params={"branch_id": foreign_branch_id},
+        headers=headers,
+    )
+    assert foreign_branch.status_code == 404
+
+    foreign_company = client.get(
+        f"/api/v1/companies/{seed['company_2']}/status/obligations",
+        headers=headers,
+    )
+    assert foreign_company.status_code == 403
 
 
 def test_one_click_pdf_and_excel_reports_are_valid_and_scoped(client):

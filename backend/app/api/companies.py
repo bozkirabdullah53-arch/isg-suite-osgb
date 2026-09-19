@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import delete, inspect, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -92,6 +94,11 @@ from app.services.company_overview import build_company_overview
 from app.services.capacity_engine import sync_company_service_requirements
 from app.services.employer_oversight import build_employer_oversight
 from app.services.workplace_status import build_workplace_status
+from app.services.workplace_obligations import (
+    CATEGORY_LABELS as OBLIGATION_CATEGORY_LABELS,
+    STATUS_LABELS as OBLIGATION_STATUS_LABELS,
+    build_workplace_obligations,
+)
 from app.services.workplace_status_reports import (
     build_workplace_status_excel,
     build_workplace_status_pdf,
@@ -444,6 +451,50 @@ def workplace_status(
         raise HTTPException(404, "Firma bulunamadı.")
     response.headers["Cache-Control"] = "no-store"
     return build_workplace_status(db, obj, viewer=user)
+
+
+@router.get("/{company_id}/status/obligations")
+def workplace_status_obligations(
+    company_id: int,
+    response: Response,
+    branch_id: int | None = Query(None, ge=1),
+    category: str | None = Query(None, min_length=1, max_length=60),
+    status: str | None = Query(None, min_length=1, max_length=30),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """İşyeri yükümlülüklerini kayıp olmadan filtreli ve sayfalı döndürür."""
+    ensure_company_access(db, user, company_id)
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    if branch_id is not None:
+        branch = db.get(Branch, branch_id)
+        if not branch or branch.company_id != company_id or not branch.is_active:
+            raise HTTPException(404, "Şube bu işyerine ait değil veya aktif değil.")
+    if category and category not in OBLIGATION_CATEGORY_LABELS:
+        raise HTTPException(422, "Geçersiz yükümlülük kategorisi.")
+    if status and status not in OBLIGATION_STATUS_LABELS:
+        raise HTTPException(422, "Geçersiz yükümlülük durumu.")
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, "Başlangıç tarihi bitiş tarihinden sonra olamaz.")
+
+    response.headers["Cache-Control"] = "no-store"
+    return build_workplace_obligations(
+        db,
+        company,
+        branch_id=branch_id,
+        category=category,
+        status=status,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/{company_id}/status/report.xlsx")

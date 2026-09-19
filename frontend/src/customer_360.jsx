@@ -23,6 +23,8 @@ import {
   X,
 } from 'lucide-react';
 import {api, downloadFile} from './api';
+import {workplaceModulesForUser} from './workplace_user_policy';
+import {WorkplaceObligationCenter} from './workplace_obligation_center';
 
 const STATUS_LABELS = {ok: 'Uygun', warning: 'İzlem', critical: 'Kritik', unknown: 'Belirsiz'};
 const EVENT_LABELS = {
@@ -99,7 +101,7 @@ function SimpleTable({cols, rows, empty = 'Kayıt yok.'}) {
   );
 }
 
-export function Customer360Page({companyId, onBack, onNavigate}) {
+export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -147,11 +149,19 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
   const counts = data?.counts || {};
   const compliance = data?.compliance || {};
   const statusCenter = data?.status_center || {};
+  const workplaceModules = workplaceModulesForUser(user);
 
-  function goToModule(moduleId) {
-    if (!moduleId || !onNavigate) return;
-    try { sessionStorage.setItem('isg_status_company_id', String(companyId)); } catch (_) { /* ignore */ }
-    onNavigate(moduleId);
+  function canOpenModule(moduleId) {
+    return !workplaceModules || workplaceModules.includes(moduleId);
+  }
+
+  function goToModule(moduleId, target = null) {
+    if (!moduleId || !onNavigate || !canOpenModule(moduleId)) return;
+    try {
+      sessionStorage.setItem('isg_status_company_id', String(companyId));
+      if (target?.record_id) sessionStorage.setItem('isg_status_record_target', JSON.stringify(target));
+    } catch (_) { /* ignore */ }
+    onNavigate(moduleId, {companyId: String(companyId), recordTarget: target});
   }
 
   async function exportReport(type) {
@@ -260,9 +270,11 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
                 {key: 'detail', label: 'Gerçek veri sonucu'},
                 {key: 'responsible_role', label: 'Sorumlu'},
                 {key: 'module', label: 'Kaynak', render: (r) => (
-                  <button type="button" className="mini secondary" onClick={() => goToModule(r.module)}>
-                    Modüle git <ArrowRight size={13} style={{verticalAlign: 'middle'}} />
-                  </button>
+                  canOpenModule(r.module) ? (
+                    <button type="button" className="mini secondary" onClick={() => goToModule(r.module)}>
+                      Modüle git <ArrowRight size={13} style={{verticalAlign: 'middle'}} />
+                    </button>
+                  ) : <span style={{fontSize: 12, color: '#64748b'}}>Özet görünüm</span>
                 )},
               ]}
               rows={statusCenter.items || []}
@@ -270,24 +282,12 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
             />
           </Panel>
 
-          <Panel title="Yaklaşan ve gecikmiş terminler" icon={CalendarDays}>
-            <SimpleTable
-              cols={[
-                {key: 'source', label: 'Kaynak'},
-                {key: 'title', label: 'Konu'},
-                {key: 'due_date', label: 'Termin'},
-                {key: 'days_left', label: 'Kalan gün', render: (r) => (
-                  <strong style={{color: r.days_left < 0 ? '#b91c1c' : r.days_left <= 30 ? '#b45309' : undefined}}>{r.days_left}</strong>
-                )},
-                {key: 'responsible_role', label: 'Sorumlu'},
-                {key: 'module', label: 'İşlem', render: (r) => (
-                  <button type="button" className="mini secondary" onClick={() => goToModule(r.module)}>Aç</button>
-                )},
-              ]}
-              rows={statusCenter.deadlines || []}
-              empty="Takip edilen yaklaşan veya gecikmiş termin yok."
-            />
-          </Panel>
+          <WorkplaceObligationCenter
+            companyId={Number(companyId)}
+            companyName={c?.name}
+            canOpenModule={canOpenModule}
+            onOpenModule={goToModule}
+          />
 
           <div className="cards osgb-cards" style={{marginBottom: 16}}>
             <Metric label="Personel" value={counts.employees} />
@@ -546,8 +546,15 @@ export function WorkplaceStatusPage({user, onNavigate}) {
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user?.company_id ? String(user.company_id) : '');
   const [err, setErr] = useState('');
+  const fixedCompanyId = Number(user?.company_id) > 0 ? Number(user.company_id) : null;
 
   useEffect(() => {
+    if (fixedCompanyId) {
+      setCompanyId(String(fixedCompanyId));
+      setCompanies([]);
+      setErr('');
+      return undefined;
+    }
     let cancelled = false;
     api('/companies?active=true')
       .then((rows) => {
@@ -558,22 +565,24 @@ export function WorkplaceStatusPage({user, onNavigate}) {
       })
       .catch((e) => { if (!cancelled) setErr(e.message || 'İşyerleri yüklenemedi.'); });
     return () => { cancelled = true; };
-  }, []);
+  }, [fixedCompanyId]);
 
   return (
     <div className="page">
-      <section className="panel" style={{marginBottom: 16}}>
-        <label style={{display: 'grid', gap: 6, maxWidth: 520}}>
-          <strong>İşyeri seçin</strong>
-          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-            <option value="">Erişilebilir işyeri yok</option>
-            {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
-          </select>
-        </label>
-        {err && <p style={{color: '#b91c1c', marginBottom: 0}}>{err}</p>}
-      </section>
+      {!fixedCompanyId && (
+        <section className="panel" style={{marginBottom: 16}}>
+          <label style={{display: 'grid', gap: 6, maxWidth: 520}}>
+            <strong>İşyeri seçin</strong>
+            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+              <option value="">Erişilebilir işyeri yok</option>
+              {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+            </select>
+          </label>
+          {err && <p style={{color: '#b91c1c', marginBottom: 0}}>{err}</p>}
+        </section>
+      )}
       {companyId ? (
-        <Customer360Page companyId={Number(companyId)} onNavigate={onNavigate} />
+        <Customer360Page companyId={Number(companyId)} onNavigate={onNavigate} user={user} />
       ) : (
         <section className="panel"><p className="empty">Rolünüze atanmış aktif işyeri bulunamadı.</p></section>
       )}

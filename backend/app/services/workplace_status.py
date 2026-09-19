@@ -8,27 +8,35 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, inspect as sa_inspect, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
     AnnualPlanItem,
     AnnualPlanStatus,
+    ChemicalProduct,
     DocumentCategory,
     DocumentRecord,
+    DrillRecord,
     EmergencyPlan,
     HealthRecord,
     IncidentDof,
     IncidentEvent,
     Notification,
+    OhsCommitteeMeeting,
     PeriodicControl,
+    PpeAssignment,
+    PpeInventoryItem,
     RiskAssessment,
     RiskDof,
     TrainingSession,
     TrainingStatus,
     UserRole,
+    WorkplaceMeasurement,
 )
+from app.models.remote_training import RemoteTrainingAssignment
 from app.services.company_overview import build_company_overview
+from app.services.risk_validity import add_years, build_validity
 
 
 STATUS_LABELS = {
@@ -102,6 +110,25 @@ def _count(db: Session, model, *criteria) -> int:
     return int(db.scalar(select(func.count()).select_from(model).where(*criteria)) or 0)
 
 
+def _due_counts(values, *, today: date, soon: date) -> tuple[int, int]:
+    """Return overdue and due-soon counts for explicit dates only."""
+    overdue = 0
+    due_soon = 0
+    for value in values:
+        if value is None:
+            continue
+        if value < today:
+            overdue += 1
+        elif value <= soon:
+            due_soon += 1
+    return overdue, due_soon
+
+
+def _earliest_date(*values: date | None) -> date | None:
+    present = [value for value in values if value is not None]
+    return min(present) if present else None
+
+
 def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
     """Mevcut Müşteri 360 çıktısını standart durum merkezi alanlarıyla genişletir."""
     cid = int(company.id)
@@ -111,7 +138,165 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
     counts = overview.get("counts") or {}
     health = overview.get("health") or {}
     plan = overview.get("annual_plan") or {}
-    ppe = overview.get("ppe") or {}
+
+    training_rows = list(
+        db.scalars(
+            select(TrainingSession).where(
+                TrainingSession.company_id == cid,
+                TrainingSession.archived_at.is_(None),
+                TrainingSession.status != TrainingStatus.CANCELLED,
+            )
+        ).all()
+    )
+    remote_training_rows = []
+    # Uzaktan eğitim tabloları ayrı, geriye uyumlu bir katmandır. Eski/veri
+    # aktarımı tamamlanmamış kurulumlarda durum merkezi bütünüyle 500 vermesin.
+    if sa_inspect(db.get_bind()).has_table(RemoteTrainingAssignment.__tablename__):
+        remote_training_rows = list(
+            db.scalars(
+                select(RemoteTrainingAssignment).where(
+                    RemoteTrainingAssignment.company_id == cid,
+                    RemoteTrainingAssignment.status.not_in(("completed", "revoked")),
+                )
+            ).all()
+        )
+    training_due_dates = [
+        row.start_date if row.status == TrainingStatus.PLANNED else row.next_training_date
+        for row in training_rows
+    ]
+    training_overdue, training_due_soon = _due_counts(
+        training_due_dates, today=today, soon=soon
+    )
+    remote_overdue = sum(
+        1
+        for row in remote_training_rows
+        if row.status == "expired" or (row.due_date is not None and row.due_date < today)
+    )
+    remote_due_soon = sum(
+        1
+        for row in remote_training_rows
+        if row.status != "expired"
+        and row.due_date is not None
+        and today <= row.due_date <= soon
+    )
+    training_overdue += remote_overdue
+    training_due_soon += remote_due_soon
+
+    ppe_rows = list(
+        db.scalars(
+            select(PpeAssignment).where(
+                PpeAssignment.company_id == cid,
+                PpeAssignment.deleted_at.is_(None),
+                PpeAssignment.status.in_(("teslim", "yenilenecek")),
+            )
+        ).all()
+    )
+    ppe_inventory_rows = list(
+        db.scalars(
+            select(PpeInventoryItem).where(
+                PpeInventoryItem.company_id == cid,
+                PpeInventoryItem.is_active.is_(True),
+            )
+        ).all()
+    )
+    ppe_due_dates = [
+        _earliest_date(row.renewal_date, row.expiry_date) for row in ppe_rows
+    ] + [
+        _earliest_date(row.renewal_date, row.expiry_date) for row in ppe_inventory_rows
+    ]
+    ppe_overdue, ppe_due_soon = _due_counts(ppe_due_dates, today=today, soon=soon)
+
+    chemical_rows = list(
+        db.scalars(
+            select(ChemicalProduct).where(
+                ChemicalProduct.company_id == cid,
+                ChemicalProduct.is_active.is_(True),
+            )
+        ).all()
+    )
+    sds_overdue, sds_due_soon = _due_counts(
+        [row.next_review_date for row in chemical_rows], today=today, soon=soon
+    )
+    missing_sds = sum(1 for row in chemical_rows if not row.has_sds_file)
+
+    drill_rows = list(
+        db.scalars(
+            select(DrillRecord).where(
+                DrillRecord.company_id == cid,
+                DrillRecord.is_active.is_(True),
+                DrillRecord.status != "iptal",
+            )
+        ).all()
+    )
+    planned_drills = [row for row in drill_rows if row.status == "planlandi"]
+    completed_drills = [row for row in drill_rows if row.status == "yapildi"]
+    latest_completed_drill = max(
+        completed_drills, key=lambda row: (row.drill_date, row.id), default=None
+    )
+    drill_renewal_date = (
+        add_years(latest_completed_drill.drill_date, 1) if latest_completed_drill else None
+    )
+    drill_due_dates = [row.drill_date for row in planned_drills]
+    drill_renewal_covered = bool(
+        drill_renewal_date
+        and any(row.drill_date <= drill_renewal_date for row in planned_drills)
+    )
+    if drill_renewal_date and not drill_renewal_covered:
+        drill_due_dates.append(drill_renewal_date)
+    drill_overdue, drill_due_soon = _due_counts(
+        drill_due_dates, today=today, soon=soon
+    )
+
+    measurement_rows = list(
+        db.scalars(
+            select(WorkplaceMeasurement).where(
+                WorkplaceMeasurement.company_id == cid,
+                WorkplaceMeasurement.is_active.is_(True),
+            )
+        ).all()
+    )
+    measurement_overdue, measurement_due_soon = _due_counts(
+        [row.next_due_date for row in measurement_rows], today=today, soon=soon
+    )
+
+    committee_rows = list(
+        db.scalars(
+            select(OhsCommitteeMeeting).where(
+                OhsCommitteeMeeting.company_id == cid,
+                OhsCommitteeMeeting.is_active.is_(True),
+            )
+        ).all()
+    )
+    committee_overdue, committee_due_soon = _due_counts(
+        [row.next_meeting_date for row in committee_rows], today=today, soon=soon
+    )
+
+    pending_sgk_rows = list(
+        db.scalars(
+            select(IncidentEvent).where(
+                IncidentEvent.company_id == cid,
+                IncidentEvent.sgk_reported.is_(False),
+                IncidentEvent.sgk_due_date.is_not(None),
+            )
+        ).all()
+    )
+    sgk_overdue, sgk_due_soon = _due_counts(
+        [row.sgk_due_date for row in pending_sgk_rows], today=today, soon=soon
+    )
+
+    first_risk_created = db.scalar(
+        select(func.min(RiskAssessment.created_at)).where(RiskAssessment.company_id == cid)
+    )
+    risk_fallback_date = (
+        first_risk_created.date() if hasattr(first_risk_created, "date") else first_risk_created
+    )
+    risk_validity = build_validity(
+        hazard_class=company.hazard_class,
+        assessment_date=company.risk_assessment_date,
+        fallback_date=risk_fallback_date,
+        method_code=getattr(company, "risk_method", None),
+        today=today,
+    )
 
     risk_total = _count(db, RiskAssessment, RiskAssessment.company_id == cid)
     risk_overdue = _count(
@@ -127,12 +312,6 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         EmergencyPlan,
         EmergencyPlan.company_id == cid,
         EmergencyPlan.is_active.is_(True),
-    )
-    training_completed = _count(
-        db,
-        TrainingSession,
-        TrainingSession.company_id == cid,
-        TrainingSession.status == TrainingStatus.COMPLETED,
     )
     document_total = _count(
         db,
@@ -153,6 +332,13 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         PeriodicControl.is_active.is_(True),
         PeriodicControl.next_due_date.is_not(None),
         PeriodicControl.next_due_date < today,
+    )
+    periodic_due_soon = _count(
+        db,
+        PeriodicControl,
+        PeriodicControl.company_id == cid,
+        PeriodicControl.is_active.is_(True),
+        PeriodicControl.next_due_date.between(today, soon),
     )
     notification_criteria = [Notification.company_id == cid, Notification.is_read.is_(False)]
     if viewer is not None:
@@ -222,6 +408,26 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         )
     )
 
+    risk_validity_status = {
+        "expired": "overdue",
+        "due_soon": "due_soon",
+        "ok": "completed",
+        "unknown": "missing",
+    }.get(risk_validity.get("status"), "attention")
+    items.append(
+        _item(
+            code="risk_assessment_validity",
+            title="Risk değerlendirmesi yenileme süresi",
+            status=risk_validity_status,
+            detail=risk_validity.get("message") or "Yenileme durumu hesaplanamadı.",
+            module="risk",
+            responsible_role="İş Güvenliği Uzmanı / İşveren",
+            source="company.risk_assessment_date + risk_validity",
+            count=1 if risk_validity.get("assessment_date") else 0,
+            critical=risk_validity_status in ("missing", "overdue"),
+        )
+    )
+
     emergency_overdue = _count(
         db,
         EmergencyPlan,
@@ -252,18 +458,34 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         )
     )
 
-    training_total = int(counts.get("trainings") or 0)
+    training_total = len(training_rows)
+    remote_training_total = len(remote_training_rows)
+    training_status = (
+        "missing"
+        if not training_total and not remote_training_total
+        else "overdue"
+        if training_overdue
+        else "due_soon"
+        if training_due_soon
+        else "attention"
+        if any(row.status == TrainingStatus.PLANNED for row in training_rows)
+        or any(row.status in ("not_started", "in_progress", "failed") for row in remote_training_rows)
+        else "completed"
+    )
     items.append(
         _item(
             code="training",
-            title="İSG eğitimleri",
-            status="missing" if not training_total else "attention" if not training_completed else "completed",
-            detail=f"{training_total} eğitim kaydı; {training_completed} tamamlandı.",
-            module="training",
+            title="İSG eğitimleri ve yenilemeler",
+            status=training_status,
+            detail=(
+                f"{training_total} sınıf eğitimi, {remote_training_total} açık uzaktan eğitim; "
+                f"{training_overdue} gecikmiş, {training_due_soon} yaklaşan tarih."
+            ),
+            module="personnel_training_records",
             responsible_role="İş Güvenliği Uzmanı / İşyeri Hekimi",
-            source="training_sessions",
-            count=training_total,
-            critical=not training_total,
+            source="training_sessions + remote_training_assignments",
+            count=training_total + remote_training_total,
+            critical=bool(training_overdue or (not training_total and not remote_training_total)),
         )
     )
 
@@ -302,17 +524,165 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         )
     )
 
+    ppe_total = len(ppe_rows) + len(ppe_inventory_rows)
+    ppe_status = (
+        "missing"
+        if not ppe_total
+        else "overdue"
+        if ppe_overdue
+        else "due_soon"
+        if ppe_due_soon
+        else "completed"
+    )
+    items.append(
+        _item(
+            code="ppe",
+            title="KKD değişim ve kullanım süreleri",
+            status=ppe_status,
+            detail=(
+                f"{len(ppe_rows)} zimmet, {len(ppe_inventory_rows)} stok kartı; "
+                f"{ppe_overdue} gecikmiş, {ppe_due_soon} yaklaşan değişim/son kullanım tarihi."
+            ),
+            module="ppe",
+            responsible_role="İşveren / İş Güvenliği Uzmanı",
+            source="ppe_assignments + ppe_inventory_items",
+            count=ppe_total,
+            critical=ppe_overdue > 0,
+            required=False,
+        )
+    )
+
+    sds_total = len(chemical_rows)
+    sds_status = (
+        "informational"
+        if not sds_total
+        else "overdue"
+        if sds_overdue
+        else "due_soon"
+        if sds_due_soon
+        else "attention"
+        if missing_sds
+        else "completed"
+    )
+    items.append(
+        _item(
+            code="sds",
+            title="SDS / kimyasal belge takibi",
+            status=sds_status,
+            detail=(
+                f"{sds_total} aktif kimyasal; {missing_sds} SDS belgesi eksik, "
+                f"{sds_overdue} gecikmiş, {sds_due_soon} yaklaşan gözden geçirme."
+            ),
+            module="sds",
+            responsible_role="İşveren / İş Güvenliği Uzmanı",
+            source="chemical_products",
+            count=sds_total,
+            critical=bool(sds_overdue or missing_sds),
+            required=False,
+        )
+    )
+
+    drill_status = (
+        "missing"
+        if not drill_rows
+        else "overdue"
+        if drill_overdue
+        else "due_soon"
+        if drill_due_soon
+        else "attention"
+        if planned_drills
+        else "completed"
+    )
+    items.append(
+        _item(
+            code="drills",
+            title="Acil durum tatbikatları",
+            status=drill_status,
+            detail=(
+                f"{len(drill_rows)} tatbikat kaydı; {len(planned_drills)} planlı, "
+                f"{drill_overdue} gecikmiş, {drill_due_soon} yaklaşan tatbikat."
+            ),
+            module="tatbikat",
+            responsible_role="İş Güvenliği Uzmanı / İşveren",
+            source="drill_records",
+            count=len(drill_rows),
+            critical=bool(not drill_rows or drill_overdue),
+        )
+    )
+
     items.append(
         _item(
             code="periodic_controls",
             title="Periyodik kontroller",
-            status="missing" if not periodic_total else "overdue" if periodic_overdue else "completed",
-            detail=f"{periodic_total} aktif kontrol kaydı; {periodic_overdue} gecikmiş.",
+            status="missing" if not periodic_total else "overdue" if periodic_overdue else "due_soon" if periodic_due_soon else "completed",
+            detail=f"{periodic_total} aktif kontrol kaydı; {periodic_overdue} gecikmiş, {periodic_due_soon} yaklaşan.",
             module="periyodik_kontrol",
             responsible_role="İşveren / İş Güvenliği Uzmanı",
             source="periodic_controls",
             count=periodic_total,
             critical=(not periodic_total or periodic_overdue > 0),
+        )
+    )
+
+    measurement_status = (
+        "informational"
+        if not measurement_rows
+        else "overdue"
+        if measurement_overdue
+        else "due_soon"
+        if measurement_due_soon
+        else "completed"
+    )
+    items.append(
+        _item(
+            code="workplace_measurements",
+            title="Ortam ve hijyen ölçümleri",
+            status=measurement_status,
+            detail=(
+                f"{len(measurement_rows)} aktif ölçüm kaydı; {measurement_overdue} gecikmiş, "
+                f"{measurement_due_soon} yaklaşan tekrar ölçümü."
+            ),
+            module="ortam_olcum",
+            responsible_role="İşveren / İş Güvenliği Uzmanı",
+            source="workplace_measurements",
+            count=len(measurement_rows),
+            critical=measurement_overdue > 0,
+            required=False,
+        )
+    )
+
+    committee_required = employee_count >= 50
+    committee_status = (
+        "attention"
+        if committee_required and not committee_rows
+        else "informational"
+        if not committee_rows
+        else "overdue"
+        if committee_overdue
+        else "due_soon"
+        if committee_due_soon
+        else "completed"
+    )
+    items.append(
+        _item(
+            code="ohs_committee",
+            title="İSG Kurulu toplantıları",
+            status=committee_status,
+            detail=(
+                f"{len(committee_rows)} toplantı kaydı; {committee_overdue} gecikmiş, "
+                f"{committee_due_soon} yaklaşan toplantı."
+                + (
+                    " Çalışan sayısı 50 ve üzeri; altı aydan uzun sürekli iş koşulu ayrıca kontrol edilmelidir."
+                    if committee_required and not committee_rows
+                    else ""
+                )
+            ),
+            module="isg_kurulu",
+            responsible_role="İşveren / Kurul sekreteryası",
+            source="ohs_committee_meetings",
+            count=len(committee_rows),
+            critical=committee_overdue > 0,
+            required=False,
         )
     )
 
@@ -352,12 +722,16 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         _item(
             code="incidents",
             title="İş kazası ve ramak kala kayıtları",
-            status="informational",
-            detail=f"Son kayıtlarda {incident_total} olay, toplam {near_miss_count} ramak kala bildirimi bulunuyor.",
+            status="overdue" if sgk_overdue else "due_soon" if sgk_due_soon else "informational",
+            detail=(
+                f"Son kayıtlarda {incident_total} olay, toplam {near_miss_count} ramak kala; "
+                f"{sgk_overdue} gecikmiş, {sgk_due_soon} yaklaşan SGK bildirim tarihi bulunuyor."
+            ),
             module="near_miss",
             responsible_role="İş Güvenliği Uzmanı / İşveren",
             source="incident_events",
             count=incident_total,
+            critical=sgk_overdue > 0,
             required=False,
         )
     )
@@ -377,6 +751,181 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
     )
 
     deadlines: list[dict] = []
+
+    risk_valid_until = risk_validity.get("valid_until")
+    if risk_valid_until:
+        deadlines.append(
+            _deadline(
+                source="Risk Değerlendirmesi",
+                title="Risk değerlendirmesi yenileme tarihi",
+                due_date=date.fromisoformat(risk_valid_until),
+                module="risk",
+                responsible_role="İş Güvenliği Uzmanı / İşveren",
+                today=today,
+            )
+        )
+
+    for row in training_rows:
+        if row.status == TrainingStatus.PLANNED:
+            deadlines.append(
+                _deadline(
+                    source="Planlı Eğitim",
+                    title=row.title,
+                    due_date=row.start_date,
+                    module="personnel_training_records",
+                    responsible_role="İş Güvenliği Uzmanı / İşyeri Hekimi",
+                    today=today,
+                    reference_id=row.id,
+                )
+            )
+        elif row.next_training_date:
+            deadlines.append(
+                _deadline(
+                    source="Eğitim Yenileme",
+                    title=row.title,
+                    due_date=row.next_training_date,
+                    module="personnel_training_records",
+                    responsible_role="İş Güvenliği Uzmanı / İşyeri Hekimi",
+                    today=today,
+                    reference_id=row.id,
+                )
+            )
+
+    for row in remote_training_rows:
+        if not row.due_date:
+            continue
+        deadlines.append(
+            _deadline(
+                source="Uzaktan Eğitim",
+                title=f"Çalışan eğitim görevi #{row.id}",
+                due_date=row.due_date,
+                module="remote_training",
+                responsible_role="İşyeri yetkilisi / İnsan Kaynakları",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
+    for row in ppe_rows:
+        next_due = _earliest_date(row.renewal_date, row.expiry_date)
+        if not next_due:
+            continue
+        deadlines.append(
+            _deadline(
+                source="KKD Değişim",
+                title=row.item_type,
+                due_date=next_due,
+                module="ppe",
+                responsible_role="İşyeri yetkilisi / KKD sorumlusu",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
+    for row in ppe_inventory_rows:
+        next_due = _earliest_date(row.renewal_date, row.expiry_date)
+        if not next_due:
+            continue
+        deadlines.append(
+            _deadline(
+                source="KKD Stok",
+                title=row.item_type,
+                due_date=next_due,
+                module="ppe",
+                responsible_role="İşyeri yetkilisi / Depo sorumlusu",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
+    for row in chemical_rows:
+        if not row.next_review_date:
+            continue
+        deadlines.append(
+            _deadline(
+                source="SDS / PKD",
+                title=row.product_name,
+                due_date=row.next_review_date,
+                module="sds",
+                responsible_role="İşveren / İş Güvenliği Uzmanı",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
+    for row in planned_drills:
+        deadlines.append(
+            _deadline(
+                source="Tatbikat",
+                title=row.drill_type,
+                due_date=row.drill_date,
+                module="tatbikat",
+                responsible_role=row.responsible or "İş Güvenliği Uzmanı / İşveren",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
+    if drill_renewal_date and not drill_renewal_covered:
+        deadlines.append(
+            _deadline(
+                source="Tatbikat Yenileme",
+                title="Yıllık acil durum tatbikatı",
+                due_date=drill_renewal_date,
+                module="tatbikat",
+                responsible_role="İş Güvenliği Uzmanı / İşveren",
+                today=today,
+                reference_id=latest_completed_drill.id,
+            )
+        )
+
+    for row in measurement_rows:
+        if not row.next_due_date:
+            continue
+        deadlines.append(
+            _deadline(
+                source="Ortam Ölçümü",
+                title=(
+                    f"{row.measurement_type} — {row.location}"
+                    if row.location
+                    else row.measurement_type
+                ),
+                due_date=row.next_due_date,
+                module="ortam_olcum",
+                responsible_role="İşveren / İş Güvenliği Uzmanı",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
+    for row in committee_rows:
+        if not row.next_meeting_date:
+            continue
+        deadlines.append(
+            _deadline(
+                source="İSG Kurulu",
+                title="Sonraki kurul toplantısı",
+                due_date=row.next_meeting_date,
+                module="isg_kurulu",
+                responsible_role="İşveren / Kurul sekreteryası",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
+    for row in pending_sgk_rows:
+        deadlines.append(
+            _deadline(
+                source="İş Kazası Bildirimi",
+                title=f"SGK bildirim süresi — {row.form_no}",
+                due_date=row.sgk_due_date,
+                module="accident",
+                responsible_role="İşveren / İşveren vekili",
+                today=today,
+                reference_id=row.id,
+            )
+        )
+
     for row in db.scalars(
         select(RiskAssessment)
         .where(
@@ -562,6 +1111,12 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
 
     deadlines.sort(key=lambda d: (d["due_date"], d["source"], d["title"]))
     deadlines = deadlines[:100]
+    deadline_summary = {
+        "total": len(deadlines),
+        "overdue": sum(1 for row in deadlines if row["status"] == "overdue"),
+        "due_soon": sum(1 for row in deadlines if row["status"] == "due_soon"),
+        "scheduled": sum(1 for row in deadlines if row["status"] == "scheduled"),
+    }
 
     required_items = [i for i in items if i["required"]]
     completed_required = sum(1 for i in required_items if i["status"] in ("completed", "due_soon"))
@@ -578,7 +1133,7 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         overall_status = "compliant"
 
     overview["status_center"] = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "overall_status": overall_status,
         "overall_label": {
             "critical": "Kritik eksikler var",
@@ -595,8 +1150,12 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
             "due_soon": due_soon_count,
             "critical": critical_count,
             "unread_notifications": unread_notifications,
-            "ppe_overdue": int(ppe.get("overdue") or 0),
+            "ppe_overdue": ppe_overdue,
+            "ppe_due_soon": ppe_due_soon,
+            "training_overdue": training_overdue,
+            "training_due_soon": training_due_soon,
         },
+        "deadline_summary": deadline_summary,
         "items": items,
         "deadlines": deadlines,
         "privacy": {
@@ -620,9 +1179,14 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         "due_soon": health_due,
     }
 
-    # Saha rolleri ve salt-okunur kullanıcılar işyeri operasyonunu görür; OSGB'nin
-    # ticari sözleşme/ücret verisi en az yetki ilkesi gereği bu sözleşmeden çıkarılır.
-    if viewer is not None and viewer.role not in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
+    # Tek işyerine bağlı company_admin bir işyeri yetkilisidir; OSGB yöneticisi
+    # değildir. Finans/sözleşme verisi yalnız global veya company_id'siz OSGB
+    # yöneticisine bırakılır.
+    can_view_commercial = viewer is not None and (
+        viewer.role == UserRole.GLOBAL_ADMIN
+        or (viewer.role == UserRole.COMPANY_ADMIN and not viewer.company_id)
+    )
+    if viewer is not None and not can_view_commercial:
         overview.pop("finance", None)
         overview.pop("contracts", None)
     return overview

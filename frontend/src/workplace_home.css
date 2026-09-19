@@ -7,6 +7,39 @@
 .workplace-home-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .workplace-home-status p { margin: 0; color: #64748b; font-size: 13px; }
 .workplace-home-error { padding: 14px 16px; border: 1px solid #f5cda0; border-radius: 12px; color: #854d0e; background: #fffbeb; line-height: 1.6; }
+.workplace-alert-center { display: grid; gap: 16px; padding: 20px; background: linear-gradient(135deg, #f8fffd 0%, #fff 65%); border: 1px solid #cfe4df; border-left: 5px solid #16a34a; border-radius: 16px; box-shadow: 0 5px 20px rgba(15,65,75,.06); }
+.workplace-alert-center--critical { border-left-color: #dc2626; background: linear-gradient(135deg, #fff7f7 0%, #fff 65%); }
+.workplace-alert-center--warning { border-left-color: #d97706; background: linear-gradient(135deg, #fffbeb 0%, #fff 65%); }
+.workplace-alert-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.workplace-alert-header h3 { margin: 6px 0 4px; color: #163943; font-size: 20px; }
+.workplace-alert-header p { margin: 0; color: #64748b; font-size: 13px; line-height: 1.55; }
+.workplace-alert-header button { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.workplace-alert-eyebrow { display: inline-flex; align-items: center; gap: 6px; color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.workplace-alert-center--critical .workplace-alert-eyebrow { color: #b91c1c; }
+.workplace-alert-center--warning .workplace-alert-eyebrow { color: #b45309; }
+.workplace-alert-error { padding: 12px 14px; color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; font-size: 13px; }
+.workplace-alert-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.workplace-alert-metric { display: grid; gap: 5px; min-width: 0; padding: 13px 14px; background: rgba(255,255,255,.88); border: 1px solid #dce8e8; border-radius: 12px; }
+.workplace-alert-metric span { color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.workplace-alert-metric strong { color: #163943; font-size: 24px; line-height: 1; }
+.workplace-alert-metric--danger strong { color: #b91c1c; }
+.workplace-alert-metric--warning strong { color: #b45309; }
+.workplace-alert-metric--success strong { color: #15803d; }
+.workplace-alert-list { display: grid; overflow: hidden; background: rgba(255,255,255,.75); border: 1px solid #dce8e8; border-radius: 12px; }
+.workplace-alert-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #e8efef; }
+.workplace-alert-row:last-child { border-bottom: 0; }
+.workplace-alert-row-icon { display: grid; place-items: center; width: 34px; height: 34px; color: #b45309; background: #fef3c7; border-radius: 10px; }
+.workplace-alert-row--overdue .workplace-alert-row-icon { color: #b91c1c; background: #fee2e2; }
+.workplace-alert-row--very_soon .workplace-alert-row-icon { color: #c2410c; background: #ffedd5; }
+.workplace-alert-row--approaching .workplace-alert-row-icon { color: #a16207; background: #fef9c3; }
+.workplace-alert-row-content { display: grid; gap: 3px; min-width: 0; }
+.workplace-alert-row-content strong { overflow: hidden; color: #163943; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.workplace-alert-row-content small { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.workplace-alert-row-days { color: #92400e; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.workplace-alert-row--overdue .workplace-alert-row-days { color: #b91c1c; }
+.workplace-alert-row--very_soon .workplace-alert-row-days { color: #c2410c; }
+.workplace-alert-row button { display: inline-flex; align-items: center; gap: 4px; }
+.workplace-alert-empty { display: flex; align-items: center; gap: 9px; padding: 13px 14px; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; font-size: 13px; font-weight: 600; }
 .workplace-module-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .workplace-module-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 22px; min-width: 0; text-align: left; color: #163943; background: #fff; border: 1px solid #dce8e8; border-radius: 14px; box-shadow: 0 3px 12px rgba(15,65,75,.04); cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s; }
 .workplace-module-card:hover { background: #f6fbfa; border-color: #0f766e; box-shadow: 0 5px 16px rgba(15,65,75,.09); }
@@ -16,5 +49,6 @@
 .workplace-module-hint { color: #64748b; font-size: 13px; font-weight: 400; line-height: 1.6; flex: 1; }
 .workplace-module-footer { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 6px; padding-top: 12px; border-top: 1px solid #e9efef; color: #0f766e; font-size: 12px; font-weight: 700; }
 @media (max-width: 1180px) { .workplace-home-heading { align-items: flex-start; flex-direction: column; gap: 16px; } }
-@media (max-width: 960px) { .workplace-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .workplace-module-grid { grid-template-columns: 1fr; } .workplace-home-heading h3 { font-size: 20px; } .workplace-home-status { align-items: flex-start; } .workplace-home-status button { flex-shrink: 0; } }
+@media (max-width: 960px) { .workplace-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workplace-alert-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .workplace-alert-header { flex-direction: column; } .workplace-alert-row { grid-template-columns: auto minmax(0, 1fr) auto; } .workplace-alert-row button { grid-column: 2 / -1; justify-self: start; } }
+@media (max-width: 520px) { .workplace-module-grid { grid-template-columns: 1fr; } .workplace-home-heading h3 { font-size: 20px; } .workplace-home-status { align-items: flex-start; } .workplace-home-status button { flex-shrink: 0; } .workplace-alert-center { padding: 16px; } .workplace-alert-metrics { grid-template-columns: 1fr 1fr; } .workplace-alert-row { grid-template-columns: auto minmax(0, 1fr); } .workplace-alert-row-days { grid-column: 2; } .workplace-alert-row button { grid-column: 2; } }
