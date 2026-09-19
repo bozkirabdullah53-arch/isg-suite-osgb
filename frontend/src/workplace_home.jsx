@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {
   AlertTriangle, ArrowRight, Beaker, ClipboardCheck, FileText, Gauge,
-  GraduationCap, HardHat, QrCode, RefreshCw, ShieldAlert, Users,
+  GraduationCap, HardHat, HeartPulse, QrCode, RefreshCw, ShieldAlert, Users,
 } from 'lucide-react';
 import {api} from './api';
 import {isWorkplaceManagerUser} from './workplace_user_policy';
@@ -18,6 +18,7 @@ const MODULE_CARDS = [
   {id: 'accident', title: 'İş Kazaları', hint: 'Kaza bildirimlerini ve incelemeleri takip edin.', icon: ShieldAlert, countKey: 'accidents'},
   {id: 'capa', title: 'DÖF', hint: 'Olay ve risk kayıtlarına bağlı faaliyetleri izleyin.', icon: ClipboardCheck, countKey: 'capa'},
   {id: 'isg_kurulu', title: 'İSG Kurulu', hint: 'Kurul üyelerini, toplantıları ve kararları yönetin.', icon: Users},
+  {id: 'health', title: 'Sağlık Takibi', hint: 'Personel muayene, uygunluk ve kontrol tarihlerini salt okunur izleyin.', icon: HeartPulse, footer: 'Görüntüle ve indir'},
 ];
 
 export function WorkplaceHomePage({user, onNavigate}) {

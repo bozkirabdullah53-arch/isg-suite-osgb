@@ -148,6 +148,15 @@ def client(tmp_path, monkeypatch):
                     is_active=True,
                 ),
                 User(
+                    email="onam-workplace@kiosk.isgsuite.tr",
+                    full_name="Mevcut Isyeri Girisi",
+                    hashed_password=get_password_hash("KioskPass123!"),
+                    role=UserRole.COMPANY_ADMIN,
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    is_active=True,
+                ),
+                User(
                     email="onam-osgb-central@test.com",
                     full_name="OSGB Merkez Yonetici",
                     hashed_password=get_password_hash("CentralPass123!"),
@@ -303,7 +312,16 @@ def test_special_policy_employee_defaults_to_six_months(client):
     assert created.json()["next_examination_date"] == "2026-09-10"
 
 
-def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
+@pytest.mark.parametrize(
+    ("workplace_email", "workplace_password"),
+    [
+        ("onam-osgb@test.com", "OsgbPass123!"),
+        ("onam-workplace@kiosk.isgsuite.tr", "KioskPass123!"),
+    ],
+)
+def test_workplace_accounts_get_only_masked_read_and_safe_downloads(
+    client, workplace_email, workplace_password
+):
     physician = _headers(client, "onam-hekim@test.com", "HekimPass123!")
     company_id, employee_id = _ids()
     restrictions = "Gece vardiyasında çalışamaz; 10 kg üstü yük kaldıramaz"
@@ -340,7 +358,7 @@ def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
     assert created.status_code in (200, 201), created.text
     record_id = created.json()["id"]
 
-    headers = _headers(client, "onam-osgb@test.com", "OsgbPass123!")
+    headers = _headers(client, workplace_email, workplace_password)
 
     meta = client.get("/api/v1/health-records/meta", headers=headers)
     assert meta.status_code == 200, meta.text

@@ -24,9 +24,9 @@ from app.api.company_access import (
 )
 from app.api.deps import (
     get_current_user,
-    is_workplace_manager_account,
+    is_workplace_operations_account,
     require_roles,
-    require_roles_or_workplace_manager,
+    require_roles_or_workplace_operations,
 )
 from app.core.config import settings
 from app.core.input_rules import assert_date_order, assert_event_date
@@ -359,7 +359,7 @@ def _employees_map(db: Session, emp_ids: set[int]) -> dict[int, Employee]:
 
 
 @router.get("/meta")
-def health_meta(user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES))):
+def health_meta(user: User = Depends(require_roles_or_workplace_operations(*HEALTH_SUPPORT_ROLES))):
     _ = user
     return {
         "record_types": [{"code": k.value, "label": v} for k, v in RECORD_TYPE_LABELS.items()],
@@ -432,10 +432,10 @@ def health_summary(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_operations(*HEALTH_SUPPORT_ROLES)),
 ):
     effective = effective_company_id(db, user, company_id)
-    employer_view = is_workplace_manager_account(user)
+    employer_view = is_workplace_operations_account(user)
     today = date.today()
     soon = today + timedelta(days=30)
     items = _company_records(db, effective)
@@ -579,9 +579,9 @@ def list_health_records(
     overdue_only: bool = False,
     q: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*HEALTH_SUPPORT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_operations(*HEALTH_SUPPORT_ROLES)),
 ):
-    employer_view = is_workplace_manager_account(user)
+    employer_view = is_workplace_operations_account(user)
     query = _active().order_by(HealthRecord.examination_date.desc(), HealthRecord.id.desc())
     company_ids = company_ids_for_query(db, user, company_id)
     if company_ids == []:
@@ -791,10 +791,10 @@ def export_health_xlsx(
     request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*PHYSICIAN_ONLY)),
+    user: User = Depends(require_roles_or_workplace_operations(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
-    employer_view = is_workplace_manager_account(user)
+    employer_view = is_workplace_operations_account(user)
     company = db.get(Company, effective)
     rows = _company_records(db, effective)
     employees = _employees_map(db, {r.employee_id for r in rows})
@@ -1276,7 +1276,7 @@ def health_fitness_html(
     request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*PHYSICIAN_ONLY)),
+    user: User = Depends(require_roles_or_workplace_operations(*PHYSICIAN_ONLY)),
 ):
     """Employer-facing minimum-necessary fitness document; no clinical findings."""
     record = db.get(HealthRecord, record_id)
@@ -1288,7 +1288,7 @@ def health_fitness_html(
     company = db.get(Company, record.company_id)
     employee = db.get(Employee, record.employee_id)
     view = DecryptedRecordView(record)
-    employer_view = is_workplace_manager_account(user)
+    employer_view = is_workplace_operations_account(user)
     revision = None
     if not employer_view:
         # İşveren hesabının klinik revision/snapshot tablosuna hiçbir sorgu

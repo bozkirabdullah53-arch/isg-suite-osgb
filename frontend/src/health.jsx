@@ -9,7 +9,7 @@ import {
   canViewEmployerFitness,
   canViewHealthRecords,
 } from './health_role_policy';
-import {isWorkplaceManagerUser} from './workplace_user_policy';
+import {isWorkplaceAccountUser} from './workplace_user_policy';
 
 const TYPE_FALLBACK = {
   entry_exam: 'İşe Giriş',
@@ -168,7 +168,7 @@ function MiniTable({title, rows, empty}) {
 export function HealthPage({user}) {
   const canEdit = canEditHealthRecords(user);
   const canView = canViewHealthRecords(user);
-  const isEmployerView = isWorkplaceManagerUser(user);
+  const isEmployerView = isWorkplaceAccountUser(user);
   const canOpenFitness = canViewEmployerFitness(user);
   const isPhysician = canLoadHealthAnalysis(user.role);
 

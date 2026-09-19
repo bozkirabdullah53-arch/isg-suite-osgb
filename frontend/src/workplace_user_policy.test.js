@@ -67,8 +67,10 @@ describe('workplace user policy', () => {
       expect(modules).toContain(id);
       expect(workplaceMenuSection(kiosk, id)).not.toBe('');
     }
+    expect(modules).toContain('health');
+    expect(workplaceMenuSection(kiosk, 'health')).toBe('Sağlık');
     expect(modules[0]).toBe('workplace_home');
-    for (const id of ['companies', 'users', 'finance', 'contracts', 'health', 'documents', 'training']) {
+    for (const id of ['companies', 'users', 'finance', 'contracts', 'documents', 'training']) {
       expect(modules).not.toContain(id);
     }
     expect(modules).not.toContain('remote_training');

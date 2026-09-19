@@ -7,7 +7,7 @@ Vars:
   hesabında geçici (chicken-egg önleme)
 - app.allowed_company_ids — CSV firma id (doküman/sağlık RLS)
 - app.current_company_id / app.current_osgb_id — yardımcı bağlam
-- app.health_employer_access — normal işyeri yetkilisi için sağlık SELECT izni
+- app.health_employer_access — işyerine bağlı hesap için sağlık SELECT izni
 """
 from __future__ import annotations
 
@@ -55,12 +55,10 @@ def _has_osgb_admin_rls_privilege(user: User) -> bool:
 
 
 def _has_workplace_health_read_privilege(user: User) -> bool:
-    """Klinik olmayan sağlık takibini yalnız normal işyeri hesabına aç."""
-    email = str(getattr(user, "email", "") or "").strip().lower()
+    """Klinik olmayan sağlık takibini yalnız tek işyerine bağlı hesaba aç."""
     return (
         user.role == UserRole.COMPANY_ADMIN
         and bool(getattr(user, "company_id", None))
-        and not email.endswith("@kiosk.isgsuite.tr")
     )
 
 

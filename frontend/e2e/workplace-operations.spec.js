@@ -6,7 +6,7 @@ const modules = [
   ['employees', /Personel/], ['ppe', /KKD/], ['sds', /SDS/],
   ['periyodik_kontrol', /Periyodik/], ['ortam_olcum', /Ortam/],
   ['near_miss', /Ramak/], ['accident', /Kaz/], ['capa', /DÖF Yönetimi/],
-  ['isg_kurulu', /İSG Kurulu/],
+  ['isg_kurulu', /İSG Kurulu/], ['health', /Sağlık Gözetimi/],
 ];
 
 async function setup(page, {
@@ -135,8 +135,9 @@ for (const email of ['isyeri.42@kiosk.isgsuite.tr', 'yetkili@example.com']) {
     const isKiosk = email.endsWith('@kiosk.isgsuite.tr');
     await page.goto('/');
     await expect(page.getByRole('heading', {name: company.name})).toBeVisible();
-    await expect(page.locator('.workplace-module-card')).toHaveCount(isKiosk ? 9 : 10);
+    await expect(page.locator('.workplace-module-card')).toHaveCount(isKiosk ? 10 : 11);
     await expect(page.getByRole('button', {name: 'Uzaktan Eğitim modülünü aç'})).toHaveCount(isKiosk ? 0 : 1);
+    await expect(page.getByRole('button', {name: 'Sağlık Takibi modülünü aç'})).toBeVisible();
     await expect(page.locator('.nav-desktop [data-nav="remote_training"]')).toHaveCount(isKiosk ? 0 : 1);
     await expect(page.getByRole('button', {name: 'KKD Takip modülünü aç'})).toContainText('620 kayıt');
     await page.screenshot({path: testInfo.outputPath('workplace-home.png'), fullPage: true});
@@ -174,7 +175,7 @@ test('the existing QR link keeps its sidebar and manual refresh', async ({page})
   expect(state.errors).toEqual([]);
 });
 
-test('workplace manager sees every own employee health record in a masked read-only view', async ({page}) => {
+test('existing workplace login sees every own employee health record in a masked read-only view', async ({page}) => {
   const clinicalSecrets = [
     'KLINIK_OZET_GIZLI',
     'ODYO_SONUCU_GIZLI',
@@ -182,7 +183,7 @@ test('workplace manager sees every own employee health record in a masked read-o
     'HEKIM_RAPORU_GIZLI.pdf',
   ];
   const state = await setup(page, {
-    email: 'yetkili@example.com',
+    email: 'isyeri.42@kiosk.isgsuite.tr',
     employees: [{
       id: 101,
       company_id: company.id,
@@ -351,13 +352,13 @@ test('summary failure remains visible without blocking the modules', async ({pag
   await setup(page, {summaryError: true});
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('Kayıt sayıları yüklenemedi');
-  await expect(page.locator('.workplace-module-card')).toHaveCount(9);
+  await expect(page.locator('.workplace-module-card')).toHaveCount(10);
   await expect(page.locator('.workplace-module-grid')).not.toContainText('0 kayıt');
   await page.getByRole('button', {name: 'SDS / PKD modülünü aç'}).click();
   await expect(page).toHaveURL(/m=sds$/);
 });
 
-test('mobile workplace navigation exposes all nine modules without overflow', async ({page}, testInfo) => {
+test('mobile workplace navigation exposes all ten modules without overflow', async ({page}, testInfo) => {
   await page.setViewportSize({width: 390, height: 844});
   await setup(page);
   await page.goto('/');
