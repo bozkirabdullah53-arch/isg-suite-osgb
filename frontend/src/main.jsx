@@ -96,8 +96,6 @@ import {
 } from './navigation_history';
 import {
   isWorkplaceAccountUser,
-  isWorkplaceKioskUser,
-  isWorkplaceManagerUser,
   workplaceMenuSection,
   workplaceModulesForUser,
 } from './workplace_user_policy';
@@ -1170,9 +1168,7 @@ function UserPage({user}){
   </Page>
 }
 function Employees({user}){
-  // QR/kiosk hesapları personel ekranını kullanabilir; sağlık verisi ise
-  // yalnızca normal işyeri/İK hesabına ait salt-okunur bir yetkidir.
-  const isWorkplaceManager=isWorkplaceManagerUser(user);
+  const isWorkplaceManager=isWorkplaceAccountUser(user);
   const[companies,setCompanies]=useState([]);
   const[branches,setBranches]=useState([]);
   const[data,setData]=useState([]);
@@ -1220,7 +1216,13 @@ function Employees({user}){
     if(search) params.set('q',search);
     if(filter!=='all') params.set('active',filter==='active'?'true':'false');
     const rows=await api(`/employees?${params.toString()}`);
-    setData(rows||[]);
+    const fetched=Array.isArray(rows)?rows:[];
+    // Keep the archive view defensive even if an older API/cache response
+    // accidentally returns a row outside the requested active state.
+    const visible=fetched.filter((row)=>
+      filter==='all' || (filter==='active' ? row.is_active===true : row.is_active===false)
+    );
+    setData(visible);
     setSelectedIds([]);
   }
 
@@ -1500,7 +1502,7 @@ function Employees({user}){
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
     <label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Doldurulan Excel'i Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
-    <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>
+    {activeFilter!=='inactive'&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
     <button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>
      <button data-ai-action="employee.create" disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
@@ -1517,7 +1519,7 @@ function Employees({user}){
       </Select>
       <Select label="Personel görünümü" value={activeFilter} disabled={!selectedCompanyId} onChange={e=>setActiveFilter(e.target.value)}>
         <option value="active">Aktif personel</option>
-        <option value="inactive">Pasif personel</option>
+        <option value="inactive">Pasif / arşiv</option>
         <option value="all">Tüm personel</option>
       </Select>
     </div>
@@ -1550,9 +1552,11 @@ function Employees({user}){
       {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
         {isWorkplaceManager&&<button type="button" className="mini" disabled={busy||healthBusy} onClick={()=>openHealthInfo(r)}><HeartPulse size={14}/>Sağlık Bilgileri</button>}
         <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)}>Düzenle</button>
-        {r.is_active
+        {r.is_active && activeFilter!=='inactive'
           ? <button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Pasife Al</button>
-          : <button type="button" className="mini secondary" disabled={busy} onClick={()=>reactivateOne(r)}>Aktifleştir</button>}
+          : !r.is_active
+            ? <button type="button" className="mini secondary" disabled={busy} onClick={()=>reactivateOne(r)}>Aktifleştir</button>
+            : null}
         <button type="button" className="mini danger" disabled={busy} onClick={()=>purgeOne(r)}>Kalıcı Sil</button>
       </div>},
     ]} rows={selectedCompanyId?data:[]}/>
@@ -2283,8 +2287,6 @@ function App(){
   const[uiTheme,toggleUiTheme]=useUiTheme();
   const[logged,setLogged]=useState(!!getAccessToken());
   const[user,setUser]=useState(null);
-  const isWorkplaceKiosk= isWorkplaceKioskUser(user);
-  const workplaceAccountLabel=isWorkplaceKiosk?'QR Operasyon Hesabı':isWorkplaceAccountUser(user)?'İşyeri Yetkilisi / İK':roles[user?.role];
   const[summary,setSummary]=useState(null);
   const[active,setActive]=useState(()=>{
     const fromUrl=readModuleFromLocation();
@@ -2874,7 +2876,7 @@ function App(){
             alt="EİSA ana sayfa"
             className="sidebar-logo eisa-logo-icon"
           />
-          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceKiosk?'QR Operasyon Paneli':isWorkplaceAccountUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceAccountUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
         </button>
         <nav className="nav-desktop" ref={navRef}>
           {menuWithSections.map(([id,l,I,section],index)=>(
@@ -2961,8 +2963,8 @@ function App(){
       <section className="workspace">
         <header>
           <div>
-            <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceKiosk?'QR Operasyon Paneli':isWorkplaceAccountUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
-            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceKiosk?'QR hesabı: saha operasyonları için sınırlı erişim':isWorkplaceAccountUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
+            <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceAccountUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
+            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceAccountUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
             <div className="header-tools">
@@ -2982,7 +2984,7 @@ function App(){
             </div>
             <div className="user-chip">
               <strong>{user.full_name}</strong>
-              <span>{workplaceAccountLabel}</span>
+              <span>{isWorkplaceAccountUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
             </div>
             <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>
@@ -2993,11 +2995,6 @@ function App(){
           <div className="mobile-nace-context" hidden={!hasGlobalNaceContext}>
             <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-mobile-card"/>
           </div>
-          {isWorkplaceKiosk&&(
-            <div role="status" style={{marginBottom:14,padding:'12px 15px',borderRadius:12,border:'1px solid #f6c453',background:'#fff8e1',color:'#7a4b00',fontWeight:700}}>
-              Bu oturum <strong>QR Operasyon Hesabı</strong>dır. Sağlık raporları ve sağlık modülü yalnızca <strong>İşyeri Yetkilisi / İK</strong> hesabında kullanılabilir.
-            </div>
-          )}
           {!user.is_eisa && user.subscription_write_allowed===false && (
             <div className="readonly-banner" role="status">
               Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.
