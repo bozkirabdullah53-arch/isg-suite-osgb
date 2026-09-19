@@ -2658,9 +2658,10 @@ function combineRemoteCertificateRows(rows) {
 }
 
 
-function RemoteCertificateHub() {
+function RemoteCertificateHub({workplaceMode = false, user = null}) {
   const [companies, setCompanies] = useState([]);
-  const [companyId, setCompanyId] = useState('');
+  const fixedCompanyId = workplaceMode ? String(user?.company_id || '') : '';
+  const [companyId, setCompanyId] = useState(fixedCompanyId);
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState('');
   // Firma seçilince tüm katılım sonuçları açılır; başarılı/başarısız kayıtlar
@@ -2675,7 +2676,15 @@ function RemoteCertificateHub() {
   async function loadCompanies() {
     try {
       const companyRows = await api('/companies');
-      setCompanies(Array.isArray(companyRows) ? companyRows : []);
+      const available = Array.isArray(companyRows) ? companyRows : [];
+      // A workplace account must never receive a company picker.  Keep the
+      // fixed company guard in the UI as well as the API scope so a stale
+      // response cannot make another workplace selectable.
+      const scoped = workplaceMode
+        ? available.filter((company) => String(company.id) === fixedCompanyId)
+        : available;
+      setCompanies(scoped);
+      if (workplaceMode) setCompanyId(fixedCompanyId);
     } catch (err) {
       setError(err.message || 'Firma listesi alınamadı.');
     }
@@ -2704,6 +2713,7 @@ function RemoteCertificateHub() {
   }
 
   function selectCompany(event) {
+    if (workplaceMode) return;
     const value = String(event.currentTarget.value || '');
     const selected = companies.find((company) => String(company.id) === value);
     setCompanyId(value);
@@ -2716,7 +2726,10 @@ function RemoteCertificateHub() {
 
   useEffect(() => {
     loadCompanies().catch(() => {});
-  }, []);
+    // The workplace account is fixed to its own company for the lifetime of
+    // this view; OSGB users retain the existing company picker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workplaceMode, fixedCompanyId]);
 
   useEffect(() => {
     load().catch(() => {});
@@ -2776,6 +2789,7 @@ function RemoteCertificateHub() {
   }
 
   async function deleteParticipationRecord(row) {
+    if (workplaceMode) return;
     const assignmentIds = Array.isArray(row?.assignment_ids) && row.assignment_ids.length
       ? row.assignment_ids
       : row?.id ? [row.id] : [];
@@ -2829,14 +2843,15 @@ function RemoteCertificateHub() {
       : 'Kayıtları görmek için önce firma seçin.';
 
   return (
-    <section style={cardStyle} aria-label="Firma eğitim katılım ve belgelendirme raporu">
+    <section style={cardStyle} aria-label={workplaceMode ? 'İşyeri çalışanları uzaktan eğitim takip ve belge paneli' : 'Firma eğitim katılım ve belgelendirme raporu'}>
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
         <div>
-          <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>FİRMA EĞİTİM KATILIM RAPORU</div>
-          <h3 style={{margin: '4px 0'}}>Eğitime katılan personel ve belgelendirme</h3>
+          <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>{workplaceMode ? 'İŞYERİ UZAKTAN EĞİTİM TAKİBİ' : 'FİRMA EĞİTİM KATILIM RAPORU'}</div>
+          <h3 style={{margin: '4px 0'}}>{workplaceMode ? 'Çalışanlarınızın eğitim durumu ve belgeleri' : 'Eğitime katılan personel ve belgelendirme'}</h3>
           <p style={{margin: 0, color: '#496174', fontSize: 13}}>
-            Firma/işyeri seçildiğinde o kapsamdaki başarılı, başarısız ve devam eden çalışan eğitim kayıtlarını görün.
-            Bu rapor çalışanların kendi eğitim ekranından ayrıdır.
+            {workplaceMode
+              ? 'Yalnızca bu işyerine bağlı çalışanların uzaktan eğitim ilerlemesini, sınav sonucunu ve hazır katılım belgelerini görün.'
+              : 'Firma/işyeri seçildiğinde o kapsamdaki başarılı, başarısız ve devam eden çalışan eğitim kayıtlarını görün. Bu rapor çalışanların kendi eğitim ekranından ayrıdır.'}
           </p>
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
@@ -2853,17 +2868,29 @@ function RemoteCertificateHub() {
       </div>
 
       <div role="note" style={{marginTop: 14, padding: '11px 13px', borderRadius: 10, border: '1px solid #b9e3c8', background: '#f2fff6', color: '#17643a', fontSize: 12}}>
-        <strong>Önce firma/işyeri seçin:</strong> Her satır tek bir <strong>firma + işyeri/şube + çalışan</strong> kapsamıdır.
-        Başarılı çalışanlarda katılım belgesi PDF’i açılır; başarısız veya devam eden çalışanlar sonuç raporunda görünür.
-        Aynı çalışan için aynı işyeri kapsamındaki tamamlanmış paketler <strong>tek PDF belgede birleşir</strong>.
-        İş güvenliği uzmanı yalnızca yetkili olduğu firmaları görebilir.
+        {workplaceMode ? <>
+          <strong>İşyeri kapsamı sabittir:</strong> Bu liste yalnızca giriş yaptığınız işyerinin çalışanlarını içerir.
+          Başarılı çalışanlarda <strong>PDF belgeyi al</strong> düğmesi açılır; başarısız veya devam eden çalışanlar da takip için listede kalır.
+          Aynı çalışan için aynı işyeri kapsamındaki tamamlanmış paketler <strong>tek PDF belgede birleşir</strong>.
+        </> : <>
+          <strong>Önce firma/işyeri seçin:</strong> Her satır tek bir <strong>firma + işyeri/şube + çalışan</strong> kapsamıdır.
+          Başarılı çalışanlarda katılım belgesi PDF’i açılır; başarısız veya devam eden çalışanlar sonuç raporunda görünür.
+          Aynı çalışan için aynı işyeri kapsamındaki tamamlanmış paketler <strong>tek PDF belgede birleşir</strong>.
+          İş güvenliği uzmanı yalnızca yetkili olduğu firmaları görebilir.
+        </>}
       </div>
 
       <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, padding: 10, borderRadius: 10, background: '#f7fbfd'}}>
-        <select value={companyId} onChange={selectCompany} aria-label="Belge firması">
-          <option value="">Firma seçin</option>
-          {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
-        </select>
+        {workplaceMode ? (
+          <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 12px', border: '1px solid #b9d9d2', borderRadius: 9, background: '#f0faf7', color: '#115e59', fontWeight: 800}}>
+            {selectedCompanyName}
+          </span>
+        ) : (
+          <select value={companyId} onChange={selectCompany} aria-label="Belge firması">
+            <option value="">Firma seçin</option>
+            {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+          </select>
+        )}
         <select value={branchId} onChange={(event) => setBranchId(event.target.value)} disabled={!companyId} aria-label="Eğitim raporu işyeri veya şube">
           <option value="">Firma geneli / tüm işyerleri</option>
           {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
@@ -2880,7 +2907,7 @@ function RemoteCertificateHub() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Enter') load().catch(() => {}); }}
-          placeholder="Firma, çalışan veya eğitim ara..."
+          placeholder={workplaceMode ? 'Çalışan veya eğitim ara...' : 'Firma, çalışan veya eğitim ara...'}
           aria-label="Uzaktan eğitim belge araması"
           style={{minWidth: 240, flex: 1}}
         />
@@ -2908,7 +2935,7 @@ function RemoteCertificateHub() {
               <th>Durum / İlerleme</th>
               <th>Sınav</th>
               <th>Belge</th>
-              <th>İşlem</th>
+              {!workplaceMode && <th>İşlem</th>}
             </tr>
           </thead>
           <tbody>
@@ -2956,7 +2983,7 @@ function RemoteCertificateHub() {
                     </span>
                   )}
                 </td>
-                <td>
+                {!workplaceMode && <td>
                   <button
                     type="button"
                     onClick={() => deleteParticipationRecord(row)}
@@ -2966,12 +2993,12 @@ function RemoteCertificateHub() {
                   >
                     Kaydı kalıcı sil
                   </button>
-                </td>
+                </td>}
               </tr>
             ))}
             {!visibleRows.length && (
               <tr>
-                <td colSpan={7} style={{padding: 18, textAlign: 'center', color: '#5e7485'}}>
+                <td colSpan={workplaceMode ? 6 : 7} style={{padding: 18, textAlign: 'center', color: '#5e7485'}}>
                   {emptyMessage}
                 </td>
               </tr>
@@ -2980,9 +3007,13 @@ function RemoteCertificateHub() {
         </table>
       </div>
       <div style={{marginTop: 10, color: '#5e7485', fontSize: 12}}>
-        Listeyi kullanırken önce <strong>Firma / İşyeri</strong> ve <strong>Çalışan</strong> alanlarını kontrol edin.
-        Excel/PDF çıktısı seçili firma ve filtrelere göre hazırlanır. <strong>Kaydı kalıcı sil</strong> işlemi seçili çalışanın bu firma kapsamındaki bağlı atama, ilerleme, sınav ve belge kayıtlarını siler.
-        Yetki kuralı: OSGB yöneticisi kendi OSGB’sini, uzman ise yalnızca aktif görevlendirmesinin bulunduğu firmaları görür.
+        {workplaceMode ? <>
+          Liste yalnızca kendi işyerinizin kayıtlarından oluşur. Excel/PDF çıktısı seçili şube ve filtrelere göre hazırlanır; belge yalnızca video ve sınav koşulları tamamlanan çalışanlarda açılır.
+        </> : <>
+          Listeyi kullanırken önce <strong>Firma / İşyeri</strong> ve <strong>Çalışan</strong> alanlarını kontrol edin.
+          Excel/PDF çıktısı seçili firma ve filtrelere göre hazırlanır. <strong>Kaydı kalıcı sil</strong> işlemi seçili çalışanın bu firma kapsamındaki bağlı atama, ilerleme, sınav ve belge kayıtlarını siler.
+          Yetki kuralı: OSGB yöneticisi kendi OSGB’sini, uzman ise yalnızca aktif görevlendirmesinin bulunduğu firmaları görür.
+        </>}
       </div>
     </section>
   );
@@ -3076,8 +3107,8 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
     return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
       <section style={{...cardStyle, borderTop: '4px solid #0f766e'}} aria-label="İşyeri uzaktan eğitim atama akışı">
         <div style={{fontSize: 11, color: '#0f766e', fontWeight: 800, letterSpacing: '.1em'}}>İŞYERİ YETKİLİSİ / İNSAN KAYNAKLARI</div>
-        <h2 style={{margin: '7px 0 6px', color: '#123b59'}}>Uzaktan Eğitim Atama</h2>
-        <p style={{margin: 0, color: '#5e7485', lineHeight: 1.6}}>İş güvenliği uzmanınızın işyerinize tanımladığı eğitim paketlerini görün ve kendi çalışanlarınıza atayın. Eğitim içeriği ve merkezi paketler bu ekrandan değiştirilemez.</p>
+        <h2 style={{margin: '7px 0 6px', color: '#123b59'}}>Uzaktan Eğitim Atama ve Takip</h2>
+        <p style={{margin: 0, color: '#5e7485', lineHeight: 1.6}}>İş güvenliği uzmanınızın işyerinize tanımladığı eğitim paketlerini görün, kendi çalışanlarınıza atayın ve aşağıdaki takip panelinden ilerlemeyi ve hazır PDF belgelerini izleyin. Eğitim içeriği ve merkezi paketler bu ekrandan değiştirilemez.</p>
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 14}}>
           {[
             ['1', 'Tanımlı paketi seçin', 'Yalnız işyerinize açılmış yayımlanmış paketler gösterilir.'],
@@ -3086,6 +3117,7 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
           ].map(([number, title, description]) => <div key={number} style={{display: 'flex', gap: 10, padding: 12, border: '1px solid #dbe8e5', borderRadius: 10, background: '#f8fcfb'}}><span style={{display: 'grid', placeItems: 'center', width: 28, height: 28, flex: '0 0 28px', borderRadius: 999, background: '#0f766e', color: '#fff', fontWeight: 800}}>{number}</span><span><strong style={{display: 'block', color: '#163943'}}>{title}</strong><small style={{display: 'block', marginTop: 3, color: '#64748b', lineHeight: 1.45}}>{description}</small></span></div>)}
         </div>
       </section>
+      <RemoteCertificateHub workplaceMode user={user} />
       <ManagerPanel
         user={user}
         initialCompanyId={String(user.company_id || '')}

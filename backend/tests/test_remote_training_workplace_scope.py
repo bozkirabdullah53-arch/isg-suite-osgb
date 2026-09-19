@@ -128,3 +128,18 @@ def test_workplace_cannot_open_new_manual_program_by_id():
     with pytest.raises(HTTPException) as error:
         remote_api._assert_program_manager(db, _workplace_user(), row.id)
     assert error.value.status_code == 404
+
+
+def test_workplace_account_cannot_delete_remote_progress_or_certificate_records():
+    from app.api import remote_training as remote_api
+
+    db = _db()
+    with pytest.raises(HTTPException) as error:
+        remote_api._permanently_delete_assignments(
+            db,
+            _workplace_user(),
+            SimpleNamespace(client=None),
+            [123],
+        )
+
+    assert error.value.status_code == 403

@@ -323,7 +323,18 @@ def _assert_assignment_document_manager(
     db: Session, user: User, assignment: RemoteTrainingAssignment
 ) -> None:
     """Participation documents are management outputs, never employee self-service."""
-    program = _assert_program_manager(db, user, assignment.program_id)
+    # Issued documents are historical records.  A workplace account may keep
+    # downloading its own company's certificate after the source package is
+    # archived, while the normal program/assignment endpoints continue to
+    # hide archived packages from the active workplace view.
+    if is_workplace_account(user):
+        _manager(user)
+        program = load_program(db, assignment.program_id)
+        ensure_company_access(db, user, program.company_id)
+        if not _workplace_program_is_allowed(program):
+            raise HTTPException(404, "Uzaktan eğitim belgesi bulunamadı.")
+    else:
+        program = _assert_program_manager(db, user, assignment.program_id)
     if assignment.company_id != program.company_id:
         raise HTTPException(403, "Atama firma kapsamı dışında.")
 
@@ -3306,6 +3317,11 @@ def _permanently_delete_assignments(
     assignment_ids: list[int],
 ) -> list[int]:
     """Delete one or more authorized employee training records atomically."""
+    if is_workplace_account(user):
+        raise HTTPException(
+            403,
+            "İşyeri hesabı uzaktan eğitim ilerleme ve belge kayıtlarını silemez.",
+        )
     normalized_ids = list(dict.fromkeys(int(value) for value in assignment_ids))
     if not normalized_ids:
         raise HTTPException(422, "Silinecek eğitim katılım kaydı seçilmedi.")
