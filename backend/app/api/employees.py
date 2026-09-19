@@ -7,7 +7,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import or_, select
+from sqlalchemy import func, inspect, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,151 @@ EDIT_ROLES = (
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
 )
+
+# Employee rows are intentionally protected when a historical/operational
+# record still points at them.  Keep the labels here in one place so the purge
+# response describes the actual FK blocker instead of treating every
+# IntegrityError as a generic "health/education" record.
+_EMPLOYEE_LINK_LABELS = {
+    "health_records": ("health", "sağlık kaydı"),
+    "prescriptions": ("health", "reçete kaydı"),
+    "training_participants": ("training", "eğitim kaydı"),
+    "remote_training_assignments": ("training", "uzaktan eğitim ataması"),
+    "remote_training_assignment_sectors": ("training", "uzaktan eğitim kapsam kaydı"),
+    "remote_training_video_progress": ("training", "uzaktan eğitim ilerleme kaydı"),
+    "remote_training_events": ("training", "uzaktan eğitim olay kaydı"),
+    "remote_training_exam_attempts": ("training", "uzaktan eğitim sınav kaydı"),
+    "remote_training_checkpoint_answers": ("training", "uzaktan eğitim cevap kaydı"),
+    "remote_training_certificates": ("training", "eğitim katılım belgesi"),
+    "ppe_assignments": ("ppe", "KKD zimmet kaydı"),
+    "emergency_team_assignments": ("emergency", "acil durum ekibi kaydı"),
+    "work_permit_employees": ("work_permit", "çalışma izni kaydı"),
+    "personnel_profiles": ("profile", "personel profil kaydı"),
+}
+
+
+def _employee_linked_records(
+    db: Session, employee_ids: set[int]
+) -> dict[int, list[dict[str, int | str]]]:
+    """Return the non-cascading records that protect an employee from purge.
+
+    Health records are append-only and are soft-deleted with ``deleted_at``.
+    They must therefore be counted even when they are not visible in the
+    active health list.  Other employee FKs are discovered from the mapped
+    schema so a newly added protected table cannot silently fall back to the
+    misleading legacy message.
+    """
+    bind = db.get_bind()
+    existing_tables = set(inspect(bind).get_table_names())
+    links_by_employee: dict[int, list[dict[str, int | str]]] = {}
+    if not employee_ids:
+        return links_by_employee
+
+    for table in Employee.metadata.tables.values():
+        if table.name not in existing_tables:
+            continue
+        employee_fk = next(
+            (
+                fk
+                for fk in table.foreign_keys
+                if fk.target_fullname == "employees.id"
+                and (fk.ondelete or "").upper() not in {"CASCADE", "SET NULL"}
+            ),
+            None,
+        )
+        if employee_fk is None:
+            continue
+        column = table.c.get(employee_fk.parent.name)
+        if column is None:
+            continue
+
+        category, label = _EMPLOYEE_LINK_LABELS.get(
+            table.name, ("other", "bağlı kayıt")
+        )
+        count_rows = db.execute(
+            select(column, func.count().label("total"))
+            .select_from(table)
+            .where(column.in_(employee_ids))
+            .group_by(column)
+        ).all()
+        active_by_employee: dict[int, int] = {}
+        deleted_at = table.c.get("deleted_at")
+        if table.name == "health_records" and deleted_at is not None:
+            active_rows = db.execute(
+                select(column, func.count().label("active"))
+                .select_from(table)
+                .where(column.in_(employee_ids), deleted_at.is_(None))
+                .group_by(column)
+            ).all()
+            active_by_employee = {int(employee_id): int(active) for employee_id, active in active_rows}
+
+        for employee_id, total in count_rows:
+            total = int(total or 0)
+            if total <= 0:
+                continue
+            employee_id = int(employee_id)
+            detail: dict[str, int | str] = {
+                "table": table.name,
+                "category": category,
+                "label": label,
+                "count": total,
+            }
+            if table.name == "health_records" and deleted_at is not None:
+                active = active_by_employee.get(employee_id, 0)
+                detail["active_count"] = active
+                detail["historical_count"] = total - active
+            links_by_employee.setdefault(employee_id, []).append(detail)
+    return links_by_employee
+
+
+def _purge_blocker_message(
+    protected_count: int,
+    blocked_details: list[dict[str, object]],
+) -> str:
+    """Build a user-facing message that distinguishes active/history links."""
+    grouped: dict[tuple[str, str], dict[str, int]] = {}
+    for item in blocked_details:
+        for link in item.get("links", []):
+            category = str(link.get("category") or "other")
+            label = str(link.get("label") or "bağlı kayıt")
+            key = (category, label)
+            counts = grouped.setdefault(key, {"count": 0, "active": 0, "historical": 0})
+            counts["count"] += int(link.get("count") or 0)
+            counts["active"] += int(link.get("active_count") or 0)
+            counts["historical"] += int(link.get("historical_count") or 0)
+
+    reasons: list[str] = []
+    for (category, label), counts in grouped.items():
+        if category == "health":
+            active = counts["active"]
+            historical = counts["historical"]
+            if historical and not active:
+                reasons.append(f"{historical} arşivlenmiş/geçmiş sağlık kaydı")
+            elif active and historical:
+                reasons.append(
+                    f"{counts['count']} sağlık kaydı ({active} aktif, {historical} arşivlenmiş)"
+                )
+            elif active:
+                reasons.append(f"{active} aktif sağlık kaydı")
+            else:
+                reasons.append(f"{counts['count']} {label}")
+        else:
+            reasons.append(f"{counts['count']} {label}")
+
+    if not reasons:
+        reasons.append("bağlı kayıt")
+    message = (
+        f"{protected_count} personel, "
+        + ", ".join(reasons)
+        + " bulunduğu için korundu."
+    )
+    if any(
+        int(link.get("historical_count") or 0)
+        for item in blocked_details
+        for link in item.get("links", [])
+    ):
+        message += " Arşivlenmiş sağlık kayıtları aktif sağlık listesinde gösterilmez."
+    return message
 
 
 def check_company(db: Session, user: User, cid: int):
@@ -249,7 +394,20 @@ def bulk_purge_inactive_employees(
 
     deleted = 0
     linked_skipped = 0
+    blocked_details: list[dict[str, object]] = []
+    links_by_employee = _employee_linked_records(db, set(ids))
     for row in rows:
+        links = links_by_employee.get(row.id, [])
+        if links:
+            linked_skipped += 1
+            blocked_details.append(
+                {
+                    "employee_id": row.id,
+                    "employee_name": row.full_name,
+                    "links": links,
+                }
+            )
+            continue
         try:
             with db.begin_nested():
                 db.delete(row)
@@ -257,16 +415,30 @@ def bulk_purge_inactive_employees(
             deleted += 1
         except IntegrityError:
             linked_skipped += 1
+            blocked_details.append(
+                {
+                    "employee_id": row.id,
+                    "employee_name": row.full_name,
+                    "links": [
+                        {
+                            "category": "other",
+                            "label": "bağlı kayıt",
+                            "count": 1,
+                        }
+                    ],
+                }
+            )
 
     db.commit()
     message = f"{deleted} personel kalıcı olarak silindi."
     if linked_skipped:
-        message += f" {linked_skipped} bağlı sağlık/eğitim kaydı bulunduğu için korundu."
+        message += " " + _purge_blocker_message(linked_skipped, blocked_details)
     return {
         "message": message,
         "deleted": deleted,
         "linked_skipped": linked_skipped,
         "requested": len(ids),
+        "blocked_details": blocked_details,
     }
 
 

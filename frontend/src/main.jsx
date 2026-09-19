@@ -271,7 +271,7 @@ const menuCatalog={
   workplace_backups:['Yedeklerim',Download],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
   workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
-  site_qr_kiosk:['İşyeri QR İşlemleri',QrCode],
+  site_qr_kiosk:['İşyeri QR',QrCode],
   crm:['CRM / Teklif',BriefcaseBusiness],
   contracts:['Sözleşmeler',FileText],
   finance:['Finans',WalletCards],
@@ -930,12 +930,12 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   }
   async function resetKioskLogin(row){
     if(!row?.id) return;
-    if(!window.confirm(`“${row.name}” işyeri kullanıcı şifresi sıfırlansın mı?\n\nEski şifre geçersiz olur. Yeni şifre bir kez gösterilir — işyerine iletin.`)) return;
+    if(!window.confirm(`“${row.name}” kiosk şifresi sıfırlansın mı?\n\nEski şifre geçersiz olur. Yeni şifre bir kez gösterilir — işyerine iletin.`)) return;
     setBusy(true);setErr('');setCopyMsg('');
     try{
       const acc=await api(`/companies/${row.id}/kiosk-login/reset`,{method:'POST'});
       setCreds(acc);
-    }catch(ex){setErr(ex.message||'İşyeri kullanıcı şifresi sıfırlanamadı.')}
+    }catch(ex){setErr(ex.message||'Kiosk şifresi sıfırlanamadı.')}
     finally{setBusy(false)}
   }
   return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={openCreate}><Plus/>Firma Ekle</button>}>
@@ -951,7 +951,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
           {r.is_active
             ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
             : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
-          {!isIndividual&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="İşyeri kullanıcı giriş şifresini yenile">İşyeri şifresi</button>}
+          {!isIndividual&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>}
           <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
         </div>
       )}]:[]),
@@ -962,7 +962,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       {key:'phone',label:'Telefon'},
       {key:'address',label:'Adres'},
       {key:'hazard_class',label:'Tehlike Sınıfı',render:r=>naceInfoForCompany(r,naceCatalog).hazardClass||'—'},
-      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active===true}/>},
+      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
       ...(onOpen360?[{key:'c360',label:'360',render:r=>(
         <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
           <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
@@ -1003,11 +1003,11 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
       </form>
     </Modal>}
-    {creds&&<Modal title="İşyeri Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
+    {creds&&<Modal title="İşyeri Kiosk Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
       <div className="form-grid single">
         <p style={{marginTop:0,color:'#64748b'}}>
-          Bu kullanıcı adı ve şifre <strong>kalıcıdır</strong>. İşyerine bir kez iletin; her girişte aynı bilgiler kullanılır.
-          Şifre yalnızca siz “İşyeri şifresini sıfırla” derseniz değişir.
+          Bu e-posta ve şifre <strong>kalıcıdır</strong>. İşyerine bir kez iletin; her girişte aynı şifreyi kullanırlar.
+          Şifre yalnızca siz “Kiosk şifresini sıfırla” derseniz değişir.
         </p>
         <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
           <span><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></span>
@@ -1020,7 +1020,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
             <button type="button" className="mini" onClick={async()=>setCopyMsg((await copyText(creds.password||creds.temporary_password))?'Şifre kopyalandı.':'Kopyalanamadı.')}>Şifreyi kopyala</button>
           </p>
         ):(
-          <p style={{color:'#b45309'}}>Şifre bu ekranda bir kez gösterilir. Unutulursa listeden “İşyeri şifresini sıfırla” kullanın.</p>
+          <p style={{color:'#b45309'}}>Şifre bu ekranda bir kez gösterilir. Unutulursa listeden “Kiosk şifresini sıfırla” kullanın.</p>
         )}
         <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
           <button type="button" className="secondary" onClick={async()=>{
@@ -1552,7 +1552,7 @@ function Employees({user}){
       {key:'start_date',label:'İşe Giriş'},
       {key:'exit_date',label:'İşten Çıkış',render:r=>r.exit_date||'—'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
-      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
+      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active===true}/>},
       {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
         {isWorkplaceManager&&<button type="button" className="mini" disabled={busy||healthBusy} onClick={()=>openHealthInfo(r)}><HeartPulse size={14}/>Sağlık Bilgileri</button>}
         <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)}>Düzenle</button>
@@ -1574,7 +1574,14 @@ function Employees({user}){
         </div>
         {healthBusy&&<p style={{margin:0,color:'#475569'}}>Sağlık kayıtları yükleniyor…</p>}
         {healthError&&<p style={{margin:0,color:'#b91c1c'}}>{healthError}</p>}
-        {!healthBusy&&!healthError&&!healthRows.length&&<p style={{margin:0,color:'#64748b'}}>Bu personel için sağlık kaydı bulunamadı.</p>}
+        {!healthBusy&&!healthError&&!healthRows.length&&(
+          <div style={{margin:0,color:'#64748b',lineHeight:1.5}}>
+            <strong style={{display:'block',color:'#475569'}}>
+              {healthEmployee?'Bu personel için aktif sağlık kaydı bulunamadı.':'Seçili işyerinde aktif sağlık kaydı bulunamadı.'}
+            </strong>
+            {healthEmployee&&<small>Arşivlenmiş/silinmiş geçmiş kayıtlar bu görünümde listelenmez; ancak veri bütünlüğü nedeniyle personelin kalıcı silinmesini yine engelleyebilir.</small>}
+          </div>
+        )}
         {healthRows.map((r,index)=>(
           <section key={r.id||index} className="panel" style={{margin:0}}>
             <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
@@ -2291,9 +2298,6 @@ function App(){
   const[uiTheme,toggleUiTheme]=useUiTheme();
   const[logged,setLogged]=useState(!!getAccessToken());
   const[user,setUser]=useState(null);
-  const workplaceDisplayName=isWorkplaceAccountUser(user)
-    ? String(user?.full_name||'').replace(/\s+QR\s*$/i,'')
-    : user?.full_name;
   const[summary,setSummary]=useState(null);
   const[active,setActive]=useState(()=>{
     const fromUrl=readModuleFromLocation();
@@ -2971,7 +2975,7 @@ function App(){
         <header>
           <div>
             <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceAccountUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
-            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceAccountUser(user)?'İşyeri hesabınızla tüm işyeri işlemleriniz':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
+            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceAccountUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
             <div className="header-tools">
@@ -2990,8 +2994,8 @@ function App(){
               )}
             </div>
             <div className="user-chip">
-              <strong>{workplaceDisplayName}</strong>
-              <span>{isWorkplaceAccountUser(user)?'İşyeri Yetkilisi / İK':roles[user.role]}</span>
+              <strong>{user.full_name}</strong>
+              <span>{isWorkplaceAccountUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
             </div>
             <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>

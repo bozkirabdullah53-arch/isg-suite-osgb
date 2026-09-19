@@ -456,6 +456,58 @@ def test_workplace_health_view_is_own_company_only_and_excludes_kiosk(workplace_
     assert client.get("/api/v1/health-records", headers=central_headers).status_code == 403
 
 
+def test_employee_purge_explains_archived_health_link_not_visible_in_active_list(workplace_client):
+    """Soft-deleted health history blocks purge without being shown as active."""
+    from app.core.database import SessionLocal
+    from app.models.entities import HealthFitnessStatus, HealthRecord, HealthRecordType
+
+    client, seed = workplace_client
+    with SessionLocal() as db:
+        db.add(
+            HealthRecord(
+                company_id=seed["own_company_id"],
+                employee_id=seed["own_employee_id"],
+                record_type=HealthRecordType.PERIODIC_EXAM,
+                examination_date=date(2026, 7, 1),
+                fitness_status=HealthFitnessStatus.FIT,
+                physician_name="Arşiv Hekimi",
+                created_by_id=seed["manager_id"],
+                deleted_at=datetime.utcnow(),
+            )
+        )
+        db.commit()
+
+    headers = _headers(_token(client, seed["manager_email"], seed["password"]))
+    active_health = client.get(
+        f"/api/v1/health-records?company_id={seed['own_company_id']}"
+        f"&employee_id={seed['own_employee_id']}",
+        headers=headers,
+    )
+    assert active_health.status_code == 200, active_health.text
+    assert active_health.json() == []
+
+    purge = client.post(
+        "/api/v1/employees/bulk-purge",
+        headers=headers,
+        json={
+            "employee_ids": [seed["own_employee_id"]],
+            "company_id": seed["own_company_id"],
+        },
+    )
+    assert purge.status_code == 200, purge.text
+    body = purge.json()
+    assert body["deleted"] == 0
+    assert body["linked_skipped"] == 1
+    assert "arşivlenmiş/geçmiş sağlık kaydı" in body["message"]
+    assert "aktif sağlık listesinde gösterilmez" in body["message"]
+    assert body["blocked_details"][0]["links"][0]["historical_count"] == 1
+
+    with SessionLocal() as db:
+        from app.models.entities import Employee
+
+        assert db.get(Employee, seed["own_employee_id"]) is not None
+
+
 @pytest.mark.parametrize("account_key", ["manager_email", "kiosk_email"])
 def test_workplace_manager_can_write_target_modules_only_in_own_company(workplace_client, account_key):
     client, seed = workplace_client
