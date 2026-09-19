@@ -193,8 +193,10 @@ def _to_response(
     overdue = bool(row.next_examination_date and row.next_examination_date < today)
     view = DecryptedRecordView(row)
     if employer_view:
-        # İşveren/İK görünümü açık bir izin listesi kullanır. Yeni klinik alanlar
-        # şemaya eklense bile yanlışlıkla bu yanıta taşınamaz.
+        # İşyeri yöneticisi kendi işyerindeki çalışanların sağlık kaydını
+        # salt-okunur olarak tam veriyle görebilir. Yazma/silme yetkileri ve
+        # hekim analiz uçları ayrı tutulur. Tenant erişimi ensure_access /
+        # company_ids_for_query ile korunur ve her erişim audit edilir.
         return HealthRecordResponse(
             id=row.id,
             company_id=row.company_id,
@@ -206,32 +208,32 @@ def _to_response(
             examination_date=row.examination_date,
             next_examination_date=row.next_examination_date,
             fitness_status=row.fitness_status,
-            physician_professional_id=None,
+            physician_professional_id=row.physician_professional_id,
             physician_name=row.physician_name,
-            summary=None,
-            confidential_note=None,
-            informed_consent=False,
-            informed_consent_at=None,
+            summary=view.summary,
+            confidential_note=view.confidential_note,
+            informed_consent=bool(row.informed_consent),
+            informed_consent_at=row.informed_consent_at,
             restrictions=view.restrictions,
-            audiometry_date=None,
-            audiometry_result=None,
-            spirometry_date=None,
-            spirometry_result=None,
-            chest_xray_date=None,
-            chest_xray_result=None,
-            blood_lead_date=None,
-            blood_lead_value=None,
-            blood_lead_unit=None,
-            blood_lead_ref=None,
-            blood_lead_eval=None,
-            suggested_tests=None,
-            exposures=None,
-            follow_up_note=None,
-            other_biological_test=None,
-            report_file_name=None,
-            has_report=False,
-            smart_summary=None,
-            tetkik_summary=None,
+            audiometry_date=row.audiometry_date,
+            audiometry_result=view.audiometry_result,
+            spirometry_date=row.spirometry_date,
+            spirometry_result=view.spirometry_result,
+            chest_xray_date=row.chest_xray_date,
+            chest_xray_result=view.chest_xray_result,
+            blood_lead_date=row.blood_lead_date,
+            blood_lead_value=row.blood_lead_value,
+            blood_lead_unit=row.blood_lead_unit,
+            blood_lead_ref=row.blood_lead_ref,
+            blood_lead_eval=row.blood_lead_eval,
+            suggested_tests=view.suggested_tests,
+            exposures=view.exposures,
+            follow_up_note=view.follow_up_note,
+            other_biological_test=view.other_biological_test,
+            report_file_name=row.report_file_name,
+            has_report=bool(row.report_storage_path),
+            smart_summary=smart_summary(view, employee),
+            tetkik_summary=tetkik_summary(view),
             is_overdue=overdue,
             created_by_id=row.created_by_id,
             created_at=row.created_at,
@@ -466,16 +468,8 @@ def health_summary(
         for key in ("fit", "conditional", "tracking", "unfit", "lead_high"):
             payload[key] = None
     elif employer_view:
-        # İşverene yalnız periyodik takip ve işe uygunluk özeti verilir; tetkik
-        # varlığı/değeri dahi klinik veri olarak gizli tutulur.
-        for key in (
-            "with_audiometry",
-            "with_spirometry",
-            "with_chest_xray",
-            "with_blood_lead",
-            "lead_high",
-        ):
-            payload[key] = None
+        # İşyeri yöneticisi kendi işyerinin sağlık özetindeki tüm takip
+        # metriklerini salt-okunur görebilir.
     append_health_access(
         db, actor=user, company_id=effective, action="summary_view", request=request,
         metadata={"record_count": len(items), "employer_view": employer_view},
@@ -593,10 +587,10 @@ def list_health_records(
     if record_type:
         query = query.where(HealthRecord.record_type == record_type)
     if fitness_status:
-        if user.role not in PHYSICIAN_ROLES:
+        if user.role not in PHYSICIAN_ROLES and not is_workplace_manager_account(user):
             raise HTTPException(
                 status_code=403,
-                detail="Uygunluk kararı filtresi yalnızca işyeri hekimine açıktır.",
+                detail="Uygunluk kararı filtresi bu kullanıcı için kapalıdır.",
             )
         query = query.where(HealthRecord.fitness_status == fitness_status)
     rows = list(db.scalars(query).all())
@@ -610,8 +604,15 @@ def list_health_records(
             needle = q.casefold()
             view = DecryptedRecordView(r)
             hay = f"{emp.full_name if emp else ''} {r.physician_name or ''}".casefold()
-            if include_conf:
-                hay = f"{hay} {view.summary or ''}".casefold()
+            if include_conf or employer_view:
+                hay = (
+                    f"{hay} {view.summary or ''} {view.confidential_note or ''} "
+                    f"{view.restrictions or ''} {view.audiometry_result or ''} "
+                    f"{view.spirometry_result or ''} {view.chest_xray_result or ''} "
+                    f"{view.blood_lead_value or ''} {view.blood_lead_eval or ''} "
+                    f"{view.suggested_tests or ''} {view.exposures or ''} "
+                    f"{view.follow_up_note or ''} {view.other_biological_test or ''}"
+                ).casefold()
             if needle not in hay:
                 continue
         if overdue_only and not (r.next_examination_date and r.next_examination_date < today):
@@ -1434,7 +1435,7 @@ def download_health_report(
     request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(require_roles_or_workplace_manager(*PHYSICIAN_ONLY)),
 ):
     from app.services.stored_files import response_for_storage_key
 
