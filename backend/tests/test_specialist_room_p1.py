@@ -137,19 +137,24 @@ def _seed():
         return {
             "user_id": user.id,
             "admin_email": osgb_admin.email,
+            "osgb_id": osgb.id,
             "company_a": company_a.id,
             "company_b": company_b.id,
             "company_foreign": company_foreign.id,
         }
 
 
-def _headers(client: TestClient, email: str = "uzman-p1@test.com"):
+def _headers_for(client: TestClient, email: str, password: str = "TestPass123!"):
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": email, "password": "TestPass123!"},
+        json={"email": email, "password": password},
     )
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def _headers(client: TestClient, email: str = "uzman-p1@test.com"):
+    return _headers_for(client, email)
 
 
 def test_specialist_board_and_report_are_assigned_scope_only(client):
@@ -195,6 +200,7 @@ def test_specialist_notifications_hide_clinical_and_foreign_company_rows(client)
         db.add_all(
             [
                 Notification(
+                    user_id=seed["user_id"],
                     company_id=seed["company_a"],
                     type=NotificationType.WARNING,
                     title="Güvenli uzman uyarısı",
@@ -203,6 +209,7 @@ def test_specialist_notifications_hide_clinical_and_foreign_company_rows(client)
                     entity_id="risk_dof:1:",
                 ),
                 Notification(
+                    user_id=seed["user_id"],
                     company_id=seed["company_b"],
                     type=NotificationType.WARNING,
                     title="İkinci firma uyarısı",
@@ -226,6 +233,15 @@ def test_specialist_notifications_hide_clinical_and_foreign_company_rows(client)
                     entity_type="specialist_duty",
                     entity_id="risk_dof:2:",
                 ),
+                Notification(
+                    user_id=seed["user_id"],
+                    company_id=seed["company_foreign"],
+                    type=NotificationType.WARNING,
+                    title="Eski işyeri uzman bildirimi",
+                    message="Eski işyerinden kalan özel kayıt.",
+                    entity_type="specialist_duty",
+                    entity_id="training_compliance:3:",
+                ),
             ]
         )
         db.commit()
@@ -239,6 +255,7 @@ def test_specialist_notifications_hide_clinical_and_foreign_company_rows(client)
     assert "Güvenli uzman uyarısı" in titles
     assert "Klinik kayıt" not in titles
     assert "Başka firma" not in titles
+    assert "Eski işyeri uzman bildirimi" not in titles
 
     company_a_rows = client.get(
         "/api/v1/notifications",
@@ -265,6 +282,132 @@ def test_specialist_notifications_hide_clinical_and_foreign_company_rows(client)
 
     forbidden = client.patch(f"/api/v1/notifications/{clinical_id}/read", headers=headers)
     assert forbidden.status_code == 403, forbidden.text
+
+
+def test_osgb_admin_notifications_hide_other_users_and_follow_selected_company(client):
+    seed = _seed()
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Notification, NotificationType, User, UserRole
+
+    with SessionLocal() as db:
+        workplace_admin = User(
+            email="workplace-admin-p1@test.com",
+            full_name="İşyeri Yetkilisi",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            company_id=seed["company_a"],
+            osgb_id=seed["osgb_id"],
+            is_active=True,
+        )
+        db.add(workplace_admin)
+        db.flush()
+        db.add_all(
+            [
+                Notification(
+                    user_id=seed["user_id"],
+                    company_id=seed["company_a"],
+                    type=NotificationType.WARNING,
+                    title="Eğitim kaydı eksik — İnci DİNÇER",
+                    message="Bu özel uzman bildirimi OSGB yöneticisine sızmamalı.",
+                    entity_type="specialist_duty",
+                    entity_id="training_compliance:1:",
+                ),
+                Notification(
+                    company_id=seed["company_a"],
+                    type=NotificationType.WARNING,
+                    title="Eski uzman özeti",
+                    message="67 aktif çalışan: geçerli 15, işlem gereken 52.",
+                    entity_type="specialist_duty",
+                    entity_id="training_compliance:legacy:",
+                ),
+                Notification(
+                    company_id=seed["company_a"],
+                    type=NotificationType.WARNING,
+                    title="Eğitim kaydı eksik — Yunus MUTLU",
+                    message="Eski sürümden kalan kişisel eğitim uyarısı.",
+                    entity_type="training_missing",
+                    entity_id="training_compliance:legacy-person:",
+                ),
+                Notification(
+                    company_id=seed["company_a"],
+                    type=NotificationType.WARNING,
+                    title="Firma A bildirimi",
+                    message="Yalnız Firma A için.",
+                    entity_type="isg_record",
+                    entity_id="a-1",
+                ),
+                Notification(
+                    company_id=seed["company_b"],
+                    type=NotificationType.WARNING,
+                    title="Firma B bildirimi",
+                    message="Yalnız Firma B için.",
+                    entity_type="isg_record",
+                    entity_id="b-1",
+                ),
+            ]
+        )
+        db.commit()
+
+    headers = _headers_for(client, "osgb-admin-p1@test.com")
+    selected_a = client.get(
+        f"/api/v1/notifications?company_id={seed['company_a']}", headers=headers
+    )
+    assert selected_a.status_code == 200, selected_a.text
+    titles_a = {row["title"] for row in selected_a.json()}
+    assert "Firma A bildirimi" in titles_a
+    assert "Firma B bildirimi" not in titles_a
+    assert "Eğitim kaydı eksik — İnci DİNÇER" not in titles_a
+    assert "Eski uzman özeti" not in titles_a
+    assert "Eğitim kaydı eksik — Yunus MUTLU" not in titles_a
+
+    unscoped = client.get("/api/v1/notifications", headers=headers)
+    assert unscoped.status_code == 200, unscoped.text
+    unscoped_titles = {row["title"] for row in unscoped.json()}
+    assert "Firma A bildirimi" not in unscoped_titles
+    assert "Firma B bildirimi" not in unscoped_titles
+    unscoped_refresh = client.post("/api/v1/notifications/refresh", headers=headers)
+    assert unscoped_refresh.status_code == 400, unscoped_refresh.text
+
+    selected_b = client.get(
+        f"/api/v1/notifications?company_id={seed['company_b']}", headers=headers
+    )
+    assert selected_b.status_code == 200, selected_b.text
+    titles_b = {row["title"] for row in selected_b.json()}
+    assert "Firma B bildirimi" in titles_b
+    assert "Firma A bildirimi" not in titles_b
+
+    workplace_headers = _headers_for(client, "workplace-admin-p1@test.com")
+    workplace_rows = client.get(
+        f"/api/v1/notifications?company_id={seed['company_a']}",
+        headers=workplace_headers,
+    )
+    assert workplace_rows.status_code == 200, workplace_rows.text
+    workplace_titles = {row["title"] for row in workplace_rows.json()}
+    assert "Firma A bildirimi" in workplace_titles
+    assert "Eski uzman özeti" not in workplace_titles
+
+    workplace_status = client.get(
+        f"/api/v1/companies/{seed['company_a']}/status",
+        headers=workplace_headers,
+    )
+    assert workplace_status.status_code == 200, workplace_status.text
+    assert workplace_status.json()["status_center"]["summary"]["unread_notifications"] == 1
+
+    refreshed = client.post(
+        f"/api/v1/notifications/refresh?company_id={seed['company_a']}",
+        headers=headers,
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    with SessionLocal() as db:
+        leftovers = db.scalars(
+            select(Notification).where(
+                Notification.company_id == seed["company_a"],
+                Notification.user_id.is_(None),
+                Notification.entity_type.in_(("specialist_duty", "training_missing")),
+            )
+        ).all()
+        assert leftovers == []
 
 
 def test_specialist_can_read_curated_mevzuat_panel(client):

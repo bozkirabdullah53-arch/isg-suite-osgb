@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, inspect as sa_inspect, or_, select
+from sqlalchemy import and_, func, inspect as sa_inspect, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
@@ -36,6 +36,10 @@ from app.models.entities import (
 )
 from app.models.remote_training import RemoteTrainingAssignment
 from app.services.company_overview import build_company_overview
+from app.services.notifications import (
+    SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES,
+    SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES,
+)
 from app.services.risk_validity import add_years, build_validity
 
 
@@ -341,6 +345,14 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         PeriodicControl.next_due_date.between(today, soon),
     )
     notification_criteria = [Notification.company_id == cid, Notification.is_read.is_(False)]
+    non_specialist_notification = and_(
+        or_(
+            Notification.entity_type.is_(None),
+            Notification.entity_type.notin_(tuple(SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES)),
+        ),
+        Notification.title.notlike(f"{SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES[0]}%"),
+        Notification.title.notlike(f"{SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES[1]}%"),
+    )
     if viewer is not None:
         notification_criteria.append(
             or_(Notification.user_id.is_(None), Notification.user_id == int(viewer.id))
@@ -348,18 +360,14 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         if viewer.role == UserRole.SAFETY_SPECIALIST:
             notification_criteria.append(
                 or_(
-                    Notification.entity_type.is_(None),
-                    Notification.entity_type != "specialist_duty",
+                    non_specialist_notification,
                     Notification.user_id == int(viewer.id),
                 )
             )
         else:
-            notification_criteria.append(
-                or_(
-                    Notification.entity_type.is_(None),
-                    Notification.entity_type != "specialist_duty",
-                )
-            )
+            notification_criteria.append(non_specialist_notification)
+    else:
+        notification_criteria.append(non_specialist_notification)
     unread_notifications = _count(db, Notification, *notification_criteria)
     near_miss_count = _count(
         db,
@@ -508,21 +516,27 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
     health_overdue = int(health.get("overdue") or 0)
     health_due = int(health.get("due_soon") or 0)
     active_employee_count = int(counts.get("active_employees") or 0)
-    if not health_total and not active_employee_count:
-        health_status = "informational"
-        health_detail = "Aktif çalışan kaydı bulunmuyor; sağlık muayenesi kaydı oluşmamış."
-    elif not health_total:
-        health_status = "missing"
-        health_detail = "Aktif çalışanlar için sağlık muayenesi kaydı bulunmuyor."
-    elif health_overdue:
-        health_status = "overdue"
-        health_detail = f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. Kişisel sağlık detayı gösterilmez."
-    elif health_due:
-        health_status = "due_soon"
-        health_detail = f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. Kişisel sağlık detayı gösterilmez."
-    else:
-        health_status = "completed"
-        health_detail = f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. Kişisel sağlık detayı gösterilmez."
+    # Boş bir işyerinde sağlık kaydı olmaması tamamlanmış bir süreç değildir;
+    # ancak çalışan da olmadığı için "Eksik" yerine yalnızca bilgi durumudur.
+    # Çalışanı bulunan işyerinde 0 muayene kaydı gerçek bir eksikliktir.
+    health_status = (
+        "missing"
+        if active_employee_count and not health_total
+        else "overdue"
+        if health_overdue
+        else "due_soon"
+        if health_due
+        else "informational"
+        if not health_total
+        else "completed"
+    )
+    health_detail = (
+        "Aktif çalışan kaydı bulunmuyor; sağlık gözetimi için kayıt yok. "
+        "Tamamlanmış işlem olarak değerlendirilmez. Kişisel sağlık detayı gösterilmez."
+        if not active_employee_count and not health_total
+        else f"{health_total} muayene kaydı; {health_overdue} gecikmiş, {health_due} yaklaşan. "
+        "Kişisel sağlık detayı gösterilmez."
+    )
     items.append(
         _item(
             code="health_examinations",
@@ -537,27 +551,35 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         )
     )
 
-    risk_id_scope = select(RiskAssessment.id).where(RiskAssessment.company_id == cid)
-    incident_id_scope = select(IncidentEvent.id).where(IncidentEvent.company_id == cid)
-    risk_dof_total = _count(db, RiskDof, RiskDof.risk_id.in_(risk_id_scope))
-    incident_dof_total = _count(db, IncidentDof, IncidentDof.incident_id.in_(incident_id_scope))
-    incident_open_dofs = _count(
-        db,
-        IncidentDof,
-        IncidentDof.incident_id.in_(incident_id_scope),
-        IncidentDof.status != "Tamamlandı",
+    risk_ids = select(RiskAssessment.id).where(RiskAssessment.company_id == cid)
+    risk_dofs = list(db.scalars(select(RiskDof).where(RiskDof.risk_id.in_(risk_ids))).all())
+    incident_ids = select(IncidentEvent.id).where(IncidentEvent.company_id == cid)
+    incident_dofs = list(
+        db.scalars(select(IncidentDof).where(IncidentDof.incident_id.in_(incident_ids))).all()
     )
-    incident_overdue_dofs = _count(
-        db,
-        IncidentDof,
-        IncidentDof.incident_id.in_(incident_id_scope),
-        IncidentDof.status != "Tamamlandı",
-        IncidentDof.term_date.is_not(None),
-        IncidentDof.term_date < today,
+    incident_completed_statuses = {
+        "tamamlandı",
+        "tamamlandi",
+        "completed",
+        "closed",
+        "kapatıldı",
+        "kapatildi",
+        "kapalı",
+        "kapali",
+    }
+    open_risk_dofs = [row for row in risk_dofs if not row.is_completed]
+    open_incident_dofs = [
+        row
+        for row in incident_dofs
+        if str(row.status or "").strip().casefold() not in incident_completed_statuses
+    ]
+    dof_total = len(risk_dofs) + len(incident_dofs)
+    open_dofs = len(open_risk_dofs) + len(open_incident_dofs)
+    overdue_dofs = sum(
+        1
+        for row in (*open_risk_dofs, *open_incident_dofs)
+        if row.term_date and row.term_date < today
     )
-    dof_total = risk_dof_total + incident_dof_total
-    open_dofs = int(counts.get("open_dofs") or 0) + incident_open_dofs
-    overdue_dofs = int(counts.get("overdue_dofs") or 0) + incident_overdue_dofs
     capa_status = (
         "informational"
         if not dof_total
@@ -567,17 +589,16 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         if open_dofs
         else "completed"
     )
-    capa_detail = (
-        "Henüz DÖF kaydı bulunmuyor."
-        if not dof_total
-        else f"{open_dofs} açık DÖF; {overdue_dofs} gecikmiş."
-    )
     items.append(
         _item(
             code="capa",
             title="Düzeltici ve önleyici faaliyetler",
             status=capa_status,
-            detail=capa_detail,
+            detail=(
+                "Henüz DÖF kaydı bulunmuyor."
+                if not dof_total
+                else f"{dof_total} DÖF kaydı; {open_dofs} açık DÖF; {overdue_dofs} gecikmiş."
+            ),
             module="capa",
             responsible_role="Kayıt sorumlusu / İşveren",
             source="risk_dofs + incident_dofs",

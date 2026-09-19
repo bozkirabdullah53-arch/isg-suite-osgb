@@ -38,6 +38,38 @@ from app.models.entities import (
 from app.models.field_inspection import FieldInspectionAction
 
 
+# Bu türler `rebuild_company_notifications` tarafından üretilen şirket
+# kapsamlı bildirimlerdir. Liste eksik bırakılırsa eski kayıtlar veritabanında
+# kalır ve yenileme sonrasında aynı uyarılar tekrar tekrar görünür.
+COMPANY_NOTIFICATION_ENTITY_TYPES = (
+    "isg_record",
+    "document",
+    "health_record",
+    "annual_plan",
+    "annual_eval",
+    "chemical_product",
+    "field_action",
+    "periodic_control",
+    "workplace_measurement",
+    "emergency_plan",
+    "incident_sgk",
+)
+
+# Uzman odasının kişisel kayıtları hiçbir zaman şirket-genel bildirimine
+# dönüşmemelidir. Eski sürümlerde bazıları farklı entity_type ile yazılmış
+# olabilir; yenileme sırasında user_id boş olan bu artıklar da temizlenir.
+SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES = (
+    "specialist_duty",
+    "training_missing",
+    "training_due",
+    "training_compliance",
+)
+SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES = (
+    "Eğitim kaydı eksik",
+    "Eğitim yenileme",
+)
+
+
 def rebuild_company_notifications(db: Session, company_id: int) -> int:
     db.execute(
         delete(Notification).where(
@@ -45,17 +77,10 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
             Notification.user_id.is_(None),
             or_(
                 Notification.entity_type.is_(None),
-                Notification.entity_type.in_(
-                    (
-                        "isg_record",
-                        "document",
-                        "health_record",
-                        "annual_plan",
-                        "annual_eval",
-                        "chemical_product",
-                        "field_action",
-                    )
-                ),
+                Notification.entity_type.in_(COMPANY_NOTIFICATION_ENTITY_TYPES),
+                Notification.entity_type.in_(SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES),
+                Notification.title.like(f"{SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES[0]}%"),
+                Notification.title.like(f"{SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES[1]}%"),
             ),
         )
     )

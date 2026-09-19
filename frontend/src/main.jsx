@@ -952,7 +952,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     }catch(ex){setErr(ex.message||'Kiosk şifresi sıfırlanamadı.')}
     finally{setBusy(false)}
   }
-  return <div className="companies-page"><Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={openCreate}><Plus/>Firma Ekle</button>}>
+  return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={openCreate}><Plus/>Firma Ekle</button>}>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
     {onOpen360&&(
@@ -1102,7 +1102,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
         <div className="form-actions"><button type="button" onClick={()=>{setSiteQr(null);setSiteQrEphemeral(null);setCopyMsg('')}}>Kapat</button></div>
       </div>
     </Modal>}
-  </Page></div>;
+  </Page>;
 }
 function Branches({user}){const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({company_id:user.company_id||'',name:'',sgk_registry_no:'',city:'',address:''});const load=()=>Promise.all([api('/companies'),api('/branches')]).then(([c,b])=>{setCompanies(c);setData(b)});useEffect(()=>{void load()},[]);async function save(e){e.preventDefault();await api('/branches',{method:'POST',body:JSON.stringify({...form,company_id:Number(form.company_id)})});setOpen(false);load()}return <Page title="Şube Yönetimi" action={<button onClick={()=>setOpen(true)}><Plus/>Şube Ekle</button>}><Table cols={[{key:'name',label:'Şube'},{key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||r.company_id},{key:'city',label:'Şehir'},{key:'sgk_registry_no',label:'SGK Sicil No'},{key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}]} rows={data}/>{open&&<Modal title="Yeni Şube" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Field label="Şube Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><Field label="Şehir" value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/><Field label="SGK Sicil No" value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/><Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/><Submit/></form></Modal>}</Page>}
 function UserPage({user}){
@@ -2070,14 +2070,23 @@ function notificationModule(row){
   return byEntity[row?.entity_type] || null;
 }
 
+const specialistOnlyNotificationTypes=new Set(['specialist_duty','training_missing','training_due','training_compliance']);
+function notificationVisibleForUser(row,user){
+  if(user?.role==='safety_specialist') return true;
+  const entityType=String(row?.entity_type||'');
+  const title=String(row?.title||'');
+  return !specialistOnlyNotificationTypes.has(entityType)
+    && !title.startsWith('Eğitim kaydı eksik')
+    && !title.startsWith('Eğitim yenileme');
+}
+
 function NotificationsPage({onNavigate, user}){
   const canSelectCompany=['global_admin','company_admin','safety_specialist','workplace_physician','other_health_personnel'].includes(user?.role)&&!user?.company_id;
   const[rows,setRows]=useState([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
   const[companies,setCompanies]=useState([]);
-  // Bildirimler ekranı açıldığında OSGB yöneticisi için firma seçimi bilinçli
-  // olarak boş başlar. Başka ekranlarda saklanan firma seçimi burada otomatik
-  // uygulanmamalı; aksi hâlde kullanıcı fark etmeden tek bir firmanın kayıtlarını
-  // görür ve tarama işlemi yanlış kapsamda çalışabilir.
+  // Bildirim ekranında boş seçim kesinlikle "tüm işyerleri" anlamına gelmez.
+  // OSGB hesabı önce gerçek işyerini seçer; böylece eski veya başka işyerine
+  // ait kişi bildirimleri ekrana düşemez.
   const[companyId,setCompanyId]=useState(()=>String(user?.company_id||''));
   const[companiesReady,setCompaniesReady]=useState(!canSelectCompany);
   const selectedCompany=companies.find(c=>String(c.id)===String(companyId))||null;
@@ -2093,10 +2102,7 @@ function NotificationsPage({onNavigate, user}){
       if(cancelled) return;
       const list=Array.isArray(items)?items:[];
       setCompanies(list);
-      setCompanyId(current=>{
-        if(current&&list.some(row=>String(row.id)===String(current))) return current;
-        return '';
-      });
+      setCompanyId(current=>current&&list.some(row=>String(row.id)===String(current))?current:'');
     }).catch((error)=>{
       if(!cancelled) setMessage(error.message);
     }).finally(()=>{
@@ -2110,7 +2116,9 @@ function NotificationsPage({onNavigate, user}){
     return value?`/notifications?company_id=${encodeURIComponent(value)}`:'/notifications';
   }
   function load(selectedId=companyId){
-    return api(notificationsPath(selectedId)).then(setRows).catch(e=>setMessage(e.message));
+    return api(notificationsPath(selectedId))
+      .then(items=>setRows((Array.isArray(items)?items:[]).filter(row=>notificationVisibleForUser(row,user))))
+      .catch(e=>setMessage(e.message));
   }
   useEffect(()=>{
     if(!companiesReady) return;

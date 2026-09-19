@@ -64,7 +64,16 @@
     white-space: normal;
     line-height: 1.2;
   }
-  
+
+  /* Keep the long workplace oversight label fully readable in the compact
+     sidebar without widening the navigation or changing other labels. */
+  .app-shell > aside .nav-desktop > button[data-nav="employer_oversight"] > span {
+    font-size: 12px;
+    letter-spacing: -.02em;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
   /* Keep the long workplace oversight label fully readable in the compact
      sidebar without widening the navigation or changing other labels. */
   .app-shell > aside .nav-desktop > button[data-nav="employer_oversight"] > span {

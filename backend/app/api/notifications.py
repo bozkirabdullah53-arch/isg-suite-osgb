@@ -8,6 +8,8 @@ from app.api.tenant_access import accessible_company_ids_for_admin
 from app.core.database import get_db
 from app.models.entities import Company, Notification, User, UserRole
 from app.services.notifications import (
+    SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES,
+    SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES,
     rebuild_all_notifications,
     rebuild_company_notifications,
     rebuild_specialist_notifications,
@@ -62,15 +64,49 @@ def _can_see_notification(user: User, item: Notification) -> bool:
     )
 
 
+def _is_specialist_only_notification(item: Notification) -> bool:
+    """Identify personal specialist rows, including legacy malformed rows."""
+    if item.entity_type in SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES:
+        return True
+    title = str(item.title or "")
+    return any(title.startswith(prefix) for prefix in SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES)
+
+
+def _not_specialist_only_filter():
+    """SQL counterpart of `_is_specialist_only_notification` for list queries."""
+    return and_(
+        or_(
+            Notification.entity_type.is_(None),
+            Notification.entity_type.notin_(tuple(SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES)),
+        ),
+        Notification.title.notlike(f"{SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES[0]}%"),
+        Notification.title.notlike(f"{SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES[1]}%"),
+    )
+
+
+def _validate_company_filter(db: Session, user: User, company_id: int | None) -> list[int]:
+    """Return the user's company scope and validate an optional firm filter."""
+    allowed = _notification_company_ids(db, user)
+    if company_id is None:
+        return allowed
+    if user.role == UserRole.GLOBAL_ADMIN:
+        if not db.get(Company, company_id):
+            raise HTTPException(status_code=404, detail="İşyeri bulunamadı.")
+        return allowed
+    if company_id not in allowed:
+        raise HTTPException(status_code=403, detail="Bu işyerinin bildirimlerine erişemezsiniz.")
+    return allowed
+
+
 def _can_access_notification(db: Session, user: User, item: Notification) -> bool:
     """Private user notifications must never become company-wide rows."""
     if user.role == UserRole.GLOBAL_ADMIN:
         return True
     allowed_company_ids = _notification_company_ids(db, user)
 
-    # Uzman görev bildirimleri kişiseldir. Eski kayıtlarda user_id boş kalmışsa
-    # bunlar işyeri yöneticisine şirket-geneli bildirim gibi görünmemelidir.
-    if item.entity_type == "specialist_duty":
+    # Uzman görev bildirimleri kişiseldir. Eski kayıtlarda entity_type farklı
+    # veya user_id boş kalmışsa da bunlar şirket-geneli bildirim olamaz.
+    if _is_specialist_only_notification(item):
         return bool(
             user.role == UserRole.SAFETY_SPECIALIST
             and item.user_id == user.id
@@ -87,27 +123,24 @@ def _can_access_notification(db: Session, user: User, item: Notification) -> boo
 
 
 def _specialist_duty_visibility(user: User):
-    """Keep specialist-only rows out of workplace/management notification feeds."""
+    """Keep personal specialist rows out of workplace/management feeds."""
+    safe_company_rows = _not_specialist_only_filter()
     if user.role == UserRole.SAFETY_SPECIALIST:
         return or_(
-            Notification.entity_type.is_(None),
-            Notification.entity_type != "specialist_duty",
+            safe_company_rows,
             Notification.user_id == user.id,
         )
-    return or_(
-        Notification.entity_type.is_(None),
-        Notification.entity_type != "specialist_duty",
-    )
+    return safe_company_rows
 
 
 @router.get("")
 def list_notifications(
     unread_only: bool = False,
-    company_id: int | None = Query(None, gt=0),
+    company_id: int | None = Query(None, ge=1),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    selected_company_id = _resolve_notification_company_id(db, user, company_id)
+    allowed_company_ids = _validate_company_filter(db, user, company_id)
     clinical_filter = None
     if user.role not in _HEALTH_ROLES:
         clinical_filter = or_(
@@ -116,22 +149,33 @@ def list_notifications(
         )
     if user.role == UserRole.GLOBAL_ADMIN:
         stmt = select(Notification)
-        if selected_company_id is not None:
-            stmt = stmt.where(Notification.company_id == selected_company_id)
+        if company_id is not None:
+            stmt = stmt.where(Notification.company_id == company_id)
         if clinical_filter is not None:
             stmt = stmt.where(clinical_filter)
         stmt = stmt.order_by(Notification.created_at.desc()).limit(300)
     else:
-        if selected_company_id is not None:
+        # OSGB yöneticisi için seçili firma zorunludur. Seçim yokken tüm OSGB
+        # şirketlerini sorgulamak, frontend bağlamı henüz yüklenmemiş olsa bile
+        # başka firmaların kişi/işlem kayıtlarının görünmesine yol açıyordu.
+        if (
+            company_id is None
+            and user.role == UserRole.COMPANY_ADMIN
+            and user.company_id is None
+        ):
             visibility = and_(
-                Notification.company_id == selected_company_id,
+                Notification.company_id.is_(None),
+                Notification.user_id == user.id,
+            )
+        elif company_id is not None:
+            visibility = and_(
+                Notification.company_id == company_id,
                 or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
             )
         else:
-            company_ids = _notification_company_ids(db, user)
             visibility = or_(
                 and_(
-                    Notification.company_id.in_(company_ids or [-1]),
+                    Notification.company_id.in_(allowed_company_ids or [-1]),
                     or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
                 ),
                 and_(
@@ -139,12 +183,13 @@ def list_notifications(
                     Notification.user_id == user.id,
                 ),
             )
-        filters = [visibility, _specialist_duty_visibility(user)]
-        if clinical_filter is not None:
-            filters.append(clinical_filter)
         stmt = (
             select(Notification)
-            .where(and_(*filters))
+            .where(
+                and_(visibility, _specialist_duty_visibility(user), clinical_filter)
+                if clinical_filter is not None
+                else and_(visibility, _specialist_duty_visibility(user))
+            )
             .order_by(Notification.created_at.desc())
             .limit(200)
         )
@@ -156,23 +201,25 @@ def list_notifications(
 @router.post("/refresh")
 def refresh_notifications(
     osgb_id: int | None = Query(None),
-    company_id: int | None = Query(None, gt=0),
+    company_id: int | None = Query(None, ge=1),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """Süre / termin kontrolü — yalnızca kendi OSGB / firma kapsamı."""
-    selected_company_id = _resolve_notification_company_id(db, user, company_id)
+    _validate_company_filter(db, user, company_id)
     if user.role == UserRole.GLOBAL_ADMIN:
         count = (
-            rebuild_company_notifications(db, selected_company_id)
-            if selected_company_id is not None
+            rebuild_company_notifications(db, company_id)
+            if company_id is not None
             else rebuild_all_notifications(db, osgb_id=osgb_id)
         )
         return {"message": "OSGB ve işyeri süreleri tarandı.", "count": count}
 
     if user.role == UserRole.COMPANY_ADMIN:
-        if selected_company_id is not None:
-            count = rebuild_company_notifications(db, selected_company_id)
+        if company_id is None and user.company_id is None:
+            raise HTTPException(400, "Bildirimleri görmek için önce bir işyeri seçin.")
+        if company_id is not None:
+            count = rebuild_company_notifications(db, company_id)
             return {"message": "Seçili işyeri bildirimleri güncellendi.", "count": count}
         oid = user.osgb_id
         if osgb_id is not None and oid and osgb_id != oid:
@@ -186,24 +233,20 @@ def refresh_notifications(
         return {"message": "Bildirimler güncellendi.", "count": count}
 
     if user.role == UserRole.SAFETY_SPECIALIST:
-        if selected_company_id is not None:
-            count = rebuild_company_notifications(db, selected_company_id)
-            count += rebuild_specialist_notifications(db, user)
-            return {"message": "Seçili işyeri bildirimleri güncellendi.", "count": count}
         company_ids = _notification_company_ids(db, user)
         if not company_ids:
             raise HTTPException(400, "Aktif işyeri görevlendirmesi bulunamadı.")
+        if company_id is not None:
+            company_ids = [company_id]
         count = sum(rebuild_company_notifications(db, cid) for cid in company_ids)
         count += rebuild_specialist_notifications(db, user)
         return {"message": "Uzman bildirimleri güncellendi.", "count": count}
 
-    if selected_company_id is not None:
-        count = rebuild_company_notifications(db, selected_company_id)
-        return {"message": "Seçili işyeri bildirimleri güncellendi.", "count": count}
-
     company_ids = _notification_company_ids(db, user)
     if not company_ids:
         raise HTTPException(400, "Aktif işyeri görevlendirmesi bulunamadı.")
+    if company_id is not None:
+        company_ids = [company_id]
     count = sum(rebuild_company_notifications(db, cid) for cid in company_ids)
     return {"message": "Bildirimler güncellendi.", "count": count}
 
