@@ -65,3 +65,29 @@ def test_qr_workplace_account_can_access_only_own_backups(setup):
         assert all(row["company_id"] == own for row in response.json())
     finally:
         app.dependency_overrides.clear()
+
+def test_encrypted_backup_downloads_as_offline_openable_zip(setup, monkeypatch):
+    from app.main import app
+    from app.api.deps import get_current_user
+    from app.core.config import settings
+    factory, (_own, _foreign, user_id) = setup
+    monkeypatch.setattr(settings, "backup_encryption_key", "test-backup-key-with-at-least-32-characters")
+    def db_dep():
+        with factory() as db: yield db
+    def user_dep():
+        with factory() as db: return db.get(User, user_id)
+    app.dependency_overrides[get_db] = db_dep
+    app.dependency_overrides[get_current_user] = user_dep
+    try:
+        client = TestClient(app)
+        created = client.post("/api/v1/workplace-backups", json={}).json()
+        with factory() as db:
+            stored = db.get(EisaArchiveRecord, created["id"])
+            assert stored.original_name.endswith(".zip.enc")
+        response = client.get(f"/api/v1/workplace-backups/{created['id']}/download")
+        assert response.status_code == 200
+        assert response.content.startswith(b"PK")
+        assert ".zip.enc" not in response.headers["content-disposition"]
+        assert ".zip" in response.headers["content-disposition"]
+    finally:
+        app.dependency_overrides.clear()

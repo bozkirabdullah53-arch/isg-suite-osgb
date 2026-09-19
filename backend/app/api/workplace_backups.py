@@ -3,6 +3,7 @@ import hmac
 from dataclasses import asdict
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from app.core.database import SessionLocal
 from app.models.entities import ArchiveKind, BackupSource, BackupStatus, Company, EisaArchiveRecord, User
 from app.services.archive_store import resolve_archive_path
 from app.services.backup_safety import verify_archive_checksum
+from app.services.backup_restore import _decrypt_if_needed
 from app.services.workplace_backup import create_company_backup, read_company_backup_manifest
 from app.services.workplace_backup import run_scheduled_company_backups
 
@@ -65,7 +67,15 @@ def download(backup_id: int, db: Session = Depends(get_db), user: User = Depends
     if row.backup_status != BackupStatus.COMPLETED: raise HTTPException(409, "Yedek henüz hazır değil.")
     path = resolve_archive_path(row)
     if not path.is_file(): raise HTTPException(404, "Yedek dosyası bulunamadı.")
-    return FileResponse(path, filename=row.original_name or path.name)
+    downloadable = _decrypt_if_needed(path)
+    cleanup = downloadable != path
+    name = (row.original_name or path.name).removesuffix(".enc")
+    return FileResponse(
+        downloadable,
+        filename=name,
+        media_type="application/zip",
+        background=BackgroundTask(downloadable.unlink, missing_ok=True) if cleanup else None,
+    )
 @router.get("/{backup_id}/contents")
 def contents(backup_id: int, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     row = _own_backup(db, user, backup_id); path = resolve_archive_path(row)
