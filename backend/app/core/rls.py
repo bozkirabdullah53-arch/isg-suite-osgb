@@ -55,12 +55,10 @@ def _has_osgb_admin_rls_privilege(user: User) -> bool:
 
 
 def _has_workplace_health_read_privilege(user: User) -> bool:
-    """Klinik olmayan sağlık takibini yalnız normal işyeri hesabına aç."""
-    email = str(getattr(user, "email", "") or "").strip().lower()
+    """Klinik olmayan sağlık takibini tek işyeri hesabına aç."""
     return (
         user.role == UserRole.COMPANY_ADMIN
         and bool(getattr(user, "company_id", None))
-        and not email.endswith("@kiosk.isgsuite.tr")
     )
 
 
@@ -80,8 +78,8 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
     _set(db, "app.current_company_id", str(int(user.company_id)) if user.company_id else "")
     _set(db, "app.current_osgb_id", str(int(user.osgb_id)) if user.osgb_id else "")
 
-    # Aynı uygulama rolünü kullanan işyeri yetkilisi / kiosk, OSGB geneli RLS
-    # yönetici bayrağını alamaz; kendi company_id'si allowed_company_ids ile korunur.
+    # İşyeri hesabı OSGB geneli RLS yönetici bayrağını alamaz; kendi company_id'si
+    # allowed_company_ids ile korunur.
     admin = "1" if _has_osgb_admin_rls_privilege(user) else ""
     _set(db, "app.rls_admin", admin)
     health_clinical = "1" if user.role in (
