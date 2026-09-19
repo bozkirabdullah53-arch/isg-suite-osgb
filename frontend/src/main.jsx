@@ -96,6 +96,7 @@ import {
 } from './navigation_history';
 import {
   isWorkplaceAccountUser,
+  isWorkplaceKioskUser,
   isWorkplaceManagerUser,
   workplaceMenuSection,
   workplaceModulesForUser,
@@ -2282,6 +2283,8 @@ function App(){
   const[uiTheme,toggleUiTheme]=useUiTheme();
   const[logged,setLogged]=useState(!!getAccessToken());
   const[user,setUser]=useState(null);
+  const isWorkplaceKiosk= isWorkplaceKioskUser(user);
+  const workplaceAccountLabel=isWorkplaceKiosk?'QR Operasyon Hesabı':isWorkplaceAccountUser(user)?'İşyeri Yetkilisi / İK':roles[user?.role];
   const[summary,setSummary]=useState(null);
   const[active,setActive]=useState(()=>{
     const fromUrl=readModuleFromLocation();
@@ -2871,7 +2874,7 @@ function App(){
             alt="EİSA ana sayfa"
             className="sidebar-logo eisa-logo-icon"
           />
-          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceAccountUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceKiosk?'QR Operasyon Paneli':isWorkplaceAccountUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
         </button>
         <nav className="nav-desktop" ref={navRef}>
           {menuWithSections.map(([id,l,I,section],index)=>(
@@ -2958,8 +2961,8 @@ function App(){
       <section className="workspace">
         <header>
           <div>
-            <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceAccountUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
-            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceAccountUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
+            <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceKiosk?'QR Operasyon Paneli':isWorkplaceAccountUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
+            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceKiosk?'QR hesabı: saha operasyonları için sınırlı erişim':isWorkplaceAccountUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
             <div className="header-tools">
@@ -2979,7 +2982,7 @@ function App(){
             </div>
             <div className="user-chip">
               <strong>{user.full_name}</strong>
-              <span>{isWorkplaceAccountUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
+              <span>{workplaceAccountLabel}</span>
             </div>
             <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>
@@ -2990,6 +2993,11 @@ function App(){
           <div className="mobile-nace-context" hidden={!hasGlobalNaceContext}>
             <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-mobile-card"/>
           </div>
+          {isWorkplaceKiosk&&(
+            <div role="status" style={{marginBottom:14,padding:'12px 15px',borderRadius:12,border:'1px solid #f6c453',background:'#fff8e1',color:'#7a4b00',fontWeight:700}}>
+              Bu oturum <strong>QR Operasyon Hesabı</strong>dır. Sağlık raporları ve sağlık modülü yalnızca <strong>İşyeri Yetkilisi / İK</strong> hesabında kullanılabilir.
+            </div>
+          )}
           {!user.is_eisa && user.subscription_write_allowed===false && (
             <div className="readonly-banner" role="status">
               Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.
