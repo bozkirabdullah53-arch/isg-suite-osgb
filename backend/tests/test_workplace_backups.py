@@ -122,3 +122,85 @@ def test_backup_contains_safe_offline_printable_turkish_report(setup):
     assert "window.print()" in report
     assert '<script>alert("x")</script>' not in report
     assert "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; Test İşyeri" in report
+
+
+def test_cleanup_removes_only_stale_failed_records_and_partial_files(setup):
+    import os
+    from app.models.entities import ArchiveKind, BackupSource, BackupStatus
+    from app.services.archive_store import archive_root
+    from app.services.workplace_backup import cleanup_incomplete_workplace_backups
+
+    factory, (own, _foreign, _user_id) = setup
+    backups = archive_root() / "backups" / f"company-{own}"
+    backups.mkdir(parents=True, exist_ok=True)
+    stale_partial = backups / ".partial-stale.zip"
+    stale_partial.write_bytes(b"stale")
+    old_timestamp = (datetime.utcnow() - timedelta(hours=2)).timestamp()
+    os.utime(stale_partial, (old_timestamp, old_timestamp))
+
+    completed_path = backups / "keep.zip"
+    completed_path.write_bytes(b"keep")
+    with factory() as db:
+        failed = EisaArchiveRecord(
+            kind=ArchiveKind.TENANT_BACKUP,
+            company_id=own,
+            entity_type="workplace_backup_v4",
+            storage_path=f"backups/company-{own}/failed.zip",
+            size_bytes=0,
+            backup_source=BackupSource.MANUAL,
+            backup_status=BackupStatus.FAILED,
+            created_at=datetime.utcnow() - timedelta(hours=2),
+        )
+        completed = EisaArchiveRecord(
+            kind=ArchiveKind.TENANT_BACKUP,
+            company_id=own,
+            entity_type="workplace_backup_v4",
+            storage_path=f"backups/company-{own}/keep.zip",
+            size_bytes=4,
+            backup_source=BackupSource.MANUAL,
+            backup_status=BackupStatus.COMPLETED,
+            created_at=datetime.utcnow() - timedelta(hours=2),
+        )
+        db.add_all([failed, completed])
+        db.commit()
+        failed_id, completed_id = failed.id, completed.id
+
+        summary = cleanup_incomplete_workplace_backups(db)
+
+        assert summary["deleted_rows"] == 1
+        assert summary["deleted_partial_files"] == 1
+        assert db.get(EisaArchiveRecord, failed_id) is None
+        assert db.get(EisaArchiveRecord, completed_id) is not None
+
+    assert not stale_partial.exists()
+    assert completed_path.exists()
+
+
+def test_backup_fails_cleanly_when_disk_is_full(setup, monkeypatch):
+    from app.services import workplace_backup
+    from app.services.workplace_backup import BackupStorageFullError, create_company_backup
+    from app.models.entities import BackupSource, BackupStatus, EisaArchiveRecord
+
+    factory, (own, _foreign, _user_id) = setup
+
+    class FullDisk:
+        free = 0
+
+    monkeypatch.setattr(workplace_backup.shutil, "disk_usage", lambda _path: FullDisk())
+
+    with factory() as db:
+        with pytest.raises(BackupStorageFullError):
+            create_company_backup(
+                db,
+                company_id=own,
+                actor_user_id=None,
+                source=BackupSource.MANUAL,
+            )
+        row = db.scalars(
+            select(EisaArchiveRecord)
+            .where(EisaArchiveRecord.company_id == own)
+            .order_by(EisaArchiveRecord.id.desc())
+        ).first()
+        assert row is not None
+        assert row.backup_status == BackupStatus.FAILED
+        assert "depolama alanı" in (row.error_summary or "")

@@ -15,7 +15,7 @@ export function WorkplaceBackupsPage() {
   useEffect(() => { load(); }, []);
   async function createBackup() {
     setBusy(true); setError('');
-    try { await api('/workplace-backups', {method:'POST', body:JSON.stringify({})}); await load(); }
+    try { await api('/workplace-backups', {method:'POST', body:JSON.stringify({}), timeoutMs:180_000}); await load(); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   async function inspect(row) {
