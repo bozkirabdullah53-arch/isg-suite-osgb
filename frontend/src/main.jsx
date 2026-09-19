@@ -2074,7 +2074,11 @@ function NotificationsPage({onNavigate, user}){
   const canSelectCompany=['global_admin','company_admin','safety_specialist','workplace_physician','other_health_personnel'].includes(user?.role)&&!user?.company_id;
   const[rows,setRows]=useState([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
   const[companies,setCompanies]=useState([]);
-  const[companyId,setCompanyId]=useState(()=>String(user?.company_id||readPersistedCompanyId()||''));
+  // Bildirimler ekranı açıldığında OSGB yöneticisi için firma seçimi bilinçli
+  // olarak boş başlar. Başka ekranlarda saklanan firma seçimi burada otomatik
+  // uygulanmamalı; aksi hâlde kullanıcı fark etmeden tek bir firmanın kayıtlarını
+  // görür ve tarama işlemi yanlış kapsamda çalışabilir.
+  const[companyId,setCompanyId]=useState(()=>String(user?.company_id||''));
   const[companiesReady,setCompaniesReady]=useState(!canSelectCompany);
   const selectedCompany=companies.find(c=>String(c.id)===String(companyId))||null;
 
@@ -2091,12 +2095,6 @@ function NotificationsPage({onNavigate, user}){
       setCompanies(list);
       setCompanyId(current=>{
         if(current&&list.some(row=>String(row.id)===String(current))) return current;
-        const persisted=readPersistedCompanyId();
-        if(persisted&&list.some(row=>String(row.id)===persisted)) return persisted;
-        if(list.length===1){
-          persistSelectedCompanyId(list[0].id);
-          return String(list[0].id);
-        }
         return '';
       });
     }).catch((error)=>{
@@ -2116,8 +2114,12 @@ function NotificationsPage({onNavigate, user}){
   }
   useEffect(()=>{
     if(!companiesReady) return;
+    if(canSelectCompany&&!companyId){
+      setRows([]);
+      return;
+    }
     void load(companyId);
-  },[companyId,companiesReady]);
+  },[canSelectCompany,companyId,companiesReady]);
 
   function chooseCompany(value){
     const next=String(value||'');
@@ -2130,6 +2132,10 @@ function NotificationsPage({onNavigate, user}){
   }
 
   async function refresh(){
+    if(canSelectCompany&&!companyId){
+      setMessage('Bildirimleri görmek için önce firma / işyeri seçiniz.');
+      return;
+    }
     setBusy(true);setMessage('');
     try{
       const query=companyId?`?company_id=${encodeURIComponent(companyId)}`:'';
@@ -2148,16 +2154,17 @@ function NotificationsPage({onNavigate, user}){
     {key:'created_at',label:'Tarih',render:r=>String(r.created_at||'').slice(0,16).replace('T',' ')},
     {key:'action',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>{notificationModule(r)&&<button type="button" className="mini secondary" onClick={()=>onNavigate?.(notificationModule(r))}>Aç</button>}{r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>}{r.is_completed?'Tamamlandı':<button type="button" className="mini secondary" onClick={()=>complete(r.id)}>Tamamlandı Yap</button>}</div>},
   ];
-  return <Page title="Bildirim Merkezi" action={<div className="actions" style={{alignItems:'flex-end',flexWrap:'wrap'}}>{canSelectCompany&&<label className="field" style={{minWidth:260,margin:0}}><span>İşyeri / Firma</span><select value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={!companiesReady}><option value="">Tüm işyerleri</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}<button type="button" disabled={busy||!companiesReady} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button></div>}>
+  return <Page title="Bildirim Merkezi" action={<div className="actions" style={{alignItems:'flex-end',flexWrap:'wrap'}}>{canSelectCompany&&<label className="field" style={{minWidth:260,margin:0}}><span>İşyeri / Firma</span><select value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={!companiesReady}><option value="">Firma / İşyeri seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}<button type="button" disabled={busy||!companiesReady||(canSelectCompany&&!companyId)} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button></div>}>
     <p style={{marginTop:0,color:'#64748b',fontSize:13,maxWidth:720}}>
       Bu merkez otomatik süre uyarısı üretir: görevlendirme / sözleşme bitişi, KATİP no eksikliği,
       atanmamış profesyonel, doküman geçerliliği, sağlık muayenesi, geciken yıllık plan ve SDS / PKD
       gözden geçirme terminleri. Liste boşsa «Süreleri Kontrol Et» ile tarayın; gerçek kayıt yoksa bilgi bildirimi gelir.
       {user?.role==='safety_specialist'&&' Uzman görünümünde klinik sağlık bildirimleri gösterilmez.'}
+      {canSelectCompany&&!selectedCompany&&' Bildirimleri görüntülemek için firma / işyeri seçiniz.'}
       {selectedCompany&&<> <strong>{selectedCompany.name}</strong> işyerinin bildirimleri gösteriliyor.</>}
     </p>
     {message&&<p style={{color:message.includes('oluşturuldu')?'#166534':'#b91c1c'}}>{message}</p>}
-    <Table cols={cols} rows={rows} empty={selectedCompany?`“${selectedCompany.name}” için bildirim bulunamadı. Süreleri Kontrol Et ile tarayın.`:'Henüz bildirim yok. Süreleri Kontrol Et ile tarayın.'}/>
+    <Table cols={cols} rows={rows} empty={selectedCompany?`“${selectedCompany.name}” için bildirim bulunamadı. Süreleri Kontrol Et ile tarayın.`:canSelectCompany?'Bildirimleri görmek için önce firma / işyeri seçiniz.':'Henüz bildirim yok. Süreleri Kontrol Et ile tarayın.'}/>
   </Page>;
 }
 
@@ -2441,7 +2448,9 @@ function App(){
       const persisted=readPersistedCompanyId();
       const preferredId=user.company_id
         ? String(user.company_id)
-        : (persisted||((companies.length===1)?String(companies[0].id):''));
+        : (active==='notifications'
+          ? ''
+          : (persisted||((companies.length===1)?String(companies[0].id):'')));
       const preferred=companies.find((row)=>String(row.id)===preferredId);
       setSelectedContextCompanyId(preferred?String(preferred.id):'');
       setNaceDraft('');
@@ -2449,7 +2458,7 @@ function App(){
       if(!cancelled) setNaceContextLoading(false);
     });
     return()=>{cancelled=true};
-  },[logged,user?.id,user?.company_id]);
+  },[logged,user?.id,user?.company_id,active]);
 
   useEffect(()=>{
     if(!logged) return undefined;
