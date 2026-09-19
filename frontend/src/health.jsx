@@ -528,7 +528,7 @@ export function HealthPage({user}) {
       const r = await fetch(`${API_URL}/health-records/${row.id}/${kind}.html`, {
         headers: token ? {Authorization: `Bearer ${token}`} : {},
       });
-      if (!r.ok) throw new Error(kind === 'fitness' ? 'Uygunluk belgesi açılamadı.' : 'Klinik dosya açılamadı.');
+      if (!r.ok) throw new Error(kind === 'fitness' ? 'Uygunluk belgesi açılamadı.' : 'Sağlık sayfası açılamadı.');
       const html = await r.text();
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -537,6 +537,27 @@ export function HealthPage({user}) {
         URL.revokeObjectURL(url);
         throw new Error('Pop-up engellendi; yazdırma penceresine izin verin.');
       }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+  async function downloadHtmlDocument(row) {
+    try {
+      const token = getAccessToken();
+      const r = await fetch(`${API_URL}/health-records/${row.id}/form.html`, {
+        headers: token ? {Authorization: `Bearer ${token}`} : {},
+      });
+      if (!r.ok) throw new Error('Sağlık sayfası indirilemedi.');
+      const html = await r.text();
+      const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `calisan-saglik-bilgileri-${row.employee_id || row.id}.html`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       setMessage(err.message);
@@ -753,7 +774,8 @@ export function HealthPage({user}) {
                     <td>
                       <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
                         {canEdit && <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>}
-                        {isPhysician && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> EK-2 / Klinik Dosya</button>}
+                        {(isPhysician || isEmployerView) && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> {isEmployerView ? 'Sağlık Sayfası' : 'EK-2 / Klinik Dosya'}</button>}
+                        {isEmployerView && <button type="button" className="mini" onClick={() => downloadHtmlDocument(r)}><Download size={12} /> Sayfayı İndir</button>}
                         {canOpenFitness && r.fitness_status !== 'pending' && (
                           <button type="button" className="mini" onClick={() => openFitness(r)}>
                             <Printer size={12} /> İşveren Belgesi
@@ -796,6 +818,7 @@ export function HealthPage({user}) {
           </div>
           <div className="form-actions" style={{marginTop: 16}}>
             {detailRow.has_report && <button type="button" onClick={() => downloadReport(detailRow)}><FileText size={15} /> Raporu İndir</button>}
+            <button type="button" onClick={() => downloadHtmlDocument(detailRow)}><Download size={15} /> Sayfayı İndir</button>
             <button type="button" className="secondary" onClick={() => setDetailRow(null)}>Kapat</button>
           </div>
         </Modal>

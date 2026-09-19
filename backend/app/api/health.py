@@ -1170,7 +1170,7 @@ def health_form_html(
     request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+    user: User = Depends(require_roles_or_workplace_manager(*PHYSICIAN_ONLY)),
 ):
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
@@ -1179,33 +1179,44 @@ def health_form_html(
     company = db.get(Company, record.company_id)
     employee = db.get(Employee, record.employee_id)
     view = DecryptedRecordView(record)
-    is_physician = True
+    employer_view = is_workplace_manager_account(user)
+    # İşyeri/İK hesabı bu sayfayı yalnızca tam, salt-okunur görüntüleme ve
+    # indirme amacıyla açabilir. Kayıt yazma uçları bu bağımlılığa dahil
+    # edilmediği için aynı kullanıcı POST/PATCH/DELETE yapamaz.
+    full_health_view = user.role in PHYSICIAN_ONLY or employer_view
     is_ek2_record = record.record_type in (
         HealthRecordType.ENTRY_EXAM,
         HealthRecordType.PERIODIC_EXAM,
     )
     document_heading = (
-        "İşe Giriş / Periyodik Muayene Formu — Gizli Klinik Sağlık Dosyası"
-        if is_ek2_record
-        else "Gizli Klinik Sağlık Dosyası"
+        "Çalışan Sağlık Bilgileri — Salt Okunur"
+        if employer_view
+        else (
+            "İşe Giriş / Periyodik Muayene Formu — Gizli Klinik Sağlık Dosyası"
+            if is_ek2_record
+            else "Gizli Klinik Sağlık Dosyası"
+        )
     )
     document_note = (
-        "EK-2 kapsamında işyeri hekimi kaydı"
-        if is_ek2_record
-        else "Klinik sağlık gözetimi kaydı"
+        "İşyeri / İK hesabı için tam sağlık kaydı görünümü — yalnızca görüntüleme ve indirme"
+        if employer_view
+        else (
+            "EK-2 kapsamında işyeri hekimi kaydı"
+            if is_ek2_record
+            else "Klinik sağlık gözetimi kaydı"
+        )
     )
-    conf = view.confidential_note if is_physician else None
-    # P0-07: form HTML'de klinik metin yalnız hekim/GA
-    audiometry_txt = view.audiometry_result if is_physician else None
-    spirometry_txt = view.spirometry_result if is_physician else None
-    chest_txt = view.chest_xray_result if is_physician else None
-    other_bio = view.other_biological_test if is_physician else None
-    suggested = view.suggested_tests if is_physician else None
-    exposures = view.exposures if is_physician else None
-    summary_txt = view.summary if is_physician else None
-    follow_up = view.follow_up_note if is_physician else None
-    restrictions_txt = view.restrictions if is_physician else None
-    smart = smart_summary(view, employee) if is_physician else ""
+    conf = view.confidential_note if full_health_view else None
+    audiometry_txt = view.audiometry_result if full_health_view else None
+    spirometry_txt = view.spirometry_result if full_health_view else None
+    chest_txt = view.chest_xray_result if full_health_view else None
+    other_bio = view.other_biological_test if full_health_view else None
+    suggested = view.suggested_tests if full_health_view else None
+    exposures = view.exposures if full_health_view else None
+    summary_txt = view.summary if full_health_view else None
+    follow_up = view.follow_up_note if full_health_view else None
+    restrictions_txt = view.restrictions if full_health_view else None
+    smart = smart_summary(view, employee) if full_health_view else ""
     consent_txt = "Evet" if record.informed_consent else "Hayır"
     if record.informed_consent_at:
         consent_txt += f" ({record.informed_consent_at.strftime('%d.%m.%Y %H:%M')})"
@@ -1239,7 +1250,7 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 @media print{{body{{background:#fff}}.wrap{{box-shadow:none;margin:0;max-width:none}}}}
 </style></head><body>
 <div class="top"><h2>{safe(document_heading)}</h2>
-<p style="margin:0;opacity:.9">{safe(document_note)} · Yalnız işyeri hekimi erişimine açıktır · {company_name} · {employee_name}</p></div>
+<p style="margin:0;opacity:.9">{safe(document_note)} · {company_name} · {employee_name}</p></div>
 <div class="wrap">
 <div class="grid">
 {cell('Personel', employee.full_name if employee else '')}
@@ -1276,7 +1287,9 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 </div></body></html>"""
     append_health_access(
         db, actor=user, company_id=record.company_id, record_id=record.id,
-        action="clinical_form_view", request=request,
+        action="employer_full_form_view" if employer_view else "clinical_form_view",
+        request=request,
+        metadata={"employer_view": employer_view, "readonly": employer_view},
     )
     db.commit()
     return HTMLResponse(html)

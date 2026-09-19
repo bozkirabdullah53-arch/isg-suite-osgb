@@ -303,7 +303,7 @@ def test_special_policy_employee_defaults_to_six_months(client):
     assert created.json()["next_examination_date"] == "2026-09-10"
 
 
-def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
+def test_workplace_manager_gets_full_read_and_safe_downloads(client):
     physician = _headers(client, "onam-hekim@test.com", "HekimPass123!")
     company_id, employee_id = _ids()
     restrictions = "Gece vardiyasında çalışamaz; 10 kg üstü yük kaldıramaz"
@@ -340,6 +340,13 @@ def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
     assert created.status_code in (200, 201), created.text
     record_id = created.json()["id"]
 
+    uploaded = client.post(
+        f"/api/v1/health-records/{record_id}/report",
+        headers=physician,
+        files={"file": ("muayene-raporu.pdf", b"%PDF-1.4\n", "application/pdf")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+
     headers = _headers(client, "onam-osgb@test.com", "OsgbPass123!")
 
     meta = client.get("/api/v1/health-records/meta", headers=headers)
@@ -352,47 +359,28 @@ def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
     assert row["fitness_status"] == "conditional"
     assert row["restrictions"] == restrictions
     assert row["physician_name"] == "Hekim Kisi"
-    assert row["informed_consent"] is False
-    assert row["informed_consent_at"] is None
-    assert row["has_report"] is False
-    for field in (
-        "physician_professional_id",
-        "summary",
-        "confidential_note",
-        "audiometry_date",
-        "audiometry_result",
-        "spirometry_date",
-        "spirometry_result",
-        "chest_xray_date",
-        "chest_xray_result",
-        "blood_lead_date",
-        "blood_lead_value",
-        "blood_lead_unit",
-        "blood_lead_ref",
-        "blood_lead_eval",
-        "suggested_tests",
-        "exposures",
-        "follow_up_note",
-        "other_biological_test",
-        "report_file_name",
-        "smart_summary",
-        "tetkik_summary",
-    ):
-        assert row[field] is None, field
+    assert row["informed_consent"] is True
+    assert row["informed_consent_at"] is not None
+    assert row["has_report"] is True
+    assert row["physician_professional_id"] is not None
+    for field, value in secrets.items():
+        assert row[field] == value, field
+    assert row["audiometry_date"] == "2026-08-10"
+    assert row["spirometry_date"] == "2026-08-10"
+    assert row["chest_xray_date"] == "2026-08-10"
+    assert row["blood_lead_date"] == "2026-08-10"
+    assert row["blood_lead_value"] == 44
+    assert row["blood_lead_ref"] == 30
+    assert row["blood_lead_eval"] == "yuksek"
+    assert row["report_file_name"] == "muayene-raporu.pdf"
 
     summary = client.get(
         f"/api/v1/health-records/summary?company_id={company_id}", headers=headers
     )
     assert summary.status_code == 200, summary.text
     assert summary.json()["conditional"] == 1
-    for field in (
-        "with_audiometry",
-        "with_spirometry",
-        "with_chest_xray",
-        "with_blood_lead",
-        "lead_high",
-    ):
-        assert summary.json()[field] is None
+    for field in ("with_audiometry", "with_spirometry", "with_chest_xray", "with_blood_lead", "lead_high"):
+        assert summary.json()[field] == 1
 
     fitness = client.get(
         f"/api/v1/health-records/{record_id}/fitness.html", headers=headers
@@ -401,6 +389,21 @@ def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
     assert restrictions in fitness.text
     for secret in secrets.values():
         assert secret not in fitness.text
+
+    full_page = client.get(
+        f"/api/v1/health-records/{record_id}/form.html", headers=headers
+    )
+    assert full_page.status_code == 200, full_page.text
+    assert "Çalışan Sağlık Bilgileri — Salt Okunur" in full_page.text
+    for secret in secrets.values():
+        assert secret in full_page.text
+
+    report = client.get(
+        f"/api/v1/health-records/{record_id}/report", headers=headers
+    )
+    assert report.status_code == 200, report.text
+    assert report.headers["content-type"].startswith("application/pdf")
+    assert report.content.startswith(b"%PDF")
 
     exported = client.get(
         f"/api/v1/health-records/export.xlsx?company_id={company_id}", headers=headers
@@ -412,10 +415,10 @@ def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
     exported_text = "\n".join(str(value) for value in values if value is not None)
     assert "Personel A" in exported_text
     assert restrictions in exported_text
-    assert "Kan Kurşun" not in exported_text
-    assert 44 not in values
+    assert "Kan Kurşun" in exported_text
+    assert "44" in exported_text
     for secret in secrets.values():
-        assert secret not in exported_text
+        assert secret in exported_text
 
     create_attempt = client.post(
         "/api/v1/health-records", headers=headers, json=_payload(company_id, employee_id)
@@ -434,12 +437,6 @@ def test_workplace_manager_gets_only_masked_read_and_safe_downloads(client):
         f"/api/v1/health-records/{record_id}/report",
         headers=headers,
         files={"file": ("rapor.pdf", b"%PDF-1.4\n", "application/pdf")},
-    ).status_code == 403
-    assert client.get(
-        f"/api/v1/health-records/{record_id}/form.html", headers=headers
-    ).status_code == 403
-    assert client.get(
-        f"/api/v1/health-records/{record_id}/report", headers=headers
     ).status_code == 403
 
 

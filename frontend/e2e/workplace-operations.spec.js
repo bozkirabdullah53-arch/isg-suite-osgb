@@ -47,6 +47,16 @@ async function setup(page, {
       summaryError ? 500 : 200);
     if (path === '/companies') return json(route, [company]);
     if (path === '/health-records') return json(route, healthRows);
+    if (/^\/health-records\/\d+\/form\.html$/.test(path)) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<!doctype html><html><body>Çalışan Sağlık Bilgileri — Salt Okunur</body></html>',
+      });
+    }
+    if (/^\/health-records\/\d+\/report$/.test(path)) {
+      return route.fulfill({status: 200, contentType: 'application/pdf', body: '%PDF-1.4 mock'});
+    }
     if (path === '/health-records/summary') return json(route, {
       company_id: company.id,
       total: healthRows.length,
@@ -174,7 +184,7 @@ test('the existing QR link keeps its sidebar and manual refresh', async ({page})
   expect(state.errors).toEqual([]);
 });
 
-test('workplace manager sees every own employee health record in a masked read-only view', async ({page}) => {
+test('workplace manager sees every own employee health record in a full read-only view', async ({page}) => {
   const clinicalSecrets = [
     'KLINIK_OZET_GIZLI',
     'ODYO_SONUCU_GIZLI',
@@ -224,12 +234,19 @@ test('workplace manager sees every own employee health record in a masked read-o
   await expect(content.getByRole('button', {name: 'Excel İndir'})).toBeVisible();
   await expect(content.getByRole('button', {name: /İşveren Belgesi/})).toBeVisible();
 
-  for (const label of ['Yeni Kayıt', 'Düzenle', 'EK-2 / Klinik Dosya', 'Rapor', 'Sil']) {
+  for (const label of ['Yeni Kayıt', 'Düzenle', 'EK-2 / Klinik Dosya', 'Sil']) {
     await expect(content.getByRole('button', {name: label, exact: true})).toHaveCount(0);
   }
+  await expect(content.getByRole('button', {name: /Sağlık Sayfası/})).toBeVisible();
+  await expect(content.getByRole('button', {name: /Sayfayı İndir/})).toBeVisible();
+  await expect(content.getByRole('button', {name: /Rapor/})).toBeVisible();
+  await content.getByRole('button', {name: 'Tüm Sağlık Bilgileri'}).click();
+  const detail = page.getByRole('dialog');
   for (const secret of clinicalSecrets) {
-    await expect(content).not.toContainText(secret);
+    await expect(detail).toContainText(secret);
   }
+  await expect(detail.getByRole('button', {name: 'Raporu İndir'})).toBeVisible();
+  await expect(detail.getByRole('button', {name: 'Sayfayı İndir'})).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 
