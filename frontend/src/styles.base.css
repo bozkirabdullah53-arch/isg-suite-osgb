@@ -1549,13 +1549,17 @@ header.workspace-header,
 }
 
 
-/* Company table: compact actions and no horizontal overflow on the management page. */
+/* Company table: keep the wide management view readable without clipping columns. */
 .companies-table {
-  overflow-x: hidden;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .companies-table table {
   width: 100%;
-  min-width: 0;
+  min-width: 1600px;
   table-layout: fixed;
 }
 .companies-table th,
@@ -1565,11 +1569,75 @@ header.workspace-header,
   vertical-align: middle;
   white-space: normal;
   overflow-wrap: anywhere;
+  word-break: normal;
 }
 .companies-table th {
   padding: 8px;
   font-size: 11px;
+  overflow-wrap: normal;
 }
+
+/* The editable OSGB view has optional 360/QR columns. The old percentage
+   layout only described the first eleven columns, so the optional columns
+   were compressed into the last cells and became unreadable. */
+.companies-table[data-column-count="13"] table {
+  min-width: 2350px;
+}
+.companies-table[data-column-count="10"] table {
+  min-width: 2100px;
+}
+.companies-table[data-column-count="11"] table {
+  min-width: 2200px;
+}
+
+.companies-table[data-column-count="13"] th:nth-child(1),
+.companies-table[data-column-count="13"] td:nth-child(1) { width: 10%; }
+.companies-table[data-column-count="13"] th:nth-child(2),
+.companies-table[data-column-count="13"] td:nth-child(2) { width: 15%; }
+.companies-table[data-column-count="13"] th:nth-child(3),
+.companies-table[data-column-count="13"] td:nth-child(3) { width: 8%; }
+.companies-table[data-column-count="13"] th:nth-child(4),
+.companies-table[data-column-count="13"] td:nth-child(4) { width: 5%; }
+.companies-table[data-column-count="13"] th:nth-child(5),
+.companies-table[data-column-count="13"] td:nth-child(5) { width: 13%; }
+.companies-table[data-column-count="13"] th:nth-child(6),
+.companies-table[data-column-count="13"] td:nth-child(6) { width: 8%; }
+.companies-table[data-column-count="13"] th:nth-child(7),
+.companies-table[data-column-count="13"] td:nth-child(7) { width: 8%; }
+.companies-table[data-column-count="13"] th:nth-child(8),
+.companies-table[data-column-count="13"] td:nth-child(8) { width: 10%; }
+.companies-table[data-column-count="13"] th:nth-child(9),
+.companies-table[data-column-count="13"] td:nth-child(9) { width: 6%; }
+.companies-table[data-column-count="13"] th:nth-child(10),
+.companies-table[data-column-count="13"] td:nth-child(10) { width: 5%; }
+.companies-table[data-column-count="13"] th:nth-child(11),
+.companies-table[data-column-count="13"] td:nth-child(11) { width: 6%; }
+.companies-table[data-column-count="13"] th:nth-child(12),
+.companies-table[data-column-count="13"] td:nth-child(12) { width: 3%; }
+.companies-table[data-column-count="13"] th:nth-child(13),
+.companies-table[data-column-count="13"] td:nth-child(13) { width: 3%; }
+
+.companies-table[data-column-count="10"] th:nth-child(1),
+.companies-table[data-column-count="10"] td:nth-child(1) { width: 13%; }
+.companies-table[data-column-count="10"] th:nth-child(2),
+.companies-table[data-column-count="10"] td:nth-child(2) { width: 22%; }
+.companies-table[data-column-count="10"] th:nth-child(3),
+.companies-table[data-column-count="10"] td:nth-child(3) { width: 11%; }
+.companies-table[data-column-count="10"] th:nth-child(4),
+.companies-table[data-column-count="10"] td:nth-child(4) { width: 6%; }
+.companies-table[data-column-count="10"] th:nth-child(5),
+.companies-table[data-column-count="10"] td:nth-child(5) { width: 12%; }
+.companies-table[data-column-count="10"] th:nth-child(6),
+.companies-table[data-column-count="10"] td:nth-child(6) { width: 9%; }
+.companies-table[data-column-count="10"] th:nth-child(7),
+.companies-table[data-column-count="10"] td:nth-child(7) { width: 10%; }
+.companies-table[data-column-count="10"] th:nth-child(8),
+.companies-table[data-column-count="10"] td:nth-child(8) { width: 7%; }
+.companies-table[data-column-count="10"] th:nth-child(9),
+.companies-table[data-column-count="10"] td:nth-child(9) { width: 5%; }
+.companies-table[data-column-count="10"] th:nth-child(10),
+.companies-table[data-column-count="10"] td:nth-child(10) { width: 5%; }
+
 .companies-table--editable th:nth-child(1),
 .companies-table--editable td:nth-child(1) { width: 12%; }
 .companies-table--editable th:nth-child(2),
@@ -1622,34 +1690,23 @@ header.workspace-header,
 }
 
 
-.companies-table--editable th:nth-child(9),
 .companies-table--editable td:nth-child(9),
-.companies-table--editable th:nth-child(10),
 .companies-table--editable td:nth-child(10),
-.companies-table--editable th:nth-child(11),
-.companies-table--editable td:nth-child(11) {
-  white-space: nowrap;
-  overflow-wrap: normal;
-}
-.companies-table--editable td:nth-child(9) {
+.companies-table--editable td:nth-child(11),
+.companies-table--editable td:nth-child(12),
+.companies-table--editable td:nth-child(13) {
   text-align: center;
   padding-left: 4px;
   padding-right: 4px;
 }
-.companies-table--editable td:nth-child(10),
-.companies-table--editable td:nth-child(11) {
-  text-align: center;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-.companies-table--editable td:nth-child(10) button,
-.companies-table--editable td:nth-child(11) button {
+.companies-table--editable td:nth-child(9) .badge,
+.companies-table--editable td:nth-child(10) .badge,
+.companies-table--editable td:nth-child(11) button,
+.companies-table--editable td:nth-child(12) button,
+.companies-table--editable td:nth-child(13) button {
   padding: 4px 5px;
   font-size: 10px;
   gap: 2px;
-  white-space: nowrap;
-}
-.companies-table--editable td:nth-child(9) .badge {
   white-space: nowrap;
 }
 
@@ -1661,7 +1718,7 @@ header.workspace-header,
   .companies-table table {
     display: block;
     width: 100%;
-    min-width: 0;
+    min-width: 0 !important;
     table-layout: auto;
   }
   .companies-table thead {
@@ -1699,6 +1756,7 @@ header.workspace-header,
     font-size: 12px;
     line-height: 1.3;
     overflow-wrap: anywhere;
+    word-break: normal;
   }
   .companies-table tbody td::before {
     content: attr(data-label);
