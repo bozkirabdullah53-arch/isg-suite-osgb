@@ -33,6 +33,24 @@ PY
   echo "=== Schema fallback OK ==="
 fi
 
+echo "=== Cleaning stale workplace backup artifacts ==="
+python - <<'PY'
+from app.core.database import SessionLocal
+from app.services.workplace_backup import cleanup_incomplete_workplace_backups
+
+try:
+    with SessionLocal() as db:
+        summary = cleanup_incomplete_workplace_backups(db)
+except Exception as exc:
+    print(f"WARN: stale workplace backup cleanup skipped: {exc}")
+else:
+    print(
+        "Stale workplace backup cleanup: "
+        f"{summary['deleted_rows']} records, "
+        f"{summary['deleted_partial_files']} partial files removed."
+    )
+PY
+
 # Tek seferlik merkezi arşiv sıfırlama kancası.
 # Sadece EISA_PURGE_ARCHIVES_ONCE doluysa çalışır; aynı token kalıcı disk üzerindeki
 # marker nedeniyle ikinci kez çalışmaz. Başka uygulama verilerine dokunmaz.

@@ -15,7 +15,7 @@ from app.models.entities import ArchiveKind, BackupSource, BackupStatus, Company
 from app.services.archive_store import resolve_archive_path
 from app.services.backup_safety import verify_archive_checksum
 from app.services.backup_restore import _decrypt_if_needed
-from app.services.workplace_backup import create_company_backup, read_company_backup_manifest
+from app.services.workplace_backup import BackupStorageFullError, create_company_backup, read_company_backup_manifest
 from app.services.workplace_backup import run_scheduled_company_backups
 
 router = APIRouter(prefix="/workplace-backups", tags=["İşyeri Yedekleri"])
@@ -60,7 +60,16 @@ def listing(db: Session = Depends(get_db), user: User = Depends(_require_workpla
 def create(_payload: CreateWorkplaceBackupRequest, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     if db.scalar(select(Company.id).where(Company.id == int(user.company_id), Company.is_active.is_(True))) is None:
         raise HTTPException(404, "Aktif işyeri bulunamadı.")
-    return _response(create_company_backup(db, company_id=int(user.company_id), actor_user_id=user.id, source=BackupSource.MANUAL))
+    try:
+        row = create_company_backup(
+            db,
+            company_id=int(user.company_id),
+            actor_user_id=user.id,
+            source=BackupSource.MANUAL,
+        )
+    except BackupStorageFullError as exc:
+        raise HTTPException(status_code=507, detail=str(exc)) from exc
+    return _response(row)
 @router.get("/{backup_id}/download")
 def download(backup_id: int, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     row = _own_backup(db, user, backup_id)
