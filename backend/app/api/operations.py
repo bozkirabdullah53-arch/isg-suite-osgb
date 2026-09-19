@@ -69,6 +69,14 @@ def _reject_individual_visit_presence_qr(db: Session, user: User) -> None:
         )
 
 
+def _ensure_visit_qr_enabled(company: Company) -> None:
+    if not bool(getattr(company, "visit_qr_enabled", True)):
+        raise HTTPException(
+            403,
+            "Bu işyerinde uzman/hekim QR giriş-çıkışı OSGB tarafından pasifleştirilmiş.",
+        )
+
+
 def _apply_gps_stamp(obj: ServiceVisit, lat: float | None, lng: float | None, accuracy: float | None = None):
     if lat is None or lng is None:
         return
@@ -622,6 +630,7 @@ def check_in_visit(
     if not company.osgb_id:
         raise HTTPException(400, "İşyeri bir OSGB'ye bağlı değil.")
     ensure_company_access(db, user, company.id)
+    _ensure_visit_qr_enabled(company)
     pro = _require_field_assignment(db, user, company.id)
     open_visit = _open_checkin_visit(db, pro.id, company.id)
     if open_visit:
@@ -664,6 +673,7 @@ def check_out_visit(
     if not company:
         raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor veya süresi dolmuş.")
     ensure_company_access(db, user, company.id)
+    _ensure_visit_qr_enabled(company)
     pro = _require_field_assignment(db, user, company.id)
     obj = _open_checkin_visit(db, pro.id, company.id)
     if not obj:
@@ -884,6 +894,10 @@ async def upload_visit_notebook(
     already_verified = bool(obj.site_verified_at) or bool(obj.checked_in_at)
     code_given = bool(site_verify_code and str(site_verify_code).strip())
     if already_verified and not code_given:
+        pass
+    elif not code_given and not bool(getattr(db.get(Company, obj.company_id), "visit_qr_enabled", True)):
+        # The OSGB may intentionally disable presence QR for this workplace;
+        # the independent notebook record must remain usable.
         pass
     else:
         _apply_site_verify(db, obj, db.get(Company, obj.company_id), site_verify_code)

@@ -116,6 +116,10 @@ class Company(Base):
     risk_scope_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     site_verify_code: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True, index=True)
+    # OSGB can independently enable/disable specialist/physician QR presence
+    # check-in/out for each workplace. Existing workplaces stay enabled by
+    # default so this setting is backwards-compatible.
+    visit_qr_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
     users: Mapped[list["User"]] = relationship(back_populates="company")

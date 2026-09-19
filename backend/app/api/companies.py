@@ -89,7 +89,13 @@ from app.models.field_inspection import (
     FieldInspectionPhoto,
     FieldInspectionSite,
 )
-from app.schemas.company import CompanyCreate, CompanyCreateResponse, CompanyResponse, CompanyUpdate
+from app.schemas.company import (
+    CompanyCreate,
+    CompanyCreateResponse,
+    CompanyResponse,
+    CompanyUpdate,
+    CompanyVisitQrPolicyUpdate,
+)
 from app.services.company_overview import build_company_overview
 from app.services.capacity_engine import sync_company_service_requirements
 from app.services.employer_oversight import build_employer_oversight
@@ -585,6 +591,26 @@ def reset_company_kiosk_login(
     }
 
 
+def _ensure_workplace_qr_page_available(user: User, company: Company) -> None:
+    """QR politikası pasifse işyeri hesabının QR/kiosk sayfasını kapatır.
+
+    Bu ayar ``Company.is_active`` durumundan bağımsızdır: işyeri aktif kalır,
+    yalnızca uzman/hekim giriş-çıkış QR kullanımı kapatılır.
+
+    OSGB ve global yöneticiler pasif QR politikasının kodunu yönetmeye devam eder;
+    bu sayede ayar tekrar açılabilir ve mevcut QR yaşam döngüsü silinmez.
+    """
+    if (
+        user.role == UserRole.COMPANY_ADMIN
+        and user.company_id is not None
+        and not bool(getattr(company, "visit_qr_enabled", True))
+    ):
+        raise HTTPException(
+            403,
+            "Bu işyerinde uzman/hekim QR giriş-çıkışı OSGB tarafından pasifleştirilmiş.",
+        )
+
+
 @router.get("/{company_id}/site-qr")
 def company_site_qr(
     company_id: int,
@@ -596,6 +622,7 @@ def company_site_qr(
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
+    _ensure_workplace_qr_page_available(user, obj)
     had_code = bool((obj.site_verify_code or "").strip())
     ensure_company_site_verify_code(db, obj)
     if not had_code:
@@ -607,6 +634,34 @@ def company_site_qr(
         "company_name": obj.name,
         "site_verify_code": obj.site_verify_code,
         "qr_payload": payload,
+        "visit_qr_enabled": bool(getattr(obj, "visit_qr_enabled", True)),
+    }
+
+
+@router.patch("/{company_id}/visit-qr-policy")
+def update_company_visit_qr_policy(
+    company_id: int,
+    payload: CompanyVisitQrPolicyUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """OSGB yönetiminin işyeri bazında uzman/hekim QR politikasını değiştirir."""
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    _assert_company_admin_scope(user, obj)
+    obj.visit_qr_enabled = bool(payload.enabled)
+    db.commit()
+    db.refresh(obj)
+    return {
+        "ok": True,
+        "company_id": obj.id,
+        "visit_qr_enabled": bool(obj.visit_qr_enabled),
+        "message": (
+            "Uzman/hekim QR giriş-çıkışı aktifleştirildi."
+            if obj.visit_qr_enabled
+            else "Uzman/hekim QR giriş-çıkışı pasifleştirildi; işyeri QR bağlantısı gizlendi."
+        ),
     }
 
 
@@ -620,6 +675,7 @@ def regenerate_company_site_qr(
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
+    _ensure_workplace_qr_page_available(user, obj)
     obj.site_verify_code = generate_site_verify_code()
     db.commit()
     db.refresh(obj)
@@ -629,6 +685,7 @@ def regenerate_company_site_qr(
         "company_name": obj.name,
         "site_verify_code": obj.site_verify_code,
         "qr_payload": payload,
+        "visit_qr_enabled": bool(getattr(obj, "visit_qr_enabled", True)),
     }
 
 
@@ -643,6 +700,7 @@ def create_company_ephemeral_site_qr(
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
+    _ensure_workplace_qr_page_available(user, obj)
     row = create_ephemeral_session(db, company_id=obj.id, created_by_id=user.id)
     db.commit()
     db.refresh(row)
@@ -656,6 +714,7 @@ def create_company_ephemeral_site_qr(
         "expires_at": row.expires_at.isoformat() + "Z",
         "ttl_minutes": int((row.expires_at - row.created_at).total_seconds() // 60) or int(settings.site_qr_ephemeral_ttl_minutes),
         "single_use": True,
+        "visit_qr_enabled": bool(getattr(obj, "visit_qr_enabled", True)),
     }
 
 

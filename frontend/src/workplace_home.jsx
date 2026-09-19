@@ -106,9 +106,11 @@ export function WorkplaceHomePage({user, onNavigate}) {
           <p>İş sağlığı ve güvenliği işlemlerinizi aşağıdaki kartlardan veya sol menüden yönetin.</p>
         </div>
         <div className="workplace-home-actions">
-          <button type="button" className="secondary" onClick={() => onNavigate?.('site_qr_kiosk')}>
-            <QrCode size={18}/> İşyeri QR
-          </button>
+          {user?.visit_qr_enabled !== false && (
+            <button type="button" className="secondary" onClick={() => onNavigate?.('site_qr_kiosk')}>
+              <QrCode size={18}/> İşyeri QR
+            </button>
+          )}
           <button type="button" onClick={() => onNavigate?.('workplace_status')}>
             <BellRing size={18}/> İşyeri Durumu
           </button>

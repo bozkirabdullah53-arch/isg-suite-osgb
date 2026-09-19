@@ -224,6 +224,93 @@ def test_individual_specialist_check_in_and_out_are_forbidden(client):
         assert "bireysel uzman" in response.json()["detail"].lower()
 
 
+def test_osgb_can_toggle_workplace_visit_qr_without_deleting_the_qr_flow(client):
+    token, seed, payload = _seed(client)
+    specialist_headers = {"Authorization": f"Bearer {token}"}
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, User, UserRole
+
+    with SessionLocal() as db:
+        db.add(
+            User(
+                email="workplace-qr-policy@test.com",
+                full_name="İşyeri QR Yetkilisi",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.COMPANY_ADMIN,
+                company_id=seed["company_id"],
+                osgb_id=seed["osgb_id"],
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    admin = client.post(
+        "/api/v1/auth/login",
+        json={"email": "checkin-admin@test.com", "password": "TestPass123!"},
+    )
+    assert admin.status_code == 200, admin.text
+    admin_headers = {"Authorization": f"Bearer {admin.json()['access_token']}"}
+
+    disabled = client.patch(
+        f"/api/v1/companies/{seed['company_id']}/visit-qr-policy",
+        headers=admin_headers,
+        json={"enabled": False},
+    )
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()["visit_qr_enabled"] is False
+    with SessionLocal() as db:
+        assert db.get(Company, seed["company_id"]).is_active is True
+
+    workplace = client.post(
+        "/api/v1/auth/login",
+        json={"email": "workplace-qr-policy@test.com", "password": "TestPass123!"},
+    )
+    assert workplace.status_code == 200, workplace.text
+    workplace_headers = {"Authorization": f"Bearer {workplace.json()['access_token']}"}
+    me = client.get("/api/v1/auth/me", headers=workplace_headers)
+    assert me.status_code == 200, me.text
+    assert me.json()["visit_qr_enabled"] is False
+
+    hidden = client.get(
+        f"/api/v1/companies/{seed['company_id']}/site-qr",
+        headers=workplace_headers,
+    )
+    assert hidden.status_code == 403, hidden.text
+
+    blocked = client.post(
+        "/api/v1/operations/visits/check-in",
+        headers=specialist_headers,
+        json={"site_verify_code": payload},
+    )
+    assert blocked.status_code == 403, blocked.text
+    assert "pasifleştirilmiş" in blocked.json()["detail"]
+
+    # The OSGB can still inspect/manage the existing QR while the workplace
+    # toggle is off; disabling is not a destructive QR deletion.
+    admin_qr = client.get(
+        f"/api/v1/companies/{seed['company_id']}/site-qr",
+        headers=admin_headers,
+    )
+    assert admin_qr.status_code == 200, admin_qr.text
+    assert admin_qr.json()["visit_qr_enabled"] is False
+
+    enabled = client.patch(
+        f"/api/v1/companies/{seed['company_id']}/visit-qr-policy",
+        headers=admin_headers,
+        json={"enabled": True},
+    )
+    assert enabled.status_code == 200, enabled.text
+
+    allowed_again = client.post(
+        "/api/v1/operations/visits/check-in",
+        headers=specialist_headers,
+        json={"site_verify_code": payload},
+    )
+    assert allowed_again.status_code == 200, allowed_again.text
+
+
 def test_ephemeral_reusable_for_check_in_out(client):
     token, seed, _ = _seed(client)
     headers = {"Authorization": f"Bearer {token}"}

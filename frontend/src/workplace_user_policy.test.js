@@ -75,12 +75,22 @@ describe('workplace user policy', () => {
     for (const id of ['companies', 'users', 'finance', 'contracts', 'health', 'documents', 'training']) {
       expect(modules).not.toContain(id);
     }
-    expect(modules).not.toContain('remote_training');
+    expect(modules).toContain('remote_training');
     expect(modules).not.toContain('workplace_status');
     expect(modules).toContain('workplace_backups');
     expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'read_only'})).toBe(null);
     expect(workplaceModulesForUser(manager)).toEqual(WORKPLACE_MANAGER_MODULES);
+  });
+
+  it('hides only the workplace QR kiosk when OSGB disables visit QR', () => {
+    const modules = workplaceModulesForUser({
+      ...manager,
+      visit_qr_enabled: false,
+    });
+    expect(modules).not.toContain('site_qr_kiosk');
+    expect(modules).toContain('employees');
+    expect(modules).toContain('health');
   });
 });

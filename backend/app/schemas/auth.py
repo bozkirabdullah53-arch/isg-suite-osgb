@@ -69,6 +69,9 @@ class CurrentUserResponse(BaseModel):
     full_name: str
     role: str
     company_id: int | None
+    # Workplace users use this to hide the QR kiosk entry when their OSGB has
+    # disabled specialist/physician presence QR for that workplace.
+    visit_qr_enabled: bool = True
     osgb_id: int | None = None
     is_individual: bool = False
     is_eisa: bool = False

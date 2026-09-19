@@ -75,6 +75,12 @@ class CompanyUpdate(BaseModel):
         return self
 
 
+class CompanyVisitQrPolicyUpdate(BaseModel):
+    """OSGB'nin işyeri bazında uzman/hekim QR giriş-çıkış politikası."""
+
+    enabled: bool
+
+
 class CompanyResponse(BaseModel):
     id: int
     name: str
@@ -86,6 +92,7 @@ class CompanyResponse(BaseModel):
     phone: str | None = None
     authorized_person: str | None = None
     is_active: bool
+    visit_qr_enabled: bool = True
     osgb_id: int | None = None
     login_account: dict | None = None
     model_config = ConfigDict(from_attributes=True)

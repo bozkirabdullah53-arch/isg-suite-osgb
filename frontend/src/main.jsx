@@ -909,6 +909,19 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     }catch(ex){setErr(ex.message||'İşlem başarısız.')}
     finally{setBusy(false)}
   }
+  async function toggleVisitQr(row){
+    if(!row?.id) return;
+    const enabled=row.visit_qr_enabled===false;
+    if(!enabled&&!window.confirm(`“${row.name}” aktif kalacak; yalnızca uzman/hekim QR giriş-çıkışı pasifleştirilsin mi?\n\nİşyeri QR bağlantısı işyeri kullanıcısına görünmez; mevcut ziyaret kayıtları silinmez.`)) return;
+    setBusy(true);setErr('');
+    try{
+      const result=await api(`/companies/${row.id}/visit-qr-policy`,{method:'PATCH',body:JSON.stringify({enabled})});
+      setData(current=>current.map(item=>item.id===row.id
+        ? {...item,visit_qr_enabled:result.visit_qr_enabled}
+        : item));
+    }catch(ex){setErr(ex.message||'QR politikası değiştirilemedi.')}
+    finally{setBusy(false)}
+  }
   async function openSiteQr(row){
     setSiteQrBusy(true);setErr('');setSiteQrEphemeral(null);setCopyMsg('');
     try{setSiteQr(await api(`/companies/${row.id}/site-qr`))}
@@ -964,6 +977,17 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       {key:'address',label:'Adres'},
       {key:'hazard_class',label:'Tehlike Sınıfı',render:r=>naceInfoForCompany(r,naceCatalog).hazardClass||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
+      ...((canEdit&&!isIndividual)?[{key:'visit_qr_policy',label:'Uzman/Hekim QR',render:r=>(
+        <button
+          type="button"
+          className={`mini ${r.visit_qr_enabled===false?'secondary':''}`}
+          disabled={busy}
+          onClick={()=>toggleVisitQr(r)}
+          title="Bu işyerinde uzman ve işyeri hekimi QR giriş-çıkışını aç/kapat"
+        >
+          {r.visit_qr_enabled===false?'Pasif · Aç':'Aktif · Kapat'}
+        </button>
+      )}]:[]),
       ...(onOpen360?[{key:'c360',label:'360',render:r=>(
         <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
           <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360

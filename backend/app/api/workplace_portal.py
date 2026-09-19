@@ -49,6 +49,7 @@ def workplace_summary(
     return {
         "company_id": own_id,
         "company_name": company.name,
+        "visit_qr_enabled": bool(getattr(company, "visit_qr_enabled", True)),
         "counts": {
             "employees": total(Employee),
             "ppe": total(PpeAssignment, PpeAssignment.deleted_at.is_(None)),

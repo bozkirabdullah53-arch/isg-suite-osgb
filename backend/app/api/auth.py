@@ -19,7 +19,7 @@ from app.core.auth_cookies import (
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import ALGORITHM, create_access_token, create_refresh_token, get_password_hash, verify_password
-from app.models.entities import User, UserRole
+from app.models.entities import Company, User, UserRole
 from app.schemas.auth import (
     CurrentUserResponse,
     ForgotPasswordRequest,
@@ -621,6 +621,10 @@ def me(
             individual = is_individual_specialist(db, user)
         except Exception:
             individual = False
+    visit_qr_enabled = True
+    if user.company_id:
+        company = db.get(Company, user.company_id)
+        visit_qr_enabled = bool(company and getattr(company, "visit_qr_enabled", False))
     return CurrentUserResponse(
         id=user.id,
         email=user.email,
@@ -628,6 +632,7 @@ def me(
         full_name=user.full_name,
         role=user.role.value,
         company_id=user.company_id,
+        visit_qr_enabled=visit_qr_enabled,
         osgb_id=user.osgb_id,
         is_individual=individual,
         is_eisa=is_eisa,
