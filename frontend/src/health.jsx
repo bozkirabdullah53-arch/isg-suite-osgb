@@ -192,6 +192,7 @@ export function HealthPage({user}) {
   const [leadLive, setLeadLive] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [detailRow, setDetailRow] = useState(null);
 
   const typeMap = useMemo(() => {
     const m = {...TYPE_FALLBACK};
@@ -548,6 +549,23 @@ export function HealthPage({user}) {
     catch (err) { setMessage(err.message); }
   }
 
+  const detail = detailRow ? [
+    ['Personel', detailRow.employee_name], ['Görev', detailRow.job_title], ['Bölüm', detailRow.department],
+    ['Muayene türü', typeMap[detailRow.record_type] || detailRow.record_type], ['Muayene tarihi', detailRow.examination_date],
+    ['Sonraki muayene', detailRow.next_examination_date], ['Uygunluk', FITNESS_FALLBACK[detailRow.fitness_status] || detailRow.fitness_status],
+    ['İşyeri hekimi', detailRow.physician_name], ['Özet', detailRow.summary], ['Hekim notu', detailRow.confidential_note],
+    ['Bilgilendirme onayı', detailRow.informed_consent ? 'Evet' : 'Hayır'], ['Onay zamanı', detailRow.informed_consent_at],
+    ['Kısıtlamalar', detailRow.restrictions], ['Odyometri', `${detailRow.audiometry_date || ''} / ${detailRow.audiometry_result || ''}`],
+    ['SFT', `${detailRow.spirometry_date || ''} / ${detailRow.spirometry_result || ''}`],
+    ['Akciğer grafisi', `${detailRow.chest_xray_date || ''} / ${detailRow.chest_xray_result || ''}`],
+    ['Kan kurşun', `${detailRow.blood_lead_date || ''} / ${detailRow.blood_lead_value ?? ''} ${detailRow.blood_lead_unit || ''} / ref ${detailRow.blood_lead_ref ?? ''}`],
+    ['Kurşun değerlendirme', detailRow.blood_lead_eval], ['Önerilen tetkikler', detailRow.suggested_tests],
+    ['Maruziyetler', Array.isArray(detailRow.exposures) ? detailRow.exposures.join(', ') : detailRow.exposures],
+    ['Takip notu', detailRow.follow_up_note], ['Diğer biyolojik tetkik', detailRow.other_biological_test],
+    ['Akıllı özet', detailRow.smart_summary], ['Tetkik özeti', detailRow.tetkik_summary],
+    ['Rapor dosyası', detailRow.report_file_name || (detailRow.has_report ? 'Mevcut' : 'Yok')],
+  ] : [];
+
   if (!canView) {
     return (
       <div className="page-title">
@@ -583,8 +601,8 @@ export function HealthPage({user}) {
         <section className="panel" style={{marginBottom: 16, borderColor: '#99f6e4', background: '#f0fdfa'}}>
           <strong>İşyeri sağlık takip görünümü — salt okunur</strong>
           <p style={{margin: '6px 0 0', color: '#115e59', fontSize: 14}}>
-            Tüm çalışanların muayene takvimi, işe uygunluk durumu ve çalışma kısıtları görüntülenebilir.
-            Tanılar, tetkik sonuçları, gizli hekim notları ve klinik dosyalar gösterilmez; kayıtlar değiştirilemez.
+            Tüm çalışanların sağlık kayıtları, tetkik sonuçları, uygunluk bilgileri, hekim notları ve rapor dosyası
+            salt-okunur olarak görüntülenebilir. Kayıtlar değiştirilemez; yalnızca kullanıcının yetkili olduğu işyerleri gösterilir.
           </p>
         </section>
       )}
@@ -708,7 +726,7 @@ export function HealthPage({user}) {
                   <th>Tarih</th>
                   <th>Sonraki</th>
                   <th>Hekim</th>
-                  <th>{isEmployerView ? 'Çalışma kısıtları' : 'Tetkik'}</th>
+                  <th>{isEmployerView ? 'Sağlık bilgileri' : 'Tetkik'}</th>
                   {!isEmployerView && <th>Akıllı özet</th>}
                   <th>Durum</th>
                   <th>İşlem</th>
@@ -741,7 +759,8 @@ export function HealthPage({user}) {
                             <Printer size={12} /> İşveren Belgesi
                           </button>
                         )}
-                        {isPhysician && r.has_report && (
+                        {isEmployerView && <button type="button" className="mini" onClick={() => setDetailRow(r)}>Tüm Sağlık Bilgileri</button>}
+                        {(isPhysician || isEmployerView) && r.has_report && (
                           <button type="button" className="mini" onClick={() => downloadReport(r)}><FileText size={12} /> Rapor</button>
                         )}
                         {isPhysician && <button type="button" className="mini" onClick={() => remove(r)}>Sil</button>}
@@ -761,6 +780,25 @@ export function HealthPage({user}) {
             </table>
           </div>
         </section>
+      )}
+
+      {detailRow && isEmployerView && (
+        <Modal title="Çalışanın Tüm Sağlık Bilgileri — Salt Okunur" close={() => setDetailRow(null)}>
+          <div className="form-grid">
+            {detail.map(([label, value]) => (
+              <div key={label} className="field" style={{margin: 0}}>
+                <span>{label}</span>
+                <div style={{minHeight: 38, padding: '9px 10px', border: '1px solid #dbe3ee', borderRadius: 8, background: '#f8fafc', whiteSpace: 'pre-wrap'}}>
+                  {value == null || value === '' ? '—' : String(value)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="form-actions" style={{marginTop: 16}}>
+            {detailRow.has_report && <button type="button" onClick={() => downloadReport(detailRow)}><FileText size={15} /> Raporu İndir</button>}
+            <button type="button" className="secondary" onClick={() => setDetailRow(null)}>Kapat</button>
+          </div>
+        </Modal>
       )}
 
       {open && canEdit && (
