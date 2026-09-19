@@ -92,5 +92,5 @@ class CompanyResponse(BaseModel):
 
 
 class CompanyCreateResponse(CompanyResponse):
-    """Oluşturma yanıtı — kiosk giriş bilgisi dahil."""
+    """Oluşturma yanıtı — işyeri kullanıcı giriş bilgisi dahil."""
     pass
