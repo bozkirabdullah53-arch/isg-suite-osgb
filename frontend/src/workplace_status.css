@@ -20,3 +20,10 @@
 .workplace-obligation-metric--completed{--metric-accent:#15966b;--metric-accent-strong:#0e7b57;--metric-surface:#f5fcf8;--metric-border:#cdebdc;--metric-icon-bg:#e8f8ef;--metric-icon-border:#c5e8d4;--metric-glow:rgba(21,150,107,.1);--metric-ring:rgba(21,150,107,.17)}
 @media(max-width:760px){.workplace-obligation-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.workplace-obligation-metrics{grid-template-columns:1fr}.workplace-obligation-metric{min-height:116px}}
+
+/* The global modern theme styles every panel button with a teal gradient.
+   These cards are information surfaces, so keep that button treatment scoped out. */
+html[data-ui-theme="modern"] .workplace-obligation-center .workplace-obligation-metric{background:linear-gradient(145deg,#fff 0%,var(--metric-surface,#f8fbfc) 100%) !important;border:1px solid var(--metric-border,#dbe5ea) !important;border-radius:16px !important;box-shadow:0 8px 20px rgba(16,62,82,.06) !important;color:#172b3a !important}
+html[data-ui-theme="modern"] .workplace-obligation-center .workplace-obligation-metric:hover{background:linear-gradient(145deg,#fff 0%,var(--metric-surface,#f8fbfc) 100%) !important;filter:none !important;transform:translateY(-2px) !important;border-color:var(--metric-accent,#0f9f98) !important;box-shadow:0 14px 28px rgba(16,62,82,.12) !important}
+html[data-ui-theme="modern"] .workplace-obligation-center .workplace-obligation-metric:active{transform:translateY(0) !important;box-shadow:0 8px 20px rgba(16,62,82,.06) !important}
+html[data-ui-theme="modern"] .workplace-obligation-center .workplace-obligation-metric.is-active{background:linear-gradient(145deg,var(--metric-surface,#f8fbfc) 0%,#fff 100%) !important;border-color:var(--metric-accent,#0f9f98) !important;box-shadow:0 0 0 3px var(--metric-ring,rgba(15,159,152,.16)),0 12px 24px rgba(16,62,82,.1) !important}
