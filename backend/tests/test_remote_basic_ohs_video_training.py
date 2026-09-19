@@ -2495,6 +2495,11 @@ def test_workplace_manager_only_sees_published_company_programs_and_can_assign(r
             full_name="Başka Firma Çalışanı",
             is_active=True,
         )
+        kiosk_employee = Employee(
+            company_id=company.id,
+            full_name="İşyeri Hesabının Atayacağı Çalışan",
+            is_active=True,
+        )
         manager = User(
             email="workplace-training-manager@remote-test.com",
             full_name="İşyeri Eğitim Yetkilisi",
@@ -2553,6 +2558,7 @@ def test_workplace_manager_only_sees_published_company_programs_and_can_assign(r
         db.add_all(
             [
                 other_employee,
+                kiosk_employee,
                 manager,
                 kiosk,
                 package,
@@ -2591,6 +2597,7 @@ def test_workplace_manager_only_sees_published_company_programs_and_can_assign(r
         employee_id = employee.id
         other_company_id = other_company.id
         other_employee_id = other_employee.id
+        kiosk_employee_id = kiosk_employee.id
         package_id = package.id
         published_id = published.id
         draft_id = draft.id
@@ -2694,9 +2701,57 @@ def test_workplace_manager_only_sees_published_company_programs_and_can_assign(r
     kiosk_headers = {"Authorization": f"Bearer {kiosk_login.json()['access_token']}"}
     kiosk_meta = remote_client.get("/api/v1/trainings/remote/meta", headers=kiosk_headers)
     assert kiosk_meta.status_code == 200, kiosk_meta.text
-    assert kiosk_meta.json()["can_manage"] is False
-    assert remote_client.get(
+    assert kiosk_meta.json()["can_manage"] is True
+    assert kiosk_meta.json()["can_operate"] is True
+    assert kiosk_meta.json()["workplace_scoped"] is True
+
+    kiosk_catalog = remote_client.get(
+        "/api/v1/trainings/remote/catalog/packages",
+        headers=kiosk_headers,
+    )
+    assert kiosk_catalog.status_code == 403, kiosk_catalog.text
+    assert remote_client.post(
+        f"/api/v1/trainings/remote/catalog/packages/{package_id}/materialize",
+        headers=kiosk_headers,
+        json={"company_id": company_id},
+    ).status_code == 403
+    assert remote_client.post(
         "/api/v1/trainings/remote/programs",
+        headers=kiosk_headers,
+        json={"company_id": company_id, "title": "Kiosk İçerik Denemesi"},
+    ).status_code == 403
+    assert remote_client.post(
+        f"/api/v1/trainings/remote/programs/{published_id}/logo",
+        headers=kiosk_headers,
+        files={"file": ("logo.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+    ).status_code == 403
+
+    kiosk_programs = remote_client.get(
+        "/api/v1/trainings/remote/programs",
+        headers=kiosk_headers,
+    )
+    assert kiosk_programs.status_code == 200, kiosk_programs.text
+    assert [row["id"] for row in kiosk_programs.json()] == [published_id]
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/programs/{draft_id}",
+        headers=kiosk_headers,
+    ).status_code == 404
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/programs/{foreign_program_id}",
+        headers=kiosk_headers,
+    ).status_code == 403
+
+    kiosk_assignment = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{published_id}/assign",
+        headers=kiosk_headers,
+        json={"employee_ids": [kiosk_employee_id]},
+    )
+    assert kiosk_assignment.status_code == 200, kiosk_assignment.text
+    assert kiosk_assignment.json()["created_count"] == 1
+    kiosk_assignment_id = kiosk_assignment.json()["created"][0]["id"]
+
+    assert remote_client.delete(
+        f"/api/v1/trainings/remote/programs/{published_id}/assignments/{kiosk_assignment_id}",
         headers=kiosk_headers,
     ).status_code == 403
 

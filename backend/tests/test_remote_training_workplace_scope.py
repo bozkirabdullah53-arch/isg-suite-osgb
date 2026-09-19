@@ -24,7 +24,7 @@ def _db() -> Session:
     return Session(engine)
 
 
-def _workplace_user(company_id: int = 42):
+def _workplace_user(company_id: int = 42, *, email: str = "isyeri@example.test"):
     from app.models.entities import UserRole
 
     return SimpleNamespace(
@@ -32,9 +32,26 @@ def _workplace_user(company_id: int = 42):
         role=UserRole.COMPANY_ADMIN,
         company_id=company_id,
         osgb_id=3,
-        email="isyeri@example.test",
+        email=email,
         full_name="İşyeri Yetkilisi",
     )
+
+
+def test_generated_workplace_password_account_is_assignment_operator_only():
+    from app.api import remote_training as remote_api
+    from app.services.remote_training import is_manager, is_workplace_account
+
+    user = _workplace_user(email="isyeri.42@kiosk.isgsuite.tr")
+    assert is_manager(user) is True
+    assert is_workplace_account(user) is True
+
+    with pytest.raises(HTTPException) as catalog_error:
+        remote_api._assert_catalog_reader(user)
+    assert catalog_error.value.status_code == 403
+
+    with pytest.raises(HTTPException) as distribution_error:
+        remote_api._assert_catalog_distribution_manager(user)
+    assert distribution_error.value.status_code == 403
 
 
 def test_workplace_account_cannot_read_or_distribute_catalog_packages():
