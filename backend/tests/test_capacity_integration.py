@@ -245,6 +245,43 @@ def test_employee_and_nace_changes_recalculate_authoritative_minutes(client):
     assert empty["workplaces"][0]["specialist_requirement"]["required_minutes"] == 0
 
 
+def test_employee_exit_date_deactivates_and_can_be_cleared(client):
+    seed, headers = _seed(client)
+
+    created = client.post(
+        "/api/v1/employees",
+        headers=headers,
+        json={"company_id": seed["company_id"], "full_name": "İşten Ayrılan Çalışan"},
+    )
+    assert created.status_code == 200, created.text
+    employee_id = created.json()["id"]
+
+    deactivated = client.put(
+        f"/api/v1/employees/{employee_id}",
+        headers=headers,
+        json={"exit_date": "2026-09-15"},
+    )
+    assert deactivated.status_code == 200, deactivated.text
+    assert deactivated.json()["exit_date"] == "2026-09-15"
+    assert deactivated.json()["is_active"] is False
+
+    inactive = client.get(
+        f"/api/v1/employees?company_id={seed['company_id']}&active=false",
+        headers=headers,
+    )
+    assert inactive.status_code == 200, inactive.text
+    assert any(row["id"] == employee_id for row in inactive.json())
+
+    reactivated = client.put(
+        f"/api/v1/employees/{employee_id}",
+        headers=headers,
+        json={"is_active": True, "exit_date": None},
+    )
+    assert reactivated.status_code == 200, reactivated.text
+    assert reactivated.json()["exit_date"] is None
+    assert reactivated.json()["is_active"] is True
+
+
 def test_bulk_employee_import_recalculates_active_population(client):
     seed, headers = _seed(client)
     workbook = Workbook()

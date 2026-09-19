@@ -88,6 +88,10 @@ _HEADER_ALIASES: dict[str, str] = {
     "giristarihi": "start_date",
     "baslangictarihi": "start_date",
     "startdate": "start_date",
+    "istencikistarihi": "exit_date",
+    "cikistarihi": "exit_date",
+    "istenayrilmatarihi": "exit_date",
+    "exitdate": "exit_date",
     "engellihukumludurumu": "special_status",
     "engellihukumlu": "special_status",
     "engellihukumludurum": "special_status",
@@ -118,6 +122,8 @@ def map_header(value: Any) -> str:
         return "job_title"
     if "giris" in n and "tarih" in n:
         return "start_date"
+    if ("cikis" in n or "ayrilma" in n) and "tarih" in n:
+        return "exit_date"
     if "engelli" in n or "hukumlu" in n or "ozeldurum" in n:
         return "special_status"
     if "departman" in n or n == "bolum" or n == "bolumu":
@@ -203,7 +209,7 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
         mapping = {k: v for k, v in mapping.items() if v}
         mapped = set(mapping.values())
         has_name = "full_name" in mapped or ("_first" in mapped and "_last" in mapped)
-        if has_name and len(mapped) >= 2:
+        if has_name:
             header_idx = i
             field_map = mapping
             break
@@ -221,6 +227,7 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
             "job_title": None,
             "department": None,
             "start_date": None,
+            "exit_date": None,
             "special_status": None,
         }
         first = last = ""
@@ -241,6 +248,8 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
                 item["department"] = _cell(raw) or None
             elif key == "start_date":
                 item["start_date"] = _parse_date(raw)
+            elif key == "exit_date":
+                item["exit_date"] = _parse_date(raw)
             elif key == "special_status":
                 item["special_status"] = _normalize_special_status(_cell(raw))
         if not item["full_name"]:
@@ -258,6 +267,7 @@ TEMPLATE_HEADERS = [
     "TC Kimlik No",
     "Görevi",
     "İşe Giriş Tarihi",
+    "İşten Çıkış Tarihi",
     "Engelli/Hükümlü",
 ]
 
