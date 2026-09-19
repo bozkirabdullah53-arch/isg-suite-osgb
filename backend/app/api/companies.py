@@ -561,9 +561,9 @@ def reset_company_kiosk_login(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Kiosk şifresini yalnızca bilinçli sıfırlar; her firma kaydında yenilenmez."""
+    """İşyeri kullanıcı şifresini yalnızca bilinçli sıfırlar."""
     if user.role == UserRole.COMPANY_ADMIN and user.company_id:
-        raise HTTPException(403, "İşyeri kiosk hesabı şifre sıfırlayamaz.")
+        raise HTTPException(403, "İşyeri kullanıcısı kendi hesabının şifresini sıfırlayamaz.")
     ensure_company_access(db, user, company_id)
     obj = db.get(Company, company_id)
     if not obj:
@@ -581,7 +581,7 @@ def reset_company_kiosk_login(
         "password": plaintext,
         "temporary_password": plaintext,
         "created": created,
-        "message": "Kiosk şifresi yenilendi. Eski şifre artık geçersiz. İşyerine yeni şifreyi iletin.",
+        "message": "İşyeri kullanıcı şifresi yenilendi. Eski şifre artık geçersiz; yeni bilgileri işyerine iletin.",
     }
 
 
@@ -718,8 +718,8 @@ def create_company(
             "password": temp_password,
             "created": created,
             "message": (
-                "İşyeri kiosk hesabı oluşturuldu. Bu e-posta ve şifre kalıcıdır; "
-                "işyerine bir kez iletin. Sonraki girişlerde aynı şifre kullanılır "
+                "İşyeri kullanıcı hesabı oluşturuldu. Bu kullanıcı adı ve şifre kalıcıdır; "
+                "işyerine bir kez iletin. Sonraki girişlerde aynı bilgiler kullanılır "
                 "(yalnız OSGB şifreyi bilinçli sıfırlarsa değişir)."
             ),
         }
