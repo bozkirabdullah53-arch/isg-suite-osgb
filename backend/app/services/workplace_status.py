@@ -345,6 +345,21 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         notification_criteria.append(
             or_(Notification.user_id.is_(None), Notification.user_id == int(viewer.id))
         )
+        if viewer.role == UserRole.SAFETY_SPECIALIST:
+            notification_criteria.append(
+                or_(
+                    Notification.entity_type.is_(None),
+                    Notification.entity_type != "specialist_duty",
+                    Notification.user_id == int(viewer.id),
+                )
+            )
+        else:
+            notification_criteria.append(
+                or_(
+                    Notification.entity_type.is_(None),
+                    Notification.entity_type != "specialist_duty",
+                )
+            )
     unread_notifications = _count(db, Notification, *notification_criteria)
     near_miss_count = _count(
         db,

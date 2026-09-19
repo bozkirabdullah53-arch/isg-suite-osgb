@@ -62,6 +62,44 @@ def _can_see_notification(user: User, item: Notification) -> bool:
     )
 
 
+def _can_access_notification(db: Session, user: User, item: Notification) -> bool:
+    """Private user notifications must never become company-wide rows."""
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return True
+    allowed_company_ids = _notification_company_ids(db, user)
+
+    # Uzman görev bildirimleri kişiseldir. Eski kayıtlarda user_id boş kalmışsa
+    # bunlar işyeri yöneticisine şirket-geneli bildirim gibi görünmemelidir.
+    if item.entity_type == "specialist_duty":
+        return bool(
+            user.role == UserRole.SAFETY_SPECIALIST
+            and item.user_id == user.id
+            and item.company_id in allowed_company_ids
+        )
+
+    if item.company_id is None:
+        return item.user_id == user.id
+    if item.company_id not in allowed_company_ids:
+        return False
+    # Aynı işyerindeki kullanıcıya özel bildirimler yalnız sahibine aittir;
+    # user_id boş şirket bildirimleri ise yetkili işyeri hesabına açıktır.
+    return item.user_id in (None, user.id)
+
+
+def _specialist_duty_visibility(user: User):
+    """Keep specialist-only rows out of workplace/management notification feeds."""
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        return or_(
+            Notification.entity_type.is_(None),
+            Notification.entity_type != "specialist_duty",
+            Notification.user_id == user.id,
+        )
+    return or_(
+        Notification.entity_type.is_(None),
+        Notification.entity_type != "specialist_duty",
+    )
+
+
 @router.get("")
 def list_notifications(
     unread_only: bool = False,
@@ -85,19 +123,28 @@ def list_notifications(
         stmt = stmt.order_by(Notification.created_at.desc()).limit(300)
     else:
         if selected_company_id is not None:
-            conds = [Notification.company_id == selected_company_id]
+            visibility = and_(
+                Notification.company_id == selected_company_id,
+                or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
+            )
         else:
             company_ids = _notification_company_ids(db, user)
-            conds = [Notification.user_id == user.id]
-            if company_ids:
-                conds.append(Notification.company_id.in_(company_ids))
+            visibility = or_(
+                and_(
+                    Notification.company_id.in_(company_ids or [-1]),
+                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
+                ),
+                and_(
+                    Notification.company_id.is_(None),
+                    Notification.user_id == user.id,
+                ),
+            )
+        filters = [visibility, _specialist_duty_visibility(user)]
+        if clinical_filter is not None:
+            filters.append(clinical_filter)
         stmt = (
             select(Notification)
-            .where(
-                and_(or_(*conds), clinical_filter)
-                if clinical_filter is not None
-                else or_(*conds)
-            )
+            .where(and_(*filters))
             .order_by(Notification.created_at.desc())
             .limit(200)
         )
@@ -172,16 +219,7 @@ def mark_read(
         raise HTTPException(status_code=404, detail="Bildirim bulunamadı.")
     if not _can_see_notification(user, item):
         raise HTTPException(status_code=403, detail="Bu klinik bildirime erişemezsiniz.")
-    if user.role == UserRole.GLOBAL_ADMIN:
-        pass
-    elif item.user_id == user.id:
-        pass
-    elif item.company_id:
-        allowed = _notification_company_ids(db, user)
-        if item.company_id not in allowed:
-            raise HTTPException(status_code=403, detail="Bu bildirime erişemezsiniz.")
-    else:
-        # user_id yok + company_id yok → yalnızca global
+    if not _can_access_notification(db, user, item):
         raise HTTPException(status_code=403, detail="Bu bildirime erişemezsiniz.")
     item.is_read = True
     db.commit()
@@ -199,14 +237,8 @@ def mark_completed(
         raise HTTPException(status_code=404, detail="Bildirim bulunamadı.")
     if not _can_see_notification(user, item):
         raise HTTPException(status_code=403, detail="Bu klinik bildirime erişemezsiniz.")
-    if user.role != UserRole.GLOBAL_ADMIN:
-        if item.user_id == user.id:
-            pass
-        elif item.company_id:
-            if item.company_id not in _notification_company_ids(db, user):
-                raise HTTPException(status_code=403, detail="Bu bildirime erişemezsiniz.")
-        else:
-            raise HTTPException(status_code=403, detail="Bu bildirime erişemezsiniz.")
+    if not _can_access_notification(db, user, item):
+        raise HTTPException(status_code=403, detail="Bu bildirime erişemezsiniz.")
     item.is_completed = True
     db.commit()
     return {"message": "Bildirim tamamlandı."}
