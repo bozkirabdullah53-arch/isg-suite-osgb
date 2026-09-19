@@ -885,6 +885,15 @@ class ArchiveKind(str, enum.Enum):
     TENANT_BACKUP = "tenant_backup"
     DELETED_FILE = "deleted_file"
 
+class BackupSource(str, enum.Enum):
+    MANUAL = "manual"
+    SCHEDULED = "scheduled"
+
+class BackupStatus(str, enum.Enum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 
 class EisaArchiveRecord(Base):
     """Merkezi tarihli arşiv — EİSA her kaydı görür; kurum yalnızca kendi yedeklerini."""
@@ -902,6 +911,12 @@ class EisaArchiveRecord(Base):
     size_bytes: Mapped[int] = mapped_column(default=0)
     checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    backup_source: Mapped[BackupSource] = mapped_column(Enum(BackupSource, native_enum=False), default=BackupSource.MANUAL)
+    backup_status: Mapped[BackupStatus] = mapped_column(Enum(BackupStatus, native_enum=False), default=BackupStatus.COMPLETED)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error_summary: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    schedule_key: Mapped[str | None] = mapped_column(String(120), nullable=True, unique=True)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 

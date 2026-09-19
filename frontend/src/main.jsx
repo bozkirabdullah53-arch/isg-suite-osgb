@@ -25,6 +25,8 @@ import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,Contr
 import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversight';
 import {WorkplaceHomePage} from './workplace_home';
 import {WorkplaceTrainingRecordsPage} from './workplace_training_records';
+import {WorkplaceBackupsPage} from './workplace_backups';
+import {workplaceBackupsEnabled} from './workplace_backups_logic';
 import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
 import {MembershipsPanel} from './memberships_panel';
@@ -113,6 +115,7 @@ import {
 } from './nace_context';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const EMPLOYEE_SELF_SERVICE_ENABLED=selfServiceFeatureEnabled(import.meta.env.VITE_EMPLOYEE_SELF_SERVICE_V1);
+const WORKPLACE_BACKUPS_ENABLED=workplaceBackupsEnabled(import.meta.env.VITE_WORKPLACE_BACKUPS_ENABLED);
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
  * İSG saha işleri (risk/olay yoğunluğu) → ticari → rapor/denetim → sistem ayarları.
@@ -168,7 +171,7 @@ const roleModules={
 /** İşyeri/QR hesaplarının menüsü yalnız bağlı oldukları işyerine yöneliktir. */
 function modulesForUser(user){
   const workplaceModules=workplaceModulesForUser(user);
-  if(workplaceModules) return workplaceModules;
+  if(workplaceModules) return workplaceModules.filter((id)=>id!=='workplace_backups'||WORKPLACE_BACKUPS_ENABLED);
   if(user?.role==='read_only' && EMPLOYEE_SELF_SERVICE_ENABLED){
     return ['employee_self_service','employee_training','security'];
   }
@@ -264,6 +267,7 @@ const menuCatalog={
   field_inspection:['Saha Denetimi',ClipboardCheck],
   facility_summary:['Tesis Uygunluk Özeti',ShieldCheck],
   workplace_home:['İşyeri Ana Panel',LayoutDashboard],
+  workplace_backups:['Yedeklerim',Download],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
   workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
@@ -2643,6 +2647,7 @@ function App(){
     field_inspection:<FieldInspectionPage user={user}/>,
     facility_summary:<FacilityComplianceSummaryPage user={user}/>,
     workplace_home:<WorkplaceHomePage user={user} onNavigate={goModule}/>,
+    workplace_backups:<WorkplaceBackupsPage user={user}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
     workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout} embedded/>,

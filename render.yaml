@@ -233,6 +233,36 @@ services:
         value: "true"
       - key: EMPLOYEE_SELF_SERVICE_FORCE_OFF
         value: "false"
+      - key: WORKPLACE_BACKUPS_ENABLED
+        value: "false"
+      - key: WORKPLACE_BACKUPS_FORCE_OFF
+        value: "false"
+      - key: WORKPLACE_BACKUP_RETENTION_DAYS
+        value: "30"
+      - key: WORKPLACE_BACKUP_HOUR_TR
+        value: "2"
+      - key: WORKPLACE_BACKUP_CRON_TOKEN
+        sync: false
+
+  # 23:00 UTC = Türkiye saatiyle 02:00. Yedek dosyasını geçici cron diskinde
+  # üretmez; imzalı çağrıyla API servisinin kalıcı diskinde oluşturur.
+  - type: cron
+    name: isg-suite-workplace-backups-nightly
+    runtime: python
+    rootDir: backend
+    schedule: "0 23 * * *"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m scripts.workplace_backup_cron
+    branch: master
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: WORKPLACE_BACKUPS_ENABLED
+        value: "false"
+      - key: WORKPLACE_BACKUP_TRIGGER_URL
+        value: https://isg-suite-api-1u9t.onrender.com/api/v1/workplace-backups/internal/run-scheduled
+      - key: WORKPLACE_BACKUP_CRON_TOKEN
+        sync: false
 
   - type: cron
     name: isg-suite-api-warmup
@@ -308,6 +338,8 @@ services:
         value: "false"
       - key: VITE_EMPLOYEE_SELF_SERVICE_V1
         value: "true"
+      - key: VITE_WORKPLACE_BACKUPS_ENABLED
+        value: "false"
     routes:
       - type: rewrite
         source: /api/*

@@ -44,6 +44,7 @@ describe('workplace user policy', () => {
       'documents',
       'eyas_inbox',
       'health',
+      'workplace_backups',
       'site_qr_kiosk',
     ]);
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('companies');
