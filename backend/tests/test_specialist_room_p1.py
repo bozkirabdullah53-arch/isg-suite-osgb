@@ -58,7 +58,8 @@ def _seed():
 
     with SessionLocal() as db:
         osgb = OsgbOrganization(name="Uzman Odası OSGB", is_active=True)
-        db.add(osgb)
+        other_osgb = OsgbOrganization(name="Başka OSGB", is_active=True)
+        db.add_all([osgb, other_osgb])
         db.flush()
         company_a = Company(
             name="Uzman Firma A",
@@ -78,7 +79,7 @@ def _seed():
             name="Başka Kapsam Firma",
             nace_code="10.11.01",
             hazard_class="Tehlikeli",
-            osgb_id=osgb.id,
+            osgb_id=other_osgb.id,
             is_active=True,
         )
         db.add_all([company_a, company_b, company_foreign])
@@ -91,6 +92,14 @@ def _seed():
             osgb_id=osgb.id,
             is_active=True,
         )
+        osgb_admin = User(
+            email="osgb-admin-p1@test.com",
+            full_name="P1 OSGB Yöneticisi",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
         pro = IsgProfessional(
             osgb_id=osgb.id,
             full_name="P1 Uzman",
@@ -100,7 +109,7 @@ def _seed():
             certificate_number="P1-UZM-1",
             is_active=True,
         )
-        db.add_all([user, pro])
+        db.add_all([user, osgb_admin, pro])
         db.flush()
         db.add_all(
             [
@@ -127,16 +136,17 @@ def _seed():
         db.commit()
         return {
             "user_id": user.id,
+            "admin_email": osgb_admin.email,
             "company_a": company_a.id,
             "company_b": company_b.id,
             "company_foreign": company_foreign.id,
         }
 
 
-def _headers(client: TestClient):
+def _headers(client: TestClient, email: str = "uzman-p1@test.com"):
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": "uzman-p1@test.com", "password": "TestPass123!"},
+        json={"email": email, "password": "TestPass123!"},
     )
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
@@ -193,6 +203,14 @@ def test_specialist_notifications_hide_clinical_and_foreign_company_rows(client)
                     entity_id="risk_dof:1:",
                 ),
                 Notification(
+                    company_id=seed["company_b"],
+                    type=NotificationType.WARNING,
+                    title="İkinci firma uyarısı",
+                    message="İkinci firmada gözden geçirme gerekli.",
+                    entity_type="specialist_duty",
+                    entity_id="risk_dof:3:",
+                ),
+                Notification(
                     company_id=seed["company_a"],
                     type=NotificationType.CRITICAL,
                     title="Klinik kayıt",
@@ -222,6 +240,29 @@ def test_specialist_notifications_hide_clinical_and_foreign_company_rows(client)
     assert "Klinik kayıt" not in titles
     assert "Başka firma" not in titles
 
+    company_a_rows = client.get(
+        "/api/v1/notifications",
+        params={"company_id": seed["company_a"]},
+        headers=headers,
+    )
+    assert company_a_rows.status_code == 200, company_a_rows.text
+    assert {row["title"] for row in company_a_rows.json()} == {"Güvenli uzman uyarısı"}
+
+    company_b_rows = client.get(
+        "/api/v1/notifications",
+        params={"company_id": seed["company_b"]},
+        headers=headers,
+    )
+    assert company_b_rows.status_code == 200, company_b_rows.text
+    assert {row["title"] for row in company_b_rows.json()} == {"İkinci firma uyarısı"}
+
+    foreign = client.get(
+        "/api/v1/notifications",
+        params={"company_id": seed["company_foreign"]},
+        headers=headers,
+    )
+    assert foreign.status_code == 403, foreign.text
+
     forbidden = client.patch(f"/api/v1/notifications/{clinical_id}/read", headers=headers)
     assert forbidden.status_code == 403, forbidden.text
 
@@ -232,3 +273,52 @@ def test_specialist_can_read_curated_mevzuat_panel(client):
     response = client.get("/api/v1/osgb/mevzuat-panel", headers=headers)
     assert response.status_code == 200, response.text
     assert response.json()["catalog_total"] > 0
+
+
+def test_osgb_admin_notification_filter_returns_selected_company_only(client):
+    seed = _seed()
+    headers = _headers(client, seed["admin_email"])
+    from app.core.database import SessionLocal
+    from app.models.entities import Notification, NotificationType
+
+    with SessionLocal() as db:
+        db.add_all(
+            [
+                Notification(
+                    company_id=seed["company_a"],
+                    type=NotificationType.WARNING,
+                    title="OSGB Firma A bildirimi",
+                    message="Firma A için kontrol gerekli.",
+                ),
+                Notification(
+                    company_id=seed["company_b"],
+                    type=NotificationType.WARNING,
+                    title="OSGB Firma B bildirimi",
+                    message="Firma B için kontrol gerekli.",
+                ),
+            ]
+        )
+        db.commit()
+
+    selected_a = client.get(
+        "/api/v1/notifications",
+        params={"company_id": seed["company_a"]},
+        headers=headers,
+    )
+    assert selected_a.status_code == 200, selected_a.text
+    assert {row["title"] for row in selected_a.json()} == {"OSGB Firma A bildirimi"}
+
+    selected_b = client.get(
+        "/api/v1/notifications",
+        params={"company_id": seed["company_b"]},
+        headers=headers,
+    )
+    assert selected_b.status_code == 200, selected_b.text
+    assert {row["title"] for row in selected_b.json()} == {"OSGB Firma B bildirimi"}
+
+    outside_scope = client.get(
+        "/api/v1/notifications",
+        params={"company_id": seed["company_foreign"]},
+        headers=headers,
+    )
+    assert outside_scope.status_code == 403, outside_scope.text
