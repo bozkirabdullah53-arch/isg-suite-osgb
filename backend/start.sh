@@ -51,6 +51,30 @@ else:
     )
 PY
 
+echo "=== Migrating completed workplace backups to remote storage ==="
+python - <<'PY'
+from app.core.config import settings
+from app.core.database import SessionLocal
+from app.services.workplace_backup import migrate_completed_workplace_backups
+
+if not settings.workplace_backup_remote_enabled:
+    print("Workplace backup remote migration disabled.")
+else:
+    try:
+        with SessionLocal() as db:
+            summary = migrate_completed_workplace_backups(db)
+    except Exception as exc:
+        print(f"WARN: workplace backup remote migration skipped: {exc}")
+    else:
+        print(
+            "Workplace backup remote migration: "
+            f"{summary['migrated']} migrated, "
+            f"{summary['skipped']} already remote, "
+            f"{summary['failed']} failed, "
+            f"{summary['bytes_freed']} bytes freed."
+        )
+PY
+
 # Tek seferlik merkezi arşiv sıfırlama kancası.
 # Sadece EISA_PURGE_ARCHIVES_ONCE doluysa çalışır; aynı token kalıcı disk üzerindeki
 # marker nedeniyle ikinci kez çalışmaz. Başka uygulama verilerine dokunmaz.
