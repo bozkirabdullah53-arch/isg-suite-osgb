@@ -1,3 +1,4 @@
+from datetime import date
 from io import BytesIO
 import logging
 from zipfile import BadZipFile
@@ -95,6 +96,8 @@ def create_employee(
     check_company(db, user, payload.company_id)
     validate_branch(db, payload.company_id, payload.branch_id)
     values = payload.model_dump(exclude={"hire_date"})
+    if values.get("exit_date") is not None:
+        values["is_active"] = False
     values["national_id_masked"] = normalize_national_id(values.get("national_id_masked")) or None
     obj = Employee(**values)
     db.add(obj)
@@ -120,7 +123,14 @@ def update_employee(
         raise HTTPException(404, "Personel bulunamadı.")
     check_company(db, user, obj.company_id)
     validate_branch(db, obj.company_id, payload.branch_id)
-    for k, v in payload.model_dump(exclude_unset=True, exclude={"hire_date"}).items():
+    values = payload.model_dump(exclude_unset=True, exclude={"hire_date"})
+    if values.get("exit_date") is not None and values.get("is_active") is not True:
+        values["is_active"] = False
+    if values.get("is_active") is True and "exit_date" not in values:
+        values["exit_date"] = None
+    if values.get("is_active") is True and values.get("exit_date") is not None:
+        raise HTTPException(422, "Aktif personel için işten çıkış tarihi kaldırılmalıdır.")
+    for k, v in values.items():
         if k == "national_id_masked":
             v = normalize_national_id(v) or None
         setattr(obj, k, v)
@@ -154,6 +164,7 @@ def deactivate_employee(
 def bulk_deactivate_employees(
     employee_ids: list[int] = Body(..., embed=True),
     company_id: int = Body(..., embed=True),
+    exit_date: date | None = Body(None, embed=True),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -182,15 +193,28 @@ def bulk_deactivate_employees(
     if missing:
         raise HTTPException(409, "Seçilen personellerden bazıları bu işyerine ait değil veya bulunamadı.")
 
+    if exit_date is not None:
+        invalid = next(
+            (row for row in rows if row.start_date and exit_date < row.start_date),
+            None,
+        )
+        if invalid is not None:
+            raise HTTPException(
+                422,
+                f"{invalid.full_name} için işten çıkış tarihi işe giriş tarihinden önce olamaz.",
+            )
+
     changed = 0
     for row in rows:
         if row.is_active:
             row.is_active = False
+            if exit_date is not None:
+                row.exit_date = exit_date
             changed += 1
     sync_company_service_requirements(db, company_id, commit=False)
     db.commit()
     return {
-        "message": f"{changed} personel silindi.",
+        "message": f"{changed} personel pasife alındı.",
         "deleted": changed,
         "requested": len(ids),
     }
@@ -304,8 +328,9 @@ async def import_excel(
             existing.job_title = data.get("job_title")
             existing.department = data.get("department")
             existing.start_date = data.get("start_date")
+            existing.exit_date = data.get("exit_date")
             existing.special_status = data.get("special_status")
-            existing.is_active = True
+            existing.is_active = data.get("exit_date") is None
             updated += 1
             if was_inactive:
                 reactivated += 1
@@ -319,8 +344,9 @@ async def import_excel(
             job_title=data.get("job_title"),
             department=data.get("department"),
             start_date=data.get("start_date"),
+            exit_date=data.get("exit_date"),
             special_status=data.get("special_status"),
-            is_active=True,
+            is_active=data.get("exit_date") is None,
         )
         try:
             with db.begin_nested():

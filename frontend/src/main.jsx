@@ -1180,13 +1180,14 @@ function Employees({user}){
   const[open,setOpen]=useState(false);
   const[editingRow,setEditingRow]=useState(null);
   const[q,setQ]=useState('');
+  const[activeFilter,setActiveFilter]=useState('active');
   const[busy,setBusy]=useState(false);
   const[healthOpen,setHealthOpen]=useState(false);
   const[healthEmployee,setHealthEmployee]=useState(null);
   const[healthRows,setHealthRows]=useState([]);
   const[healthBusy,setHealthBusy]=useState(false);
   const[healthError,setHealthError]=useState('');
-  const emptyEmployeeForm=(branchId='')=>({full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',special_status:'',branch_id:branchId});
+  const emptyEmployeeForm=(branchId='')=>({full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',exit_date:'',special_status:'',branch_id:branchId,is_active:true});
   const[form,setForm]=useState(emptyEmployeeForm());
 
   const selectedCompany=companies.find(c=>String(c.id)===String(selectedCompanyId));
@@ -1209,17 +1210,18 @@ function Employees({user}){
     });
   }
 
-  async function loadEmployees(companyId=selectedCompanyId,search=q){
+  async function loadEmployees(companyId=selectedCompanyId,search=q,filter=activeFilter){
     if(!companyId){setData([]);setSelectedIds([]);return}
     const params=new URLSearchParams({company_id:String(companyId)});
     if(search) params.set('q',search);
+    if(filter!=='all') params.set('active',filter==='active'?'true':'false');
     const rows=await api(`/employees?${params.toString()}`);
     setData(rows||[]);
     setSelectedIds([]);
   }
 
   useEffect(()=>{void loadCompanies()},[]);
-  useEffect(()=>{void loadEmployees(selectedCompanyId,'')},[selectedCompanyId]);
+  useEffect(()=>{void loadEmployees(selectedCompanyId,'',activeFilter)},[selectedCompanyId,activeFilter]);
 
   function chooseCompany(value){
     const nextValue=String(value||'');
@@ -1270,8 +1272,10 @@ function Employees({user}){
       job_title:row.job_title||'',
       department:row.department||'',
       start_date:row.start_date||'',
+      exit_date:row.exit_date||'',
       special_status:row.special_status||'',
       branch_id:row.branch_id?String(row.branch_id):'',
+      is_active:row.is_active!==false,
     });
     setOpen(true);
   }
@@ -1292,12 +1296,15 @@ function Employees({user}){
             ...form,
             branch_id:form.branch_id?Number(form.branch_id):null,
             start_date:form.start_date||null,
+            exit_date:form.exit_date||null,
+            is_active:form.exit_date?false:form.is_active,
           }
         : {
             ...form,
             company_id:Number(selectedCompanyId),
             branch_id:form.branch_id?Number(form.branch_id):null,
             start_date:form.start_date||null,
+            exit_date:form.exit_date||null,
           };
       await api(editingRow?`/employees/${editingRow.id}`:'/employees',{
         method:editingRow?'PUT':'POST',
@@ -1317,13 +1324,40 @@ function Employees({user}){
       alert('Bu personel seçili işyerine ait değil. İşlem durduruldu.');
       return;
     }
-    if(!window.confirm(`“${row.full_name}” adlı personel silinsin mi?\n\nKayıt güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
+    const exitDate=window.prompt(`“${row.full_name}” için işten çıkış tarihi (YYYY-AA-GG).\n\nTarih girilmezse yalnızca pasife alınır.`,row.exit_date||'');
+    if(exitDate===null) return;
+    if(exitDate&&!/^\d{4}-\d{2}-\d{2}$/.test(exitDate)){alert('Tarih YYYY-AA-GG biçiminde girilmelidir.');return}
+    if(!window.confirm(`“${row.full_name}” adlı personel pasife alınsın mı?\n\nİşten çıkış tarihi: ${exitDate||'Girilmedi'}`)) return;
     setBusy(true);
     try{
-      await api(`/employees/${row.id}`,{method:'DELETE'});
+      await api(`/employees/${row.id}`,{method:'PUT',body:JSON.stringify({is_active:false,exit_date:exitDate||null})});
       await loadEmployees();
-      alert('Personel silindi.');
-    }catch(ex){alert(ex.message||'Personel silinemedi.')}
+      alert('Personel pasife alındı.');
+    }catch(ex){alert(ex.message||'Personel pasife alınamadı.')}
+    finally{setBusy(false)}
+  }
+
+  async function reactivateOne(row){
+    if(!requireCompany()) return;
+    if(!window.confirm(`“${row.full_name}” yeniden aktifleştirilsin mi?\n\nİşten çıkış tarihi temizlenecek.`)) return;
+    setBusy(true);
+    try{
+      await api(`/employees/${row.id}`,{method:'PUT',body:JSON.stringify({is_active:true,exit_date:null})});
+      await loadEmployees();
+      alert('Personel yeniden aktifleştirildi.');
+    }catch(ex){alert(ex.message||'Personel aktifleştirilemedi.')}
+    finally{setBusy(false)}
+  }
+
+  async function purgeOne(row){
+    if(!requireCompany()) return;
+    if(!window.confirm(`“${row.full_name}” adlı personel KALICI olarak silinsin mi?\n\nBu işlem geri alınamaz. Bağlı sağlık/eğitim kayıtları varsa geçmiş kayıtları korumak için personel korunur.`)) return;
+    setBusy(true);
+    try{
+      const result=await api('/employees/bulk-purge',{method:'POST',body:JSON.stringify({employee_ids:[Number(row.id)],company_id:Number(selectedCompanyId)})});
+      await loadEmployees();
+      alert(result?.message||'Personel kalıcı olarak silindi.');
+    }catch(ex){alert(ex.message||'Personel kalıcı olarak silinemedi.')}
     finally{setBusy(false)}
   }
 
@@ -1331,15 +1365,18 @@ function Employees({user}){
     if(!requireCompany()) return;
     if(!selectedIds.length){alert('Önce silinecek personelleri seçmelisiniz.');return}
     const companyName=selectedCompany?.name||'seçili işyeri';
-    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden silinsin mi?\n\nKayıtlar güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
+    const exitDate=window.prompt(`${selectedIds.length} personel için işten çıkış tarihi (YYYY-AA-GG).\n\nTarih girilmezse yalnızca pasife alınırlar.`, '');
+    if(exitDate===null) return;
+    if(exitDate&&!/^\d{4}-\d{2}-\d{2}$/.test(exitDate)){alert('Tarih YYYY-AA-GG biçiminde girilmelidir.');return}
+    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinde pasife alınsın mı?\n\nİşten çıkış tarihi: ${exitDate||'Girilmedi'}`)) return;
     setBusy(true);
     try{
       const result=await api('/employees/bulk-delete',{
         method:'POST',
-        body:JSON.stringify({employee_ids:selectedIds,company_id:Number(selectedCompanyId)}),
+        body:JSON.stringify({employee_ids:selectedIds,company_id:Number(selectedCompanyId),exit_date:exitDate||null}),
       });
       await loadEmployees();
-      alert(result?.message||`${selectedIds.length} personel silindi.`);
+      alert(result?.message||`${selectedIds.length} personel pasife alındı.`);
     }catch(ex){alert(ex.message||'Seçilen personeller silinemedi.')}
     finally{setBusy(false)}
   }
@@ -1474,6 +1511,11 @@ function Employees({user}){
         <option value="">Tüm işyeri / şube seçilmedi</option>
         {selectedBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
       </Select>
+      <Select label="Personel görünümü" value={activeFilter} disabled={!selectedCompanyId} onChange={e=>setActiveFilter(e.target.value)}>
+        <option value="active">Aktif personel</option>
+        <option value="inactive">Pasif personel</option>
+        <option value="all">Tüm personel</option>
+      </Select>
     </div>
 
     {selectedCompanyId
@@ -1487,8 +1529,8 @@ function Employees({user}){
 
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
       {isWorkplaceManager
-        ? "Toplu personel eklemek için Örnek Excel'i İndir → Personel sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Adı Soyadı zorunludur; örnek kişiler Ornek sayfasındadır ve yüklenmez. Dosya yalnızca kendi işyerinize aktarılır."
-        : "Örnek Excel'i İndir → Personel sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Sütunlar: Adı Soyadı (zorunlu), TC Kimlik No, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü. Başlık satırını silmeyin; örnek kişiler Ornek sayfasındadır ve yüklenmez. Dosya yalnızca seçili işyerine aktarılır."}
+        ? "Toplu personel eklemek için Örnek Excel'i İndir → Personel sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Adı Soyadı zorunludur; işten çıkış tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca kendi işyerinize aktarılır."
+        : "Örnek Excel'i İndir → Personel sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Sütunlar: Adı Soyadı (zorunlu), TC Kimlik No, Görevi, İşe Giriş Tarihi, İşten Çıkış Tarihi, Engelli/Hükümlü. İşten çıkış tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca seçili işyerine aktarılır."}
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[
@@ -1498,12 +1540,16 @@ function Employees({user}){
       {key:'department',label:'Departman'},
       {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
       {key:'start_date',label:'İşe Giriş'},
+      {key:'exit_date',label:'İşten Çıkış',render:r=>r.exit_date||'—'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
       {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
         {isWorkplaceManager&&<button type="button" className="mini" disabled={busy||healthBusy} onClick={()=>openHealthInfo(r)}><HeartPulse size={14}/>Sağlık Bilgileri</button>}
         <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)}>Düzenle</button>
-        <button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>
+        {r.is_active
+          ? <button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Pasife Al</button>
+          : <button type="button" className="mini secondary" disabled={busy} onClick={()=>reactivateOne(r)}>Aktifleştir</button>}
+        <button type="button" className="mini danger" disabled={busy} onClick={()=>purgeOne(r)}>Kalıcı Sil</button>
       </div>},
     ]} rows={selectedCompanyId?data:[]}/>
 
@@ -1559,7 +1605,12 @@ function Employees({user}){
       <Field label="Branş / Görev" value={form.job_title} onChange={e=>setForm({...form,job_title:e.target.value})}/>
       <Field label="Departman" value={form.department} onChange={e=>setForm({...form,department:e.target.value})}/>
       <Field label="İşe Giriş Tarihi" type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
+      <Field label="İşten Çıkış Tarihi" type="date" value={form.exit_date} onChange={e=>setForm({...form,exit_date:e.target.value,is_active:e.target.value?false:form.is_active})}/>
       <Field label="Engelli / Hükümlü Durumu" value={form.special_status} onChange={e=>setForm({...form,special_status:e.target.value})}/>
+      {editingRow&&<Select label="Çalışma Durumu" value={form.is_active?'active':'inactive'} onChange={e=>setForm({...form,is_active:e.target.value==='active',exit_date:e.target.value==='active'?'':form.exit_date})}>
+        <option value="active">Aktif</option>
+        <option value="inactive">Pasif</option>
+      </Select>}
       <Select label="Şube (isteğe bağlı)" value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}>
         <option value="">Tüm işyeri / şube seçilmedi</option>
         {selectedBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}

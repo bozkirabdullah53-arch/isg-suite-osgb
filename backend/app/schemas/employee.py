@@ -2,7 +2,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.core.input_rules import assert_event_date, assert_meaningful_text, assert_person_name
+from app.core.input_rules import assert_date_order, assert_event_date, assert_meaningful_text, assert_person_name
 
 
 class EmployeeCreate(BaseModel):
@@ -13,6 +13,7 @@ class EmployeeCreate(BaseModel):
     job_title: str | None = None
     department: str | None = None
     start_date: date | None = None
+    exit_date: date | None = None
     hire_date: date | None = Field(default=None, exclude=True)
     special_status: str | None = None
 
@@ -33,6 +34,15 @@ class EmployeeCreate(BaseModel):
         self.start_date = assert_event_date(
             self.start_date, label="İşe giriş tarihi", required=False, allow_future_days=30
         )
+        self.exit_date = assert_event_date(
+            self.exit_date, label="İşten çıkış tarihi", required=False
+        )
+        assert_date_order(
+            self.start_date,
+            self.exit_date,
+            earlier_label="İşe giriş tarihi",
+            later_label="İşten çıkış tarihi",
+        )
         return self
 
 
@@ -43,6 +53,7 @@ class EmployeeUpdate(BaseModel):
     job_title: str | None = None
     department: str | None = None
     start_date: date | None = None
+    exit_date: date | None = None
     hire_date: date | None = Field(default=None, exclude=True)
     special_status: str | None = None
     is_active: bool | None = None
@@ -68,6 +79,16 @@ class EmployeeUpdate(BaseModel):
             self.start_date = assert_event_date(
                 self.start_date, label="İşe giriş tarihi", required=False, allow_future_days=30
             )
+        if self.exit_date is not None:
+            self.exit_date = assert_event_date(
+                self.exit_date, label="İşten çıkış tarihi", required=False
+            )
+        assert_date_order(
+            self.start_date,
+            self.exit_date,
+            earlier_label="İşe giriş tarihi",
+            later_label="İşten çıkış tarihi",
+        )
         return self
 
 
@@ -86,6 +107,7 @@ class EmployeeResponse(BaseModel):
     job_title: str | None = None
     department: str | None = None
     start_date: date | None = None
+    exit_date: date | None = None
     special_status: str | None = None
     is_active: bool
     model_config = ConfigDict(from_attributes=True)

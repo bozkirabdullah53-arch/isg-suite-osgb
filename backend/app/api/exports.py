@@ -56,12 +56,13 @@ def export_employees_excel(
     wb = Workbook()
     ws = wb.active
     ws.title = "Personel"
-    ws.append(["Adı Soyadı", "Görevi", "İşe Giriş Tarihi", "Özel Durum", "Aktif"])
+    ws.append(["Adı Soyadı", "Görevi", "İşe Giriş Tarihi", "İşten Çıkış Tarihi", "Özel Durum", "Aktif"])
     for r in rows:
         ws.append([
             r.full_name,
             r.job_title or "",
             r.start_date.isoformat() if r.start_date else "",
+            r.exit_date.isoformat() if r.exit_date else "",
             r.special_status or "",
             "Evet" if r.is_active else "Hayır",
         ])
