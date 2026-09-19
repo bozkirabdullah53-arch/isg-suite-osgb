@@ -51,6 +51,7 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
 export const WORKPLACE_MENU_SECTIONS = Object.freeze([
   {label: 'İşyeri Özeti', items: ['workplace_home', 'workplace_status', 'employer_oversight']},
   {label: 'Personel ve Eğitim', items: ['employees', 'personnel_training_records', 'remote_training']},
+  {label: 'Sağlık', items: ['health']},
   {
     label: 'İSG Kayıtları',
     items: [
@@ -65,7 +66,6 @@ export const WORKPLACE_MENU_SECTIONS = Object.freeze([
     ],
   },
   {label: 'Belgeler ve Onay', items: ['documents', 'eyas_inbox']},
-  {label: 'Sağlık', items: ['health']},
   {label: 'Veri Güvenliği', items: ['workplace_backups']},
   {label: 'İşyeri QR', items: ['site_qr_kiosk']},
 ]);
