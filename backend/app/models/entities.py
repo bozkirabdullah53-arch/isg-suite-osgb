@@ -1666,6 +1666,42 @@ class ChemicalProduct(Base):
     )
 
 
+class ExplosionProtectionDocument(Base):
+    """0.9.132 — İşyeri/proses bazlı Patlamadan Korunma Dokümanı (PKD) sicili."""
+
+    __tablename__ = "explosion_protection_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True, index=True)
+    document_no: Mapped[str] = mapped_column(String(80), index=True)
+    area_name: Mapped[str] = mapped_column(String(220), index=True)
+    process_name: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    atmosphere_type: Mapped[str] = mapped_column(String(40), default="gas_vapour_mist", index=True)
+    hazardous_materials: Mapped[str | None] = mapped_column(String(1200), nullable=True)
+    zone_classifications_json: Mapped[str | None] = mapped_column(String(1200), nullable=True)
+    ignition_sources_json: Mapped[str | None] = mapped_column(String(1600), nullable=True)
+    control_measures_json: Mapped[str | None] = mapped_column(String(2400), nullable=True)
+    responsible_person: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    prepared_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    approved_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    revision_no: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    next_review_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    has_pkd_file: Mapped[bool] = mapped_column(Boolean, default=False)
+    document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("document_records.id"), nullable=True, index=True
+    )
+    notes: Mapped[str | None] = mapped_column(String(3000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
 class DrillRecord(Base):
     """0.9.131 — Tatbikat yönetimi (İSG uzmanı; isg-pro tatbikat alanları)."""
 

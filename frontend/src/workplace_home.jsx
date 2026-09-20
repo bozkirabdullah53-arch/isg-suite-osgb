@@ -21,7 +21,7 @@ const MODULE_CARDS = [
   {id: 'employees', title: 'Personel', hint: 'Personel ekleyin, çalışan bilgilerini düzenleyin.', icon: Users, countKey: 'employees'},
   {id: 'remote_training', title: 'Uzaktan Eğitim', hint: 'Tanımlı eğitimleri çalışanlara atayın; ilerlemeyi ve PDF belgelerini takip edin.', icon: GraduationCap, footer: 'Atama ve takibi aç'},
   {id: 'ppe', title: 'KKD Takip', hint: 'Zimmet, teslim ve stok kayıtlarını yönetin.', icon: HardHat, countKey: 'ppe'},
-  {id: 'sds', title: 'SDS / PKD', hint: 'Kimyasal ürünleri ve güvenlik belgelerini takip edin.', icon: Beaker, countKey: 'sds'},
+  {id: 'sds', title: 'SDS / PKD', hint: 'Kimyasal güvenlik ve patlamadan korunma dokümanlarını yönetin.', icon: Beaker, countKey: 'sds'},
   {id: 'periyodik_kontrol', title: 'Periyodik Kontrol', hint: 'Ekipman kontrollerini ve raporlarını kaydedin.', icon: ClipboardCheck, countKey: 'periodic'},
   {id: 'ortam_olcum', title: 'Ortam Ölçüm', hint: 'Gürültü, toz ve gaz ölçüm sonuçlarını izleyin.', icon: Gauge, countKey: 'measurements'},
   {id: 'near_miss', title: 'Ramak Kala', hint: 'Ramak kala olaylarını ve alınan önlemleri kaydedin.', icon: AlertTriangle, countKey: 'nearMiss'},

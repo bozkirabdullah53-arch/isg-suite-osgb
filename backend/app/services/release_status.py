@@ -81,6 +81,7 @@ def infra_detail_payload() -> dict:
         "virtual_inspector": "rule-v1-6331",
         "mevzuat_panel": "highlights-v1",
         "sds_register": "chemical-register-v1",
+        "pkd_register": "pkd-register-v1",
         "ghs_label_checklist": "ghs-label-checklist-v1",
         "risk_photo_tags": "checklist-v1",
         "sds_review_reminders": "duty-notify-v1",

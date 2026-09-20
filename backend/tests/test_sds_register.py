@@ -120,6 +120,7 @@ def test_health_flag_sds_register(release_flags):
     body = release_flags
     assert body.get("version")
     assert body["sds_register"] == "chemical-register-v1"
+    assert body["pkd_register"] == "pkd-register-v1"
     assert body["ghs_label_checklist"] == "ghs-label-checklist-v1"
     assert body["risk_photo_tags"] == "checklist-v1"
     assert body["ai_hazard_hint"] == "keyword-v2"
@@ -193,6 +194,80 @@ def test_sds_meta_and_crud(client):
     assert got.status_code == 200
     assert got.json()["engine"] == "ghs-label-checklist-v1"
     assert got.json()["selected"] == ["GHS02", "GHS07"]
+
+
+def test_pkd_meta_crud_summary_and_document_link(client):
+    token, company_id = _seed_specialist(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    meta = client.get("/api/v1/sds/pkd/meta", headers=headers)
+    assert meta.status_code == 200, meta.text
+    assert meta.json()["engine"] == "pkd-register-v1"
+    assert "zone_1" in meta.json()["zones"]
+
+    invalid = client.post(
+        "/api/v1/sds/pkd",
+        headers=headers,
+        json={
+            "company_id": company_id,
+            "document_no": "PKD-001",
+            "area_name": "Solvent Deposu",
+            "zone_classifications": ["zone_99"],
+        },
+    )
+    assert invalid.status_code == 422
+
+    created = client.post(
+        "/api/v1/sds/pkd",
+        headers=headers,
+        json={
+            "company_id": company_id,
+            "document_no": "PKD-001",
+            "area_name": "Solvent Deposu",
+            "process_name": "Dolum ve transfer",
+            "atmosphere_type": "gas_vapour_mist",
+            "hazardous_materials": "Tiner ve solvent buharı",
+            "zone_classifications": ["zone_1", "zone_2"],
+            "ignition_sources": ["static", "electrical"],
+            "control_measures": ["ventilation", "grounding"],
+            "document_date": date.today().isoformat(),
+            "next_review_date": (date.today() + timedelta(days=10)).isoformat(),
+            "status": "active",
+        },
+    )
+    assert created.status_code == 200, created.text
+    body = created.json()
+    assert body["document_no"] == "PKD-001"
+    assert body["zone_classifications"] == ["zone_1", "zone_2"]
+    assert body["review_status"] == "due_soon"
+    pkd_id = body["id"]
+
+    linked = client.post(f"/api/v1/sds/pkd/{pkd_id}/ensure-document", headers=headers)
+    assert linked.status_code == 200, linked.text
+    assert linked.json()["document_id"]
+
+    updated = client.patch(
+        f"/api/v1/sds/pkd/{pkd_id}",
+        headers=headers,
+        json={"status": "revision_pending", "revision_no": "1.1"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["status"] == "revision_pending"
+    assert updated.json()["review_status"] == "revision_pending"
+
+    listed = client.get("/api/v1/sds/pkd", headers=headers, params={"q": "Solvent"})
+    assert listed.status_code == 200
+    assert any(item["id"] == pkd_id for item in listed.json())
+
+    summary = client.get("/api/v1/sds/pkd/summary", headers=headers)
+    assert summary.status_code == 200
+    assert summary.json()["total"] >= 1
+    assert summary.json()["revision_pending"] >= 1
+    assert summary.json()["missing_file"] >= 1
+
+    export = client.get("/api/v1/sds/pkd/export.xlsx", headers=headers)
+    assert export.status_code == 200, export.text
+    assert export.headers["content-type"].startswith("application/vnd.openxmlformats")
 
 
 def test_sds_branch_must_belong_to_company_and_be_active(client):
