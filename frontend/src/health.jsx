@@ -800,18 +800,18 @@ export function HealthPage({user}) {
       </div>
 
       {showLeadTracking && (
-        <section className="panel" style={{marginBottom: 16, borderColor: '#fcd34d', background: '#fffbeb'}}>
+        <section className="panel lead-tracking-panel" style={{marginBottom: 16}}>
           <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
             <div>
               <h3 style={{margin: 0, display: 'flex', alignItems: 'center', gap: 8}}>
-                <AlertTriangle size={19} color="#b45309" /> Kan kurşunu takibi
+                <AlertTriangle className="lead-tracking-icon" size={19} /> Kan kurşunu takibi
               </h3>
-              <p style={{margin: '6px 0 0', color: '#78350f', fontSize: 13}}>
+              <p className="lead-tracking-copy" style={{margin: '6px 0 0', fontSize: 13}}>
                 Bağlayıcı biyolojik sınır: <strong>{leadLimits.binding_limit} {leadLimits.unit}</strong> ·
                 {' '}tıbbi gözetim eşiği: <strong>&gt;{leadLimits.medical_surveillance_limit} {leadLimits.unit}</strong>.
               </p>
             </div>
-            <small style={{maxWidth: 420, color: '#92400e'}}>{leadLimits.source}</small>
+            <small className="lead-tracking-source" style={{maxWidth: 420}}>{leadLimits.source}</small>
           </div>
           <div className="cards" style={{marginTop: 14}}>
             <article className="metric"><span>Ölçümü olan</span><strong>{leadCounts.measured ?? summary?.with_blood_lead ?? 0}</strong></article>

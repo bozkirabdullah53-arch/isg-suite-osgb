@@ -586,15 +586,31 @@ export async function authBlobUrl(path) {
 
 export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
   await wakeApi();
-  const token = getAccessToken();
-  let response;
-  try {
-    response = await fetch(`${API_URL}${path}`, {
+  const downloadPath = String(path || "");
+  let didRefresh = false;
+  const currentToken = getAccessToken();
+  if (currentToken && accessTokenExpiresSoon() && canAttemptTokenRefresh(downloadPath, 401)) {
+    didRefresh = await tryRefreshAccessToken();
+  }
+  const sendDownload = () => {
+    const token = getAccessToken();
+    return fetch(`${API_URL}${downloadPath}`, {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
       mode: "cors",
-      credentials: fetchCredentials(path),
+      credentials: fetchCredentials(downloadPath),
       signal: requestSignal(timeoutMs),
     });
+  };
+  let response;
+  try {
+    response = await sendDownload();
+    if (!didRefresh && canAttemptTokenRefresh(downloadPath, response.status)) {
+      const refreshed = await tryRefreshAccessToken();
+      if (refreshed) {
+        didRefresh = true;
+        response = await sendDownload();
+      }
+    }
   } catch (e) {
     if (isNetworkError(e)) {
       const timedOut = isTimeoutError(e);
@@ -607,6 +623,7 @@ export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
     throw e;
   }
   if (!response.ok) {
+    if (response.status === 401 && downloadPath !== "/auth/login") notifyAuthLost();
     throw new Error(await parseError(response));
   }
   const blob = await response.blob();

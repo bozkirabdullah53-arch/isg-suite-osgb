@@ -420,6 +420,29 @@ def test_workplace_manager_gets_full_read_and_safe_downloads(client):
     for secret in secrets.values():
         assert secret in exported_text
 
+    lead_exported = client.get(
+        f"/api/v1/health-records/lead-export.xlsx?company_id={company_id}&lead_status=measured",
+        headers=headers,
+    )
+    assert lead_exported.status_code == 200, lead_exported.text
+    assert "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in (
+        lead_exported.headers.get("content-type") or ""
+    )
+    assert ".xlsx" in (lead_exported.headers.get("content-disposition") or "")
+    assert lead_exported.content[:2] == b"PK"
+    lead_workbook = load_workbook(BytesIO(lead_exported.content), data_only=True)
+    try:
+        assert lead_workbook.sheetnames == ["Kan Kurşunu"]
+        lead_values = [
+            cell.value
+            for row_cells in lead_workbook.active.iter_rows()
+            for cell in row_cells
+        ]
+        assert "Personel A" in lead_values
+        assert 44 in lead_values
+    finally:
+        lead_workbook.close()
+
     create_attempt = client.post(
         "/api/v1/health-records", headers=headers, json=_payload(company_id, employee_id)
     )

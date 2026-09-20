@@ -552,6 +552,16 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 .metric strong { font-size: 30px; color: #0f766e; }
 .panel h3 { margin-top: 0; }
 .panel li { margin: 10px 0; color: #536a74; }
+.lead-tracking-panel {
+  border-color: #b8e1dc;
+  border-left: 4px solid #0f766e;
+  background: linear-gradient(135deg, #effaf9 0%, #f8fcfc 58%, #ffffff 100%);
+  box-shadow: 0 14px 36px rgba(15, 118, 110, .09);
+}
+.lead-tracking-panel h3 { color: #123c49; }
+.lead-tracking-icon { color: #0f766e; }
+.lead-tracking-copy { color: #53717a; }
+.lead-tracking-source { color: #5e7780; }
 
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 80px 1fr; }

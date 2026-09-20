@@ -330,6 +330,11 @@ test('workplace manager sees the scoped blood-lead warning and bulk register', a
   await expect(content.getByRole('heading', {name: 'Kan kurşunu toplu listesi'})).toBeVisible();
   await expect(content.locator('tbody tr').filter({hasText: 'Mehmet Akücü'})).toHaveCount(1);
   await expect(content.getByRole('button', {name: 'Excel indir'})).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    content.getByRole('button', {name: 'Excel indir'}).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('kan-kursunu-listesi.xlsx');
   expect(state.errors).toEqual([]);
 });
 
