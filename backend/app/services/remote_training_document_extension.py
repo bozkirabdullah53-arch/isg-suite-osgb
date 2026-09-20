@@ -21,7 +21,7 @@ from app.api.deps import get_current_user
 from app.api.files import safe_upload_root
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.entities import Employee, User
+from app.models.entities import Company, Employee, User
 from app.services import remote_training as remote_service
 from app.services.object_store import get_object_store
 from app.services.upload_gateway import delete_relative, persist_relative
@@ -38,6 +38,7 @@ REMOTE_LOGO_MIME_TYPES = {
     "image/webp",
 }
 REMOTE_LOGO_MAX_BYTES = 2 * 1024 * 1024
+COMPANY_LOGO_DIRECTORY = "remote-training-company-logo"
 
 
 def _logo_relative_path(company_id: int, program_id: int, extension: str) -> str:
@@ -45,6 +46,14 @@ def _logo_relative_path(company_id: int, program_id: int, extension: str) -> str
         Path(str(int(company_id)))
         / "remote-training-logos"
         / str(int(program_id))
+        / f"logo{extension.lower()}"
+    ).as_posix()
+
+
+def _company_logo_relative_path(company_id: int, extension: str) -> str:
+    return (
+        Path(str(int(company_id)))
+        / COMPANY_LOGO_DIRECTORY
         / f"logo{extension.lower()}"
     ).as_posix()
 
@@ -79,6 +88,27 @@ def remote_program_logo_relative_path(company_id: int, program_id: int) -> str |
     return None
 
 
+def remote_company_logo_relative_path(company_id: int) -> str | None:
+    """Return the company-wide remote-training logo key when one exists."""
+    for extension in REMOTE_LOGO_EXTENSIONS:
+        relative = _company_logo_relative_path(company_id, extension)
+        local = _safe_local_logo_path(relative)
+        if local is not None and local.is_file():
+            return relative
+        if settings.upload_gateway_enabled:
+            try:
+                if get_object_store().exists(relative):
+                    return relative
+            except Exception:
+                logger.warning(
+                    "remote training company logo lookup failed: company=%s path=%s",
+                    company_id,
+                    relative,
+                    exc_info=True,
+                )
+    return None
+
+
 def _materialize_logo_for_pdf(relative_path: str | None) -> str | None:
     """Make a remote-backed logo readable by the existing PDF renderer.
 
@@ -103,6 +133,11 @@ def _materialize_logo_for_pdf(relative_path: str | None) -> str | None:
     except Exception:
         logger.exception("remote training logo could not be materialized for PDF: %s", relative_path)
         return None
+
+
+def materialize_remote_company_logo_for_pdf(company_id: int) -> str | None:
+    """Resolve the company-wide logo into the PDF renderer's safe local cache."""
+    return _materialize_logo_for_pdf(remote_company_logo_relative_path(company_id))
 
 
 def build_remote_certificate_pdf(db: Session, certificate) -> bytes:
@@ -148,9 +183,14 @@ def build_remote_certificate_pdf(db: Session, certificate) -> bytes:
         or defaults.get("instructor_qualification")
         or ""
     )
-    logo_path = _materialize_logo_for_pdf(
-        remote_program_logo_relative_path(certificate.company_id, certificate.program_id)
-    )
+    # A workplace-uploaded company logo is the visible identity on its own
+    # documents. The OSGB/program logo remains the fallback for companies that
+    # have not uploaded one themselves.
+    logo_path = materialize_remote_company_logo_for_pdf(certificate.company_id)
+    if not logo_path:
+        logo_path = _materialize_logo_for_pdf(
+            remote_program_logo_relative_path(certificate.company_id, certificate.program_id)
+        )
     training = SimpleNamespace(
         id=certificate.program_id,
         title=certificate.training_name,
@@ -223,6 +263,131 @@ def _delete_existing_logo(company_id: int, program_id: int) -> None:
         except Exception:
             logger.exception("remote training logo cleanup failed: %s", relative)
             raise HTTPException(500, "Önceki logo güvenli biçimde kaldırılamadı.")
+
+
+def _delete_existing_company_logo(company_id: int) -> None:
+    for extension in REMOTE_LOGO_EXTENSIONS:
+        relative = _company_logo_relative_path(company_id, extension)
+        local = _safe_local_logo_path(relative)
+        exists = bool(local is not None and local.is_file())
+        if settings.upload_gateway_enabled and not exists:
+            try:
+                exists = bool(get_object_store().exists(relative))
+            except Exception:
+                logger.warning(
+                    "remote company logo existence check failed: %s",
+                    relative,
+                    exc_info=True,
+                )
+        if not exists:
+            continue
+        try:
+            delete_relative(relative)
+        except Exception:
+            logger.exception("remote company logo cleanup failed: %s", relative)
+            raise HTTPException(500, "Önceki firma logosu güvenli biçimde kaldırılamadı.")
+
+
+def _assert_workplace_company_logo_manager(db: Session, user: User) -> Company:
+    """Only a company-scoped workplace account may change its own logo."""
+    remote_api._manager(user)
+    if not remote_service.is_workplace_account(user):
+        raise HTTPException(
+            403,
+            "Firma logosunu yalnızca işyeri hesabı kendi işyeri için yönetebilir.",
+        )
+    company_id = int(user.company_id or 0)
+    if company_id <= 0:
+        raise HTTPException(403, "İşyeri hesabı bir firmaya bağlı değil.")
+    remote_api.ensure_company_access(db, user, company_id)
+    company = db.get(Company, company_id)
+    if not company or not company.is_active:
+        raise HTTPException(404, "İşyeri bulunamadı veya pasif.")
+    return company
+
+
+def _company_logo_output(company: Company) -> dict[str, Any]:
+    relative = remote_company_logo_relative_path(company.id)
+    return {
+        "company_id": company.id,
+        "company_name": company.name,
+        "logo_path": relative,
+        "has_logo": bool(relative),
+    }
+
+
+def get_remote_company_logo(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    company = _assert_workplace_company_logo_manager(db, user)
+    return _company_logo_output(company)
+
+
+async def upload_remote_company_logo(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    company = _assert_workplace_company_logo_manager(db, user)
+    original = Path(file.filename or "logo.png")
+    extension = original.suffix.lower()
+    if extension not in REMOTE_LOGO_EXTENSIONS or (
+        file.content_type and file.content_type.lower() not in REMOTE_LOGO_MIME_TYPES
+    ):
+        raise HTTPException(400, "Logo için PNG, JPG, JPEG veya WebP yükleyin.")
+
+    content = await file.read(REMOTE_LOGO_MAX_BYTES + 1)
+    if len(content) > REMOTE_LOGO_MAX_BYTES:
+        raise HTTPException(413, "Logo en fazla 2 MB olabilir.")
+    assert_safe_upload(content, extension, original.name)
+
+    _delete_existing_company_logo(company.id)
+    relative = _company_logo_relative_path(company.id, extension)
+    if settings.upload_gateway_enabled:
+        persist_relative(
+            content,
+            relative_path=relative,
+            original_name=original.name,
+            max_bytes=REMOTE_LOGO_MAX_BYTES,
+        )
+    else:
+        root = safe_upload_root()
+        target = (root / relative).resolve()
+        if root not in target.parents:
+            raise HTTPException(400, "Geçersiz dosya yolu.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+
+    remote_service.audit(
+        db,
+        company_id=company.id,
+        user=user,
+        action="company_remote_training_logo_updated",
+        entity_type="company",
+        entity_id=company.id,
+        details={"logo_path": relative},
+    )
+    remote_api._commit(db, "Firma logosu kaydedilemedi.")
+    return _company_logo_output(company)
+
+
+def delete_remote_company_logo(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    company = _assert_workplace_company_logo_manager(db, user)
+    _delete_existing_company_logo(company.id)
+    remote_service.audit(
+        db,
+        company_id=company.id,
+        user=user,
+        action="company_remote_training_logo_deleted",
+        entity_type="company",
+        entity_id=company.id,
+    )
+    remote_api._commit(db, "Firma logosu kaldırılamadı.")
+    return _company_logo_output(company)
 
 
 async def upload_remote_program_logo(
@@ -324,6 +489,9 @@ def install_remote_training_document_extension() -> dict[str, Any]:
     remote_api.build_certificate_pdf = build_remote_certificate_pdf
 
     routes = (
+        ("/company-logo", get_remote_company_logo, ["GET"]),
+        ("/company-logo", upload_remote_company_logo, ["POST"]),
+        ("/company-logo", delete_remote_company_logo, ["DELETE"]),
         ("/programs/{program_id}/logo", upload_remote_program_logo, ["POST"]),
         ("/programs/{program_id}/logo", delete_remote_program_logo, ["DELETE"]),
     )

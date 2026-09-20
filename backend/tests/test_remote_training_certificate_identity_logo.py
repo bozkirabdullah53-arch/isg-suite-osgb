@@ -113,6 +113,61 @@ def test_remote_certificate_uses_current_employee_identity_and_program_logo(tmp_
         assert captured["training"].logo_path == logo_rel.as_posix()
 
 
+def test_remote_certificate_uses_workplace_company_logo_when_program_logo_is_missing(tmp_path, monkeypatch):
+    from app.core.config import settings
+    from app.models.entities import Company, Employee, OsgbOrganization
+    from app.models.remote_training import RemoteTrainingProgram
+    from app.services import remote_training as service
+    from app.services import training_pdfs
+    from app.services.remote_training_document_extension import (
+        install_remote_training_document_extension,
+    )
+
+    install_remote_training_document_extension()
+    engine = _engine()
+    with Session(engine) as db:
+        osgb = OsgbOrganization(name="Firma Logo Test OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Firma Logo Test", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        employee = Employee(
+            company_id=company.id,
+            full_name="Ayşe Firma",
+            is_active=True,
+        )
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Firma Logolu Eğitim",
+            status="published",
+        )
+        db.add_all([employee, program])
+        db.flush()
+
+        upload_root = tmp_path / "uploads"
+        logo_rel = Path(str(company.id)) / "remote-training-company-logo" / "logo.png"
+        logo_abs = upload_root / logo_rel
+        logo_abs.parent.mkdir(parents=True, exist_ok=True)
+        logo_abs.write_bytes(b"company-logo")
+        monkeypatch.setattr(settings, "upload_dir", str(upload_root))
+        monkeypatch.setattr(service, "_remote_document_defaults", lambda _db, _company_id: {})
+
+        captured = {}
+
+        def fake_build_certificates_pdf(**kwargs):
+            captured.update(kwargs)
+            return b"%PDF-company-logo-test"
+
+        monkeypatch.setattr(training_pdfs, "build_certificates_pdf", fake_build_certificates_pdf)
+
+        result = service.build_certificate_pdf(db, _certificate_for(program, company, employee))
+
+        assert result == b"%PDF-company-logo-test"
+        assert captured["training"].logo_path == logo_rel.as_posix()
+
+
 def test_remote_program_logo_can_be_uploaded_replaced_and_removed(tmp_path, monkeypatch):
     from app.api.deps import get_current_user
     from app.core.config import settings
@@ -199,5 +254,89 @@ def test_remote_program_logo_can_be_uploaded_replaced_and_removed(tmp_path, monk
         assert program_output.status_code == 200, program_output.text
         assert program_output.json()["logo_path"] is None
         assert program_output.json()["company_id"] == company_id
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_workplace_company_logo_can_be_uploaded_replaced_and_removed(tmp_path, monkeypatch):
+    from app.api.deps import get_current_user
+    from app.core.config import settings
+    from app.core.database import get_db
+    from app.main import app
+    from app.models.entities import Company, OsgbOrganization, User, UserRole
+
+    engine = _engine()
+    with Session(engine) as db:
+        osgb = OsgbOrganization(name="Workplace Logo OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Workplace Logo Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        workplace = User(
+            email="workplace-logo@example.com",
+            full_name="Workplace Logo User",
+            hashed_password="x",
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=company.id,
+            is_active=True,
+        )
+        db.add(workplace)
+        db.commit()
+        workplace_id = workplace.id
+        company_id = company.id
+
+    upload_root = tmp_path / "uploads"
+    monkeypatch.setattr(settings, "upload_dir", str(upload_root))
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", False)
+    monkeypatch.setattr(settings, "upload_gateway_enabled", False)
+
+    def override_db():
+        with Session(engine) as session:
+            yield session
+
+    def override_user():
+        with Session(engine) as session:
+            return session.get(User, workplace_id)
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = override_user
+    client = TestClient(app)
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlKAAAAAASUVORK5CYII="
+    )
+
+    try:
+        initial = client.get("/api/v1/trainings/remote/company-logo")
+        assert initial.status_code == 200, initial.text
+        assert initial.json() == {
+            "company_id": company_id,
+            "company_name": "Workplace Logo Firma",
+            "logo_path": None,
+            "has_logo": False,
+        }
+
+        uploaded = client.post(
+            "/api/v1/trainings/remote/company-logo",
+            files={"file": ("firma-logo.png", png, "image/png")},
+        )
+        assert uploaded.status_code == 200, uploaded.text
+        first_rel = uploaded.json()["logo_path"]
+        assert first_rel == f"{company_id}/remote-training-company-logo/logo.png"
+        assert (upload_root / first_rel).is_file()
+
+        replaced = client.post(
+            "/api/v1/trainings/remote/company-logo",
+            files={"file": ("firma-logo-yeni.png", png, "image/png")},
+        )
+        assert replaced.status_code == 200, replaced.text
+        assert replaced.json()["logo_path"] == first_rel
+
+        removed = client.delete("/api/v1/trainings/remote/company-logo")
+        assert removed.status_code == 200, removed.text
+        assert removed.json()["logo_path"] is None
+        assert not (upload_root / first_rel).exists()
     finally:
         app.dependency_overrides.clear()

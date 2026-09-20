@@ -8,14 +8,17 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
   const [programs, setPrograms] = useState([]);
   const [loadedCompanyId, setLoadedCompanyId] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [companyLogo, setCompanyLogo] = useState(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const requestSerial = useRef(0);
 
-  const canManage = LOGO_MANAGER_ROLES.has(user?.role) && !isWorkplaceAccountUser(user);
-  const parsedCompanyId = Number(companyId);
+  const workplaceAccount = isWorkplaceAccountUser(user);
+  const canManage = LOGO_MANAGER_ROLES.has(user?.role) && !workplaceAccount;
+  const workplaceCompanyId = workplaceAccount ? String(user.company_id) : '';
+  const parsedCompanyId = Number(workplaceAccount ? workplaceCompanyId : companyId);
   const scopedCompanyId = Number.isSafeInteger(parsedCompanyId) && parsedCompanyId > 0
     ? String(parsedCompanyId)
     : '';
@@ -57,6 +60,18 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
   }
 
   useEffect(() => {
+    if (!workplaceAccount) {
+      setCompanyLogo(null);
+      return;
+    }
+    setError('');
+    setMessage('');
+    api('/trainings/remote/company-logo')
+      .then((data) => setCompanyLogo(data || null))
+      .catch((err) => setError(err.message || 'Firma logosu bilgisi alınamadı.'));
+  }, [workplaceAccount, workplaceCompanyId]);
+
+  useEffect(() => {
     setError('');
     setMessage('');
     if (!canManage || !scopedCompanyId) {
@@ -69,6 +84,40 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
     }
     refreshPrograms('', scopedCompanyId).catch((err) => setError(err.message || 'Uzaktan eğitim programları alınamadı.'));
   }, [canManage, scopedCompanyId]);
+
+  async function refreshCompanyLogo() {
+    const data = await api('/trainings/remote/company-logo');
+    setCompanyLogo(data || null);
+    return data;
+  }
+
+  async function uploadCompanyLogo(file) {
+    if (!file || !workplaceAccount) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await uploadFile('/trainings/remote/company-logo', file);
+      await refreshCompanyLogo();
+      setMessage('Firma logosu kaydedildi. Bundan sonra uzaktan eğitim PDF belgeleri ve rapor çıktıları bu logo ile hazırlanacak.');
+    } catch (err) {
+      setError(err.message || 'Firma logosu yüklenemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeCompanyLogo() {
+    if (!companyLogo?.has_logo || busy) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await api('/trainings/remote/company-logo', {method: 'DELETE'});
+      await refreshCompanyLogo();
+      setMessage('Firma logosu kaldırıldı. PDF belgeleri program logosu varsa onu, yoksa logosuz şablonu kullanacak.');
+    } catch (err) {
+      setError(err.message || 'Firma logosu kaldırılamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function uploadLogo(file) {
     if (!file || !selectedProgram) return;
@@ -100,6 +149,80 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (workplaceAccount) {
+    return (
+      <section style={{
+        marginBottom: 16,
+        padding: 16,
+        border: '1px solid #c8e4df',
+        borderTop: '4px solid #0f766e',
+        borderRadius: 14,
+        background: 'linear-gradient(135deg, #ffffff 0%, #f4fbfa 100%)',
+        boxShadow: '0 3px 12px rgba(15, 35, 55, .05)',
+      }} aria-label="Firma belge logosu">
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
+          <div>
+            <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>FİRMA BELGE KİMLİĞİ</div>
+            <h3 style={{margin: '4px 0'}}>Kendi firma logonuzu çıktılara ekleyin</h3>
+            <p style={{margin: 0, color: '#496174', fontSize: 13, lineHeight: 1.55}}>
+              {companyLogo?.company_name || 'Firmanız'} adına yüklenecek logo; uzaktan eğitim katılım belgelerinde, PDF raporunda ve Excel çıktısında kullanılır.
+            </p>
+          </div>
+          <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+            <span style={{
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: companyLogo?.has_logo ? '#dcfce7' : '#f1f5f9',
+              color: companyLogo?.has_logo ? '#166534' : '#64748b',
+              fontWeight: 800,
+              fontSize: 12,
+            }}>
+              {companyLogo?.has_logo ? 'Logo aktif' : 'Logo yüklenmedi'}
+            </span>
+            <label style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 36,
+              padding: '0 12px',
+              border: '1px solid #0f766e',
+              borderRadius: 8,
+              background: busy ? '#b8d8d5' : '#0f766e',
+              color: '#fff',
+              fontWeight: 800,
+              cursor: busy ? 'not-allowed' : 'pointer',
+            }}>
+              {companyLogo?.has_logo ? 'Logoyu değiştir' : 'Firma logosu yükle'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={busy}
+                style={{display: 'none'}}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file) void uploadCompanyLogo(file);
+                }}
+              />
+            </label>
+            {companyLogo?.has_logo && (
+              <button type="button" onClick={removeCompanyLogo} disabled={busy} style={{color: '#b42318'}}>
+                Logoyu kaldır
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{marginTop: 10, padding: '9px 11px', borderRadius: 9, background: '#eefaf7', color: '#17643a', fontSize: 12}}>
+          {companyLogo?.has_logo
+            ? 'Firma logonuz aktif. Yeni belge ve rapor çıktılarında firmanızın logosu kullanılacak.'
+            : 'Logo eklediğinizde yeni alınacak uzaktan eğitim belgeleri ve rapor çıktıları firmanızın kurumsal kimliğiyle hazırlanır.'}
+        </div>
+        <div style={{marginTop: 6, color: '#64748b', fontSize: 11}}>PNG, JPG/JPEG veya WebP · en fazla 2 MB</div>
+        {error && <div role="alert" style={{marginTop: 10, color: '#b42318', fontWeight: 700}}>{error}</div>}
+        {message && <div role="status" aria-live="polite" style={{marginTop: 10, color: '#087443', fontWeight: 700}}>{message}</div>}
+      </section>
+    );
   }
 
   if (!canManage) return null;

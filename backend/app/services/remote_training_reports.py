@@ -8,15 +8,20 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 from openpyxl import Workbook
+from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from PIL import Image as PilImage
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import Image as ReportImage
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from app.core.config import settings
 
 
 STATUS_LABELS = {
@@ -65,6 +70,47 @@ def _status_label(value: Any) -> str:
     return STATUS_LABELS.get(str(value or "").strip(), _text(value))
 
 
+def _resolve_logo_path(logo_path: str | None) -> Path | None:
+    """Resolve a known upload-relative logo without allowing path escape."""
+    raw = str(logo_path or "").strip()
+    if not raw:
+        return None
+    root = Path(settings.upload_dir).resolve()
+    candidate = Path(raw)
+    path = candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
+    if root not in path.parents or not path.is_file():
+        return None
+    return path
+
+
+def _validated_logo_path(logo_path: str | None) -> Path | None:
+    path = _resolve_logo_path(logo_path)
+    if not path:
+        return None
+    try:
+        with PilImage.open(path) as image:
+            image.verify()
+    except Exception:
+        return None
+    return path
+
+
+def _add_excel_logo(ws, logo_path: str | None) -> bool:
+    """Place a small company logo in the report header when available."""
+    path = _validated_logo_path(logo_path)
+    if not path:
+        return False
+    try:
+        logo = ExcelImage(str(path))
+        logo.width = 105
+        logo.height = 42
+        ws.add_image(logo, "J1")
+        ws.row_dimensions[1].height = 36
+        return True
+    except Exception:
+        return False
+
+
 def _report_rows(rows: list[dict[str, Any]]) -> list[list[str]]:
     result: list[list[str]] = []
     for row in rows:
@@ -95,6 +141,7 @@ def build_remote_training_status_xlsx(
     company_name: str,
     branch_name: str | None = None,
     generated_at: datetime | None = None,
+    logo_path: str | None = None,
 ) -> bytes:
     """Build a company-scoped participation/status register."""
     generated_at = generated_at or datetime.utcnow()
@@ -125,7 +172,8 @@ def build_remote_training_status_xlsx(
     for row in _report_rows(rows):
         ws.append(row)
 
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    has_logo = _add_excel_logo(ws, logo_path)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers) - (1 if has_logo else 0))
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=1)
     ws.merge_cells(start_row=2, start_column=2, end_row=2, end_column=len(headers))
     ws["A1"].font = Font(name="Calibri", size=14, bold=True, color="123B59")
@@ -173,6 +221,7 @@ def build_remote_training_status_pdf(
     company_name: str,
     branch_name: str | None = None,
     generated_at: datetime | None = None,
+    logo_path: str | None = None,
 ) -> bytes:
     """Build a compact printable company participation/status register."""
     generated_at = generated_at or datetime.utcnow()
@@ -220,17 +269,40 @@ def build_remote_training_status_pdf(
     report_title = f"Eğitim Katılım ve Belgelendirme Raporu — {_text(company_name)}"
     if branch_name:
         report_title += f" / {branch_name}"
-    story = [
-        Paragraph(escape(report_title), title_style),
-        Paragraph(
-            escape(
-                f"Kayıt sayısı: {len(rows)} · Oluşturulma: {generated_at.strftime('%d.%m.%Y %H:%M')} UTC · "
-                "Başarılı, başarısız ve devam eden çalışan eğitim kayıtları"
-            ),
-            meta_style,
+    report_meta = Paragraph(
+        escape(
+            f"Kayıt sayısı: {len(rows)} · Oluşturulma: {generated_at.strftime('%d.%m.%Y %H:%M')} UTC · "
+            "Başarılı, başarısız ve devam eden çalışan eğitim kayıtları"
         ),
-        Spacer(1, 2 * mm),
-    ]
+        meta_style,
+    )
+    logo_file = _validated_logo_path(logo_path)
+    if logo_file:
+        logo = ReportImage(str(logo_file), width=34 * mm, height=18 * mm, kind="proportional")
+        logo.hAlign = "LEFT"
+        story = [
+            Table(
+                [[
+                    logo,
+                    [Paragraph(escape(report_title), title_style), report_meta],
+                ]],
+                colWidths=[40 * mm, 233 * mm],
+                style=TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]),
+            ),
+            Spacer(1, 2 * mm),
+        ]
+    else:
+        story = [
+            Paragraph(escape(report_title), title_style),
+            report_meta,
+            Spacer(1, 2 * mm),
+        ]
     headers = ["Firma", "İşyeri / Şube", "Çalışan", "Eğitim", "Durum", "Video", "Sınav", "Belge"]
     table_data = [[Paragraph(escape(value), header_style) for value in headers]]
     for row in rows:
