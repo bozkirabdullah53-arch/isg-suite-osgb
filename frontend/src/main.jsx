@@ -350,7 +350,7 @@ function EisaQuestionBankPage({user}){
 
 function Login({done,onApply,onSpecialistApply}){
   const resetFromUrl=useMemo(()=>{
-    try{return new URLSearchParams(window.location.search).get('sifre-sifirla')}catch{return null}
+    try{const h=window.location.hash.startsWith('#')?window.location.hash.slice(1):window.location.hash;return new URLSearchParams(h).get('sifre-sifirla')||new URLSearchParams(window.location.search).get('sifre-sifirla')}catch{return null}
   },[]);
   const[mode,setMode]=useState(resetFromUrl?'reset':'login');
   const[email,setEmail]=useState('');
@@ -462,7 +462,7 @@ function Login({done,onApply,onSpecialistApply}){
       const r=await api('/auth/reset-password',{method:'POST',body:JSON.stringify({token:resetToken,new_password:newPassword}),_retries:0});
       setMsg(r.message||'Şifre güncellendi.');
       setMode('login');
-      try{const u=new URL(window.location.href);u.searchParams.delete('sifre-sifirla');window.history.replaceState({},'',u.pathname)}catch{}
+      try{const u=new URL(window.location.href);u.searchParams.delete('sifre-sifirla');u.hash='';window.history.replaceState({},'',u.pathname+u.search)}catch{}
     }catch(x){setErr(x.message)}
     finally{setBusy(false)}
   }

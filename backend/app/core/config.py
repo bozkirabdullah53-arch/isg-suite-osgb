@@ -8,6 +8,17 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "sqlite:///./isgsuite.db"
     secret_key: str = "change-me-in-production-at-least-32-characters!"  # Field(min_length=32)
+    # ISG-005: ayrık imza/şifreleme anahtarları. None = secret_key fallback —
+    # mevcut token'lar ve MFA gizlileri geçerliliğini korur; tanımlanınca yeni
+    # verim yeni anahtarla olur (JWT'de çift anahtarlı doğrulama mevcuttur).
+    jwt_secret: str | None = None
+    mfa_enc_key: str | None = None
+    # ISG-001: virgülle ayrılmış ek CORS origin'leri (kod yayınına gerek kalmadan
+    # Render dashboard'dan eklenebilir; yalnızca https/http origin kabul edilir).
+    extra_cors_origins: str = ""
+    # ISG-009: proxy header'ları strip etmeyen (çıplak) kurulumlarda false yapın;
+    # yalnızca socket peer adresi kullanılır. Render/Cloudflare için true kalır.
+    trust_proxy_headers: bool = True
     access_token_expire_minutes: int = 60
     # P1-01: refresh cookie açıkken kısa access (dakika)
     access_token_expire_minutes_short: int = 15

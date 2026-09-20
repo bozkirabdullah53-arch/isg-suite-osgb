@@ -18,7 +18,7 @@ from app.core.auth_cookies import (
 )
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import ALGORITHM, create_access_token, create_refresh_token, get_password_hash, verify_password
+from app.core.security import ALGORITHM, create_access_token, create_refresh_token, decode_access_token, get_password_hash, verify_password
 from app.models.entities import Company, User, UserRole
 from app.schemas.auth import (
     CurrentUserResponse,
@@ -401,7 +401,7 @@ def refresh_access_token(request: Request, response: Response, db: Session = Dep
     if not raw:
         raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
     try:
-        payload = jwt.decode(raw, settings.secret_key, algorithms=[ALGORITHM])
+        payload = decode_access_token(raw)
         if (payload.get("purpose") or "") != "refresh":
             raise HTTPException(401, "Oturum yenilenemedi.")
         user_id = int(payload.get("sub"))
@@ -451,7 +451,7 @@ def logout(
     """Aktif access token'ı denylist'e yazar; istemci oturum belirtecini temizlemeli."""
 
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        payload = decode_access_token(token)
         jti = payload.get("jti")
         exp = payload.get("exp")
         if jti and exp:
@@ -474,7 +474,7 @@ def logout(
     raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
     if raw:
         try:
-            payload = jwt.decode(raw, settings.secret_key, algorithms=[ALGORITHM])
+            payload = decode_access_token(raw)
             jti = payload.get("jti")
             exp = payload.get("exp")
             if jti and exp:
@@ -524,6 +524,10 @@ def logout_all_sessions(
 @router.post("/forgot-password")
 def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     """Her zaman nötr yanıt — kullanıcı varlığını sızdırma."""
+    # ISG-013: hesap varlığına göre değişen yanıt süresini düzelt (sabit gecikme).
+    import time
+
+    time.sleep(0.35)
     email = str(payload.email).strip().lower()
     user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and user.is_active:

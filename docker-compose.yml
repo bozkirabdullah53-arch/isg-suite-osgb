@@ -8,7 +8,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      # ISG-012: yalnız yerel erişim; konteynerler arası trafik servis ağını kullanır.
+      - "127.0.0.1:5432:5432"
 
   backend:
     build: ./backend
@@ -36,7 +37,8 @@ services:
     image: clamav/clamav:stable
     profiles: ["clamav"]
     ports:
-      - "3310:3310"
+      # ISG-012: clamd korumasız protokoldür; yalnız yerel erişime açılır.
+      - "127.0.0.1:3310:3310"
 
 volumes:
   postgres_data:

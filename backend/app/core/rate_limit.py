@@ -34,6 +34,12 @@ _PROXY_TRUST_DEPTH = int(getattr(settings, "proxy_trust_depth", 1))
 
 
 def _client_ip(request) -> str:
+    # ISG-009: TRUST_PROXY_HEADERS=false ise proxy header'larına hiç bakılmaz;
+    # yalnızca gerçek socket peer kullanılır (XFF spoof baypası kapanır).
+    if not bool(getattr(settings, "trust_proxy_headers", True)):
+        if request.client and request.client.host:
+            return request.client.host
+        return "unknown"
     # Güvenilir proxy arkasında çalışıyoruz: X-Forwarded-For zincirinin en
     # sağındaki (proxy'ye en yakın) girişi al. Sol taraftaki girişler istemci
     # tarafından spoof edilebilir ve yok sayılır.
@@ -82,6 +88,11 @@ class MemoryRateLimitStore:
     async def hit(self, key: str, *, limit: int, window_sec: int = 60) -> tuple[bool, int]:
         now = monotonic()
         self._prune(now)
+        # ISG-009: benzersiz path'lerle sözlük şişirme (bellek DoS) denemesine
+        # karşı sert üst sınır — en eski yarısını düşür, servis ayakta kalır.
+        if len(self.hits) > 100_000:
+            for old_key in list(self.hits.keys())[:50_000]:
+                self.hits.pop(old_key, None)
         window = self.hits[key]
         while window and now - window[0] > window_sec:
             window.popleft()

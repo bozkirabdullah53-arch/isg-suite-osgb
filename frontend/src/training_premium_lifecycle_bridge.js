@@ -303,6 +303,7 @@ async function openResultManager(trainingId, sourceButton) {
     const context = await resultContext(trainingId);
     const examRequired = context.preflight?.exam_required !== false;
     const passingScore = context.training.passing_score;
+    const passingScoreText = passingScore == null || !Number.isFinite(Number(passingScore)) ? 'tanımlı değil' : String(Number(passingScore));
     const audited = new Map((context.preflight?.participants || []).map((row) => [Number(row.participant_id), row]));
     const rows = (context.training.participants || []).map((participant) => {
       const employee = context.employees.get(Number(participant.employee_id));
@@ -322,7 +323,7 @@ async function openResultManager(trainingId, sourceButton) {
         <header class="training-premium-results-modal__head">
           <div>
             <h2 id="premiumResultsTitle">Katılım ve Sonuçları Yönet</h2>
-            <p>Kayıt #${context.training.id} · ${escapeHtml(context.training.title)} · Geçme puanı: ${passingScore ?? 'tanımlı değil'}</p>
+            <p>Kayıt #${escapeHtml(String(context.training.id ?? ''))} · ${escapeHtml(context.training.title)} · Geçme puanı: ${passingScoreText}</p>
           </div>
           <button type="button" class="training-premium-results-modal__close" aria-label="Kapat">×</button>
         </header>
@@ -336,7 +337,7 @@ async function openResultManager(trainingId, sourceButton) {
               <thead><tr><th>Personel</th><th>Katıldı</th><th>${examRequired ? 'Puan' : 'Değerlendirme'}</th><th>Durum</th></tr></thead>
               <tbody>
                 ${rows.map((row) => `
-                  <tr data-participant-id="${row.id}">
+                  <tr data-participant-id="${escapeHtml(String(row.id ?? ''))}">
                     <td><strong>${escapeHtml(row.fullName)}</strong></td>
                     <td><input data-attended type="checkbox" ${row.attended ? 'checked' : ''}></td>
                     <td>${examRequired

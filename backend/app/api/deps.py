@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rls import apply_rls_user
-from app.core.security import ALGORITHM
+from app.core.security import ALGORITHM, decode_access_token
 from app.core.tenant_context import bind_user_tenant
 from app.models.entities import User, UserRole
 from app.services.token_revoke import is_jti_revoked
@@ -23,7 +23,7 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        payload = decode_access_token(token)
         user_id = int(payload.get("sub"))
         purpose = payload.get("purpose") or "access"
         jti = payload.get("jti")

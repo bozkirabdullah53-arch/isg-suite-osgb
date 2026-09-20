@@ -116,6 +116,7 @@ function renderModal(context, panel) {
   const rows = participantRows(context);
   const examRequired = context.preflight?.exam_required !== false;
   const passingScore = context.training.passing_score;
+  const passingScoreText = passingScore == null || !Number.isFinite(Number(passingScore)) ? 'tanımlı değil' : String(Number(passingScore));
   const blockers = context.preflight?.training_blockers || [];
   const warnings = context.preflight?.warnings || [];
   const allAttended = rows.length > 0 && rows.every((row) => row.attended);
@@ -128,15 +129,15 @@ function renderModal(context, panel) {
       <div class="training-completion-modal__header">
         <div>
           <h2 id="trainingCompletionTitle">Katılım ve sınav sonuçları</h2>
-          <p>Eğitim #${context.training.id} · ${escapeHtml(context.training.title)} · Geçme puanı: ${passingScore ?? 'tanımlı değil'}</p>
+          <p>Eğitim #${escapeHtml(String(context.training.id ?? ''))} · ${escapeHtml(context.training.title)} · Geçme puanı: ${passingScoreText}</p>
         </div>
         <button type="button" class="training-completion-modal__close" aria-label="Kapat">×</button>
       </div>
       <div class="training-completion-modal__body">
         <div class="training-completion-summary">
-          <div><strong>${context.preflight?.participant_total || rows.length}</strong><span>Toplam katılımcı</span></div>
-          <div><strong>${context.preflight?.eligible_count || 0}</strong><span>Belgeye hak kazanan</span></div>
-          <div><strong>${context.preflight?.ineligible_count || 0}</strong><span>Eksik / başarısız</span></div>
+          <div><strong>${Number(context.preflight?.participant_total) || rows.length}</strong><span>Toplam katılımcı</span></div>
+          <div><strong>${Number(context.preflight?.eligible_count) || 0}</strong><span>Belgeye hak kazanan</span></div>
+          <div><strong>${Number(context.preflight?.ineligible_count) || 0}</strong><span>Eksik / başarısız</span></div>
         </div>
         ${blockers.length ? `<div class="training-completion-alert">${blockers.map(escapeHtml).join('<br>')}</div>` : ''}
         ${warnings.length ? `<div class="training-completion-alert">${warnings.map(escapeHtml).join('<br>')}</div>` : ''}
@@ -146,7 +147,7 @@ function renderModal(context, panel) {
             <thead><tr><th>Personel</th><th><label class="training-result-select-all"><input data-select-all-attendance type="checkbox" ${allAttended ? 'checked' : ''} aria-label="Tümünü seç"><span>Tümünü seç</span></label></th><th>${examRequired ? 'Puan' : 'Değerlendirme'}</th><th>Durum</th></tr></thead>
             <tbody>
               ${rows.map((row) => `
-                <tr data-participant-id="${row.id}">
+                <tr data-participant-id="${escapeHtml(String(row.id ?? ''))}">
                   <td><strong>${escapeHtml(row.full_name)}</strong>${row.department ? `<br><small>${escapeHtml(row.department)}</small>` : ''}</td>
                   <td><input class="training-result-attended" type="checkbox" ${row.attended ? 'checked' : ''}></td>
                   <td>${examRequired ? `<input class="training-result-score" type="number" min="0" max="100" step="1" value="${escapeHtml(row.score)}" ${row.attended ? '' : 'disabled'}>` : 'Katılım esaslı'}</td>

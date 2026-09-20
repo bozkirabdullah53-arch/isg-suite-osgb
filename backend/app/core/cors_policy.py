@@ -10,13 +10,15 @@ from urllib.parse import urlsplit
 
 
 PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod", "live"})
+# ISG-001: Yalnızca mülkiyeti kanıtlı prodüksiyon origin'leri. Boşta kapılabilir
+# Render alt alan adları (ör. *.onrender.com) bilinçli olarak listelenmez;
+# gereken origin ENV EXTRA_CORS_ORIGINS ile eklenir.
 APPROVED_PRODUCTION_ORIGINS = (
     "https://isg-suite-web-1u9t.onrender.com",
     "https://www.isgsuite.tr",
     "https://isgsuite.tr",
     "https://www.isgsuite.com.tr",
     "https://isgsuite.com.tr",
-    "https://idea-isg-web.onrender.com",
 )
 LOCAL_DEVELOPMENT_ORIGINS = (
     "http://localhost:5173",
@@ -32,10 +34,15 @@ def build_cors_origins(
     *,
     environment: str | None,
     frontend_origin: str | None,
+    extra_origins: list[str] | None = None,
 ) -> list[str]:
     """Return an ordered, deduplicated origin allowlist for the environment."""
     production = is_production_environment(environment)
-    origins: list[str | None] = [frontend_origin, *APPROVED_PRODUCTION_ORIGINS]
+    origins: list[str | None] = [
+        frontend_origin,
+        *APPROVED_PRODUCTION_ORIGINS,
+        *(extra_origins or []),
+    ]
     if not production:
         origins.extend(LOCAL_DEVELOPMENT_ORIGINS)
 

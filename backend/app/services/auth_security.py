@@ -14,7 +14,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import ALGORITHM, get_password_hash, verify_password
+from app.core.security import ALGORITHM, get_password_hash, jwt_signing_key, verify_password
 from app.models.entities import PasswordResetToken, User, UserRole
 from app.services.audit import add_audit_log
 from app.services.mailer import send_email, smtp_configured
@@ -38,12 +38,21 @@ def _utcnow() -> datetime:
 
 
 def _fernet() -> Fernet:
-    digest = hashlib.sha256(settings.secret_key.encode("utf-8")).digest()
+    return _fernet_with(_mfa_encryption_key())
+
+
+def _mfa_encryption_key() -> str:
+    """ISG-005: MFA_ENC_KEY tanımlıysa onunla, değilse mevcut davranışla ş ifreler."""
+    return (getattr(settings, "mfa_enc_key", None) or settings.secret_key).strip() or settings.secret_key
+
+
+def _fernet_with(key: str) -> Fernet:
+    digest = hashlib.sha256(key.encode("utf-8")).digest()
     # url-safe 32-byte key
     import base64
 
-    key = base64.urlsafe_b64encode(digest)
-    return Fernet(key)
+    fernet_key = base64.urlsafe_b64encode(digest)
+    return Fernet(fernet_key)
 
 
 def encrypt_secret(plain: str) -> str:
@@ -51,10 +60,21 @@ def encrypt_secret(plain: str) -> str:
 
 
 def decrypt_secret(token: str) -> str | None:
-    try:
-        return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
-    except Exception:
-        return None
+    """ISG-005: önce aktif anahtarla dene; olmazsa eski (SECRET_KEY) anahtarla —
+    böylece MFA_ENC_KEY sonradan tanımlansa da mevcut authenticator'lar bozulmaz."""
+    candidates: list[str] = []
+    for key in (
+        (getattr(settings, "mfa_enc_key", None) or "").strip(),
+        (settings.secret_key or "").strip(),
+    ):
+        if key and key not in candidates:
+            candidates.append(key)
+    for key in candidates:
+        try:
+            return _fernet_with(key).decrypt(token.encode("utf-8")).decode("utf-8")
+        except Exception:
+            continue
+    return None
 
 
 def create_purpose_token(
@@ -74,11 +94,13 @@ def create_purpose_token(
         "jti": uuid4().hex,
         "tv": int(token_version or 0),
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+    return jwt.encode(payload, jwt_signing_key(), algorithm=ALGORITHM)
 
 
 def decode_token_payload(token: str) -> dict[str, Any]:
-    return jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+    from app.core.security import decode_access_token
+
+    return decode_access_token(token)
 
 
 def role_requires_mfa(role: UserRole | str) -> bool:
@@ -230,7 +252,8 @@ def send_reset_email(
     db: Session | None = None,
     user: User | None = None,
 ) -> bool:
-    link = f"{settings.frontend_origin.rstrip('/')}/?sifre-sifirla={raw_token}"
+    # ISG-006: token fragment'te taşınır — sunucu/reverse-proxy loglarına düşmez.
+    link = f"{settings.frontend_origin.rstrip('/')}/#sifre-sifirla={raw_token}"
     result = send_email(
         to=to_email,
         subject="İSG Suite — Şifre sıfırlama",

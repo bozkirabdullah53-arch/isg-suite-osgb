@@ -114,6 +114,8 @@ from app.services.workplace_status_reports import (
     build_workplace_status_pdf,
 )
 from app.services.site_verify import (
+    QR_PREFIX,
+    QR_TEMP_PREFIX,
     build_ephemeral_qr_payload,
     build_qr_payload,
     create_ephemeral_session,
@@ -414,7 +416,13 @@ def list_companies(
 
 @router.get("/qr-render")
 def render_company_qr(data: str = Query(..., min_length=1, max_length=2048)):
-    """QR görselini uygulama içinde üret; üçüncü taraf QR servisine bağımlılığı kaldır."""
+    """QR görselini uygulama içinde üret; üçüncü taraf QR servisine bağımlılığı kaldır.
+
+    ISG-008: yalnızca işyeri QR şema önekleri kabul edilir; anonim oltalama
+    (QR-phishing) amaçlı rastgele içerik üretimine kapalıdır.
+    """
+    if not data.startswith((QR_PREFIX, QR_TEMP_PREFIX)):
+        raise HTTPException(status_code=400, detail="Geçersiz QR içeriği.")
     try:
         image = render_qr_png(data)
     except ValueError as exc:

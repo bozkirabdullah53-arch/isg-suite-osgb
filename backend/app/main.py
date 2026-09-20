@@ -186,9 +186,10 @@ app = FastAPI(
     title=settings.app_name,
     version=APP_VERSION,
     lifespan=lifespan,
-    docs_url="/api/v1/docs",
-    redoc_url="/api/v1/redoc",
-    openapi_url="/api/v1/openapi.json",
+    # ISG-004: üretimde API şeması ve interaktif dokümantasyon kapatık.
+    docs_url=None if _is_prod else "/api/v1/docs",
+    redoc_url=None if _is_prod else "/api/v1/redoc",
+    openapi_url=None if _is_prod else "/api/v1/openapi.json",
 )
 
 from app.core.validation_tr import register_turkish_validation
@@ -201,7 +202,12 @@ app.add_middleware(TenantContextMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
 app.add_middleware(PremiumTrainingLifecycleMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=settings.rate_limit_rpm, auth_requests_per_minute=settings.rate_limit_auth_rpm)
-_cors_origins = build_cors_origins(environment=settings.environment, frontend_origin=settings.frontend_origin)
+_cors_origins = build_cors_origins(
+    environment=settings.environment,
+    frontend_origin=settings.frontend_origin,
+    # ISG-001: ek origin'ler kod yayınına gerek kalmadan EXTRA_CORS_ORIGINS ile verilir.
+    extra_origins=[o.strip() for o in (settings.extra_cors_origins or "").split(",") if o.strip()],
+)
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 for router in (
     individual_specialist_approval.auth_router,

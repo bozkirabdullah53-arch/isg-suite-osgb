@@ -369,7 +369,9 @@ async function preview(video) {
     const out = await api(`/trainings/remote/catalog/videos/${video.id}/playback`);
     const wrapper = document.createElement('div');
     wrapper.className = 'rtc-preview';
-    wrapper.innerHTML = `<video controls autoplay src="${esc(abs(out.url))}"></video>`;
+    const rawUrl = abs(out.url);
+    const safeUrl = /^https?:/i.test(rawUrl) ? rawUrl : '';
+    wrapper.innerHTML = `<video controls autoplay src="${esc(safeUrl)}"></video>`;
     pop(video.title || 'Önizleme', wrapper, 'rtc-preview');
   } catch (error) {
     toast(error?.message || 'Önizleme açılamadı.', true);
@@ -428,13 +430,13 @@ function html(current) {
   const sectionHtml = sections.map((section, sectionIndex) => {
     const videos = section.videos || [];
     const videoHtml = videos.length
-      ? videos.map((video) => `<div class="rtc-v" data-v="${video.id}"><div><strong>${esc(video.title)}</strong><span>${esc(L[video.status] || video.status)} · ${video.duration_seconds ? `${Math.round(video.duration_seconds)} sn` : 'Süre bekleniyor'} · rev. ${Number(video.revision_no) || 1}</span></div><div class="rtc-va">${videoButtons(video, disabled)}</div></div>`).join('')
+      ? videos.map((video) => `<div class="rtc-v" data-v="${esc(String(video.id ?? ''))}"><div><strong>${esc(video.title)}</strong><span>${esc(L[video.status] || video.status)} · ${video.duration_seconds ? `${Math.round(video.duration_seconds)} sn` : 'Süre bekleniyor'} · rev. ${Number(video.revision_no) || 1}</span></div><div class="rtc-va">${videoButtons(video, disabled)}</div></div>`).join('')
       : '<div class="rtc-empty">Bu bölümde henüz video yok.</div>';
     const position = `${sectionIndex + 1}/${sections.length}`;
     return `<article class="rtc-sec" data-section-id="${Number(section.id)}" data-code="${esc(section.code)}"><header class="rtc-sec-head"><div class="rtc-sec-id"><button type="button" class="rtc-grab" title="Tut ve taşı" aria-label="${esc(section.title)} bölümünü taşı, sıra ${position}" aria-describedby="rtc-reorder-help" ${disabled}>⋮⋮</button><div class="rtc-sec-name"><strong>${esc(section.code)} · ${esc(section.title)}</strong><span>${videos.length} video</span></div></div><div class="rtc-sec-actions"><button type="button" data-sa="edit" ${disabled}>Düzenle</button><button type="button" class="bad" data-sa="delete" ${disabled}>Sil</button></div></header><div class="rtc-sec-body"><div class="rtc-upload"><span>Yeni video ekleyin.</span><button type="button" class="pri" data-sa="upload" ${disabled}>+ Video yükle</button></div><div class="rtc-vlist">${videoHtml}</div></div></article>`;
   }).join('');
 
-  return `<div class="rtc" ${A}="1" data-id="${current.id}"><div class="rtc-head"><div><span class="rtc-k">OSGB EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(current.title)}</h3><div class="rtc-meta"><span>${esc(L[current.status] || current.status)}</span><span>·</span><span>${sections.length} bölüm</span><span>·</span><span>${Number(current.video_count) || sections.reduce((count, section) => count + (section.videos?.length || 0), 0)} video</span></div></div><div class="rtc-actions"><button type="button" class="pri" data-top="add" ${current.status === 'archived' ? 'disabled' : disabled}>+ Bölüm ekle</button>${packageActionHtml}</div></div><div class="rtc-note" id="rtc-reorder-help"><strong>${current.is_shared ? 'Hazır paket.' : 'OSGB paketi.'}</strong> ${current.is_shared ? 'İlk düzenlemede sistem otomatik olarak yalnız bu OSGB’ye ait güvenli çalışma kopyasını kullanır; ek bir kopyalama adımı görmezsiniz.' : 'Değişiklikler diğer OSGB’leri etkilemez.'} Bölüm sırası için ⋮⋮ tutamacını fare veya dokunmayla taşıyın; klavyede ↑ ↓ Home End tuşları da kullanılabilir.</div><div class="rtc-list">${sectionHtml || '<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`;
+  return `<div class="rtc" ${A}="1" data-id="${esc(String(current.id ?? ''))}"><div class="rtc-head"><div><span class="rtc-k">OSGB EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(current.title)}</h3><div class="rtc-meta"><span>${esc(L[current.status] || current.status)}</span><span>·</span><span>${sections.length} bölüm</span><span>·</span><span>${Number(current.video_count) || sections.reduce((count, section) => count + (section.videos?.length || 0), 0)} video</span></div></div><div class="rtc-actions"><button type="button" class="pri" data-top="add" ${current.status === 'archived' ? 'disabled' : disabled}>+ Bölüm ekle</button>${packageActionHtml}</div></div><div class="rtc-note" id="rtc-reorder-help"><strong>${current.is_shared ? 'Hazır paket.' : 'OSGB paketi.'}</strong> ${current.is_shared ? 'İlk düzenlemede sistem otomatik olarak yalnız bu OSGB’ye ait güvenli çalışma kopyasını kullanır; ek bir kopyalama adımı görmezsiniz.' : 'Değişiklikler diğer OSGB’leri etkilemez.'} Bölüm sırası için ⋮⋮ tutamacını fare veya dokunmayla taşıyın; klavyede ↑ ↓ Home End tuşları da kullanılabilir.</div><div class="rtc-list">${sectionHtml || '<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`;
 }
 
 function bind(element, current) {
