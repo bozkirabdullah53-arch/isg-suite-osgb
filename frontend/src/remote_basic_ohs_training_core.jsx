@@ -826,6 +826,11 @@ function EmployeePanel() {
         try {
           const out = await api(path, {
             method: 'POST',
+            // This is a background heartbeat, not a user-triggered form
+            // submit. Render may need longer than the normal API deadline to
+            // wake from sleep; never replay this write automatically.
+            timeoutMs: 60_000,
+            _background: 'remote_progress',
             body: JSON.stringify({
               position_seconds: snapshot.positionSeconds,
               event_type: snapshot.eventType,
@@ -875,6 +880,15 @@ function EmployeePanel() {
           }
           return {...out, video_id: snapshot.videoId};
         } catch (err) {
+          if (err?.backgroundProgress === 'remote_progress') {
+            if (snapshot.eventType === 'ended') {
+              setMessage('Video bitişi sunucuya ulaşmadı. İlerlemeyi kaydetmek için videoyu yeniden açıp son bölümü tekrar oynatın.');
+            }
+            // A failed background heartbeat must not turn into a red page
+            // error. The POST is intentionally not replayed; a later media
+            // event can send a new, current snapshot.
+            return null;
+          }
           if (assignment?.id === snapshot.assignmentId) {
             setError(err.message || 'Video ilerlemesi kaydedilemedi.');
           }

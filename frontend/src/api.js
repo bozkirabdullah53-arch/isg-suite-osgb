@@ -170,11 +170,15 @@ function isTransientGatewayStatus(status) {
   return status === 502 || status === 503 || status === 504;
 }
 
-function isTransientRemoteProgressGateway(method, path, status) {
-  if (method !== "POST" || !isTransientGatewayStatus(status)) return false;
+function isRemoteProgressPath(path) {
   return /^\/trainings\/remote\/assignments\/\d+\/videos\/\d+\/progress(?:\?|$)/.test(
     String(path || ""),
   );
+}
+
+function isTransientRemoteProgressGateway(method, path, status) {
+  if (method !== "POST" || !isTransientGatewayStatus(status)) return false;
+  return isRemoteProgressPath(path);
 }
 
 function canRetryRequest(error, method, signal) {
@@ -453,7 +457,15 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
 export async function api(path, options = {}) {
   // API yakın zamanda uyandıysa gereksiz 4× retry yapma (sayfa “dakikalarca” bekler)
   const warm = Date.now() - _lastWakeOkAt < 60_000;
-  const { _retries, _didRefresh, _didProactiveRefresh, timeoutMs: optionTimeoutMs, headers: optHeaders, ...fetchOpts } = options;
+  const {
+    _retries,
+    _didRefresh,
+    _didProactiveRefresh,
+    _background,
+    timeoutMs: optionTimeoutMs,
+    headers: optHeaders,
+    ...fetchOpts
+  } = options;
   const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
   const method = (fetchOpts.method || "GET").toUpperCase();
   const retries = isSafeReadMethod(method) ? (options._retries ?? (warm ? 1 : 3)) : 0;
@@ -530,6 +542,18 @@ export async function api(path, options = {}) {
       if (fetchOpts.signal?.aborted) throw e;
       if (!canRetryRequest(e, method, fetchOpts.signal) || attempt === retries) {
         if (isNetworkError(e)) {
+          // Video progress is a background write. A mobile tab transition or
+          // a Render cold-start timeout must not create a false EİSA incident
+          // containing the browser's generic "The user aborted a request"
+          // message. Do not retry the POST; the next user/media event can
+          // submit a fresh snapshot through the existing queue.
+          if (_background === "remote_progress") {
+            const backgroundError = new Error(String(e?.message || e || "İlerleme isteği tamamlanamadı."));
+            backgroundError.name = String(e?.name || "BackgroundProgressError");
+            backgroundError.backgroundProgress = "remote_progress";
+            backgroundError.cause = e;
+            throw backgroundError;
+          }
           reportClientError({
             source: "api_error",
             title: "Ağ bağlantı hatası",

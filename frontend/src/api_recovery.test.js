@@ -119,6 +119,25 @@ describe('API temporary outage recovery', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps an aborted remote progress heartbeat out of EİSA incidents', async () => {
+    const cancelled = new DOMException('The user aborted a request.', 'AbortError');
+    const fetchMock = vi.fn(async () => {
+      throw cancelled;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api('/trainings/remote/assignments/196/videos/363/progress', {
+      method: 'POST',
+      timeoutMs: 60_000,
+      _background: 'remote_progress',
+    })).rejects.toMatchObject({
+      name: 'AbortError',
+      backgroundProgress: 'remote_progress',
+    });
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/eisa/error-reports'))).toHaveLength(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['gateway', 'network'])('preserves the session when refresh has a temporary %s failure after a 401', async (failure) => {
     const token = auth.getAccessToken();
     const lost = vi.fn();

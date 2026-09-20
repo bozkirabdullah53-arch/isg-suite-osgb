@@ -658,6 +658,90 @@ function Field({label,...p}){return <label className="field"><span>{label}</span
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.',className=''}){return <div className={'table-wrap '+className} data-column-count={cols.length}><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key} data-label={c.label}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
 
+/* Firma listesi: tüm firma bilgilerini yatay kaydırma gerektirmeden tek kartta
+   gösterir. İşlem callback'leri mevcut tabloyla aynı tutulur. */
+function CompanyDirectory({rows,canEdit,isIndividual,onOpen360,busy,onEdit,onAct,onResetKiosk,onToggleVisitQr,onOpenSiteQr,siteQrBusy,naceCatalog}){
+  if(!rows.length){
+    return <div className="company-directory company-directory--empty"><div className="company-directory__empty-icon"><Building2 size={22}/></div><strong>Kayıt bulunamadı.</strong><span>Arama ölçütünü değiştirip tekrar deneyin.</span></div>;
+  }
+  return <div className="company-directory" role="list" aria-label="Firma listesi">
+    {rows.map((row)=>{
+      const nace=naceInfoForCompany(row,naceCatalog);
+      const activity=nace.activity||'—';
+      return <article key={row.id} className="company-card" role="listitem">
+        <div className="company-card__header">
+          <div className="company-card__identity">
+            <span className="company-card__icon" aria-hidden="true"><Building2 size={20}/></span>
+            <div className="company-card__identity-copy">
+              <span className="company-card__eyebrow">FİRMA</span>
+              <h3>{row.name||'İsimsiz firma'}</h3>
+            </div>
+          </div>
+          <div className="company-card__status" aria-label={`Firma durumu: ${row.is_active?'Aktif':'Pasif'}`}><Badge ok={row.is_active}/></div>
+        </div>
+
+        <div className="company-card__details">
+          <div className="company-card__field">
+            <span>İşyeri Sicil No</span>
+            <strong className="company-card__value--mono">{row.sgk_registry_no||'—'}</strong>
+          </div>
+          <div className="company-card__field">
+            <span>NACE Kodu</span>
+            <strong>{row.nace_code||'—'}</strong>
+          </div>
+          <div className="company-card__field">
+            <span>Tehlike Sınıfı</span>
+            <strong>{nace.hazardClass||'—'}</strong>
+          </div>
+          <div className="company-card__field">
+            <span>İşveren / Vekili</span>
+            <strong>{row.authorized_person||'—'}</strong>
+          </div>
+          <div className="company-card__field">
+            <span>Telefon</span>
+            <strong>{row.phone||'—'}</strong>
+          </div>
+          <div className="company-card__field company-card__field--wide company-card__field--activity">
+            <span>Faaliyet Tanımı</span>
+            <strong>{activity}</strong>
+          </div>
+          <div className="company-card__field company-card__field--wide company-card__field--address">
+            <span>Adres</span>
+            <strong>{row.address||'—'}</strong>
+          </div>
+        </div>
+
+        {canEdit&&<div className="company-card__footer">
+          <div className="company-card__actions" aria-label={`${row.name||'Firma'} işlemleri`}>
+            {onOpen360&&<button type="button" className="mini company-report-button" disabled={busy} onClick={()=>onOpen360(row.id)} title="Firma 360 / Tam Firma Dosyası">
+              <FileText size={14}/>Firma Raporları
+            </button>}
+            <button type="button" className="mini secondary" disabled={busy} onClick={()=>onEdit(row)} title="İşyeri bilgilerini düzenle">
+              <Pencil size={14}/>Düzenle
+            </button>
+            {row.is_active
+              ? <button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'deactivate')}>Pasife Al</button>
+              : <button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'activate')}>Aktifleştir</button>}
+            {!isIndividual&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>onResetKiosk(row)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>}
+            <button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'delete')}>Sil</button>
+          </div>
+          <div className="company-card__quick-actions" aria-label={`${row.name||'Firma'} hızlı erişimleri`}>
+            {!isIndividual&&<button type="button" className={`mini ${row.visit_qr_enabled===false?'secondary':''}`} disabled={busy} onClick={()=>onToggleVisitQr(row)} title="Bu işyerinde uzman ve işyeri hekimi QR giriş-çıkışını aç/kapat">
+              {row.visit_qr_enabled===false?'Pasif · Aç':'Aktif · Kapat'}
+            </button>}
+            {onOpen360&&<button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(row.id)} title="Müşteri 360">
+              <Eye size={14}/>360
+            </button>}
+            {!isIndividual&&<button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>onOpenSiteQr(row)} title="İşyeri QR kodu">
+              <QrCode size={14}/>Saha QR
+            </button>}
+          </div>
+        </div>}
+      </article>;
+    })}
+  </div>;
+}
+
 /** İşyeri QR ve denetim akışı; ortak menü içinde de aynı QR yaşam döngüsünü kullanır. */
 function SiteQrKioskPage({user,onLogout,embedded=false}){
   const companyId=user?.company_id;
@@ -968,53 +1052,20 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       </div>
     )}
 
-    <Table cols={[
-      {key:'name',label:'Firma'},
-      ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
-        <div className="actions company-actions">
-          {onOpen360&&<button type="button" className="mini company-report-button" disabled={busy} onClick={()=>onOpen360(r.id)} title="Firma 360 / Tam Firma Dosyası">
-            <FileText size={14} style={{verticalAlign:'middle',marginRight:4}}/>Firma Raporları
-          </button>}
-          <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
-            <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
-          </button>
-          {r.is_active
-            ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
-            : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
-          {!isIndividual&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>}
-          <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
-        </div>
-      )}]:[]),
-      {key:'sgk_registry_no',label:'İşyeri Sicil No'},
-      {key:'nace_code',label:'NACE Kodu',render:r=>r.nace_code||'—'},
-      {key:'nace_description',label:'Faaliyet Tanımı',render:r=>naceInfoForCompany(r,naceCatalog).activity||'—'},
-      {key:'authorized_person',label:'İşveren / Vekili'},
-      {key:'phone',label:'Telefon'},
-      {key:'address',label:'Adres'},
-      {key:'hazard_class',label:'Tehlike Sınıfı',render:r=>naceInfoForCompany(r,naceCatalog).hazardClass||'—'},
-      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
-      ...((canEdit&&!isIndividual)?[{key:'visit_qr_policy',label:'Uzman/Hekim QR',render:r=>(
-        <button
-          type="button"
-          className={`mini ${r.visit_qr_enabled===false?'secondary':''}`}
-          disabled={busy}
-          onClick={()=>toggleVisitQr(r)}
-          title="Bu işyerinde uzman ve işyeri hekimi QR giriş-çıkışını aç/kapat"
-        >
-          {r.visit_qr_enabled===false?'Pasif · Aç':'Aktif · Kapat'}
-        </button>
-      )}]:[]),
-      ...(onOpen360?[{key:'c360',label:'360',render:r=>(
-        <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
-          <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
-        </button>
-      )}]:[]),
-      ...((canEdit&&!isIndividual)?[{key:'qr',label:'Saha QR',render:r=>(
-        <button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>openSiteQr(r)} title="İşyeri QR kodu">
-          <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
-        </button>
-      )}]:[]),
-    ]} rows={data} className={canEdit?'companies-table companies-table--editable':'companies-table'}/>
+    <CompanyDirectory
+      rows={data}
+      canEdit={canEdit}
+      isIndividual={isIndividual}
+      onOpen360={onOpen360}
+      busy={busy}
+      onEdit={openEdit}
+      onAct={act}
+      onResetKiosk={resetKioskLogin}
+      onToggleVisitQr={toggleVisitQr}
+      onOpenSiteQr={openSiteQr}
+      siteQrBusy={siteQrBusy}
+      naceCatalog={naceCatalog}
+    />
     {open&&<Modal title={editing?'İşyeri Bilgilerini Düzenle':'Yeni Firma'} close={closeEditor}>
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
