@@ -26,6 +26,7 @@ function Field({label, children, className = '', ...inputProps}) {
 
 export function OhsCommitteePage({user}) {
   const canManage = ['global_admin', 'safety_specialist', 'company_admin'].includes(user.role);
+  const isBoundWorkplace = Boolean(user.company_id);
   const [companies, setCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState(user.company_id ? String(user.company_id) : '');
   const [candidates, setCandidates] = useState({mandatory: [], other: [], missing_mandatory: []});
@@ -231,7 +232,7 @@ export function OhsCommitteePage({user}) {
       <div className="committee-v2-hero-actions"><button type="button" className="secondary" disabled={busy} onClick={() => void load()}><RefreshCw size={16} /> Yenile</button>{canManage && <button type="button" disabled={!selectedCompanyId || busy} onClick={() => {setTab('members'); setOpen('member');}}><UserCheck size={16} /> Üye Yönet</button>}{canManage && <button type="button" disabled={!selectedCompanyId || busy} onClick={() => {setTab('meetings'); setOpen('meeting');}}><CalendarPlus size={16} /> Toplantı Planla</button>}</div>
     </header>
 
-    <section className="committee-v2-workplace"><div><span>Aktif işyeri bağlamı</span><strong>Kurul adayları, toplantılar ve onaycılar yalnız seçilen işyerinden gelir.</strong></div><label><span>İşyeri</span><select value={selectedCompanyId} onChange={(event) => chooseCompany(event.target.value)}><option value="">İşyeri seçiniz</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label></section>
+    <section className="committee-v2-workplace"><div><span>Aktif işyeri bağlamı</span><strong>Kurul adayları, toplantılar ve onaycılar yalnız seçilen işyerinden gelir.</strong></div>{isBoundWorkplace ? <div className="committee-v2-bound-workplace"><span>İşyeri</span><strong>{selectedCompany?.name || user.company_name || 'Tanımlı işyeri'}</strong></div> : <label><span>İşyeri</span><select value={selectedCompanyId} onChange={(event) => chooseCompany(event.target.value)}><option value="">İşyeri seçiniz</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>}</section>
 
     {selectedCompanyId && <div className="committee-v2-summary"><article><span>Aktif Üyeler</span><strong>{members.length}</strong><small>Gelecek toplantı varsayılanları</small></article><article><span>Planlı Toplantılar</span><strong>{plannedCount}</strong><small>Bugün ve sonrası</small></article><article><span>Toplam Toplantı</span><strong>{meetings.length}</strong><small>Tarihsel kayıtlar dahil</small></article><article className={mandatoryComplete ? 'complete' : 'incomplete'}><span>Zorunlu Üyeler</span><strong>{mandatoryComplete ? 'Tam' : `${candidates.missing_mandatory?.length || 0} Eksik`}</strong><small>{mandatoryComplete ? 'Resmî akışa hazır' : 'Yalnız taslak kaydedilebilir'}</small></article></div>}
 
