@@ -528,7 +528,11 @@ def _eval_physician_firm(
     ], visits
 
 
-def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
+def build_oversight(
+    db: Session,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> dict:
     month_start, month_end = _month_bounds()
     year = date.today().year
 
@@ -538,6 +542,19 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
     if osgb_id:
         pros_q = pros_q.where(IsgProfessional.osgb_id == osgb_id)
         assign_q = assign_q.where(WorkplaceAssignment.osgb_id == osgb_id)
+    if company_id is not None:
+        assign_q = assign_q.where(WorkplaceAssignment.company_id == company_id)
+        assignment_scope = [
+            WorkplaceAssignment.company_id == company_id,
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+        ]
+        if osgb_id:
+            assignment_scope.append(WorkplaceAssignment.osgb_id == osgb_id)
+        pros_q = pros_q.where(
+            IsgProfessional.id.in_(
+                select(WorkplaceAssignment.professional_id).where(*assignment_scope)
+            )
+        )
 
     professionals = list(db.scalars(pros_q).all())
     directory = [
@@ -785,6 +802,8 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
     check_columns.sort(key=lambda x: x["pct"])
 
     return {
+        "company_id": company_id,
+        "scope": "company" if company_id is not None else "osgb",
         "period": {
             "year": year,
             "month": date.today().month,

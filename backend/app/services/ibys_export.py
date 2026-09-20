@@ -18,10 +18,16 @@ from app.models.entities import Company, Employee
 EXPORT_VERSION = "csv-package-v1"
 
 
-def _companies_for_osgb(db: Session, osgb_id: int | None) -> list[Company]:
+def _companies_for_osgb(
+    db: Session,
+    osgb_id: int | None,
+    company_id: int | None = None,
+) -> list[Company]:
     stmt = select(Company).where(Company.is_active.is_(True)).order_by(Company.name)
     if osgb_id is not None:
         stmt = stmt.where(Company.osgb_id == osgb_id)
+    if company_id is not None:
+        stmt = stmt.where(Company.id == company_id)
     return list(db.scalars(stmt).all())
 
 
@@ -34,8 +40,13 @@ def _csv_bytes(headers: list[str], rows: list[list[Any]]) -> bytes:
     return ("\ufeff" + buf.getvalue()).encode("utf-8")
 
 
-def build_ibys_export_summary(db: Session, *, osgb_id: int | None = None) -> dict[str, Any]:
-    companies = _companies_for_osgb(db, osgb_id)
+def build_ibys_export_summary(
+    db: Session,
+    *,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> dict[str, Any]:
+    companies = _companies_for_osgb(db, osgb_id, company_id)
     company_ids = [c.id for c in companies]
     employees: list[Employee] = []
     if company_ids:
@@ -52,6 +63,7 @@ def build_ibys_export_summary(db: Session, *, osgb_id: int | None = None) -> dic
         "stub": True,
         "note": "Gerçek İBYS API bağlantısı yok; resmi yükleme için CSV paketi üretilir.",
         "osgb_id": osgb_id,
+        "company_id": company_id,
         "summary": {
             "companies": len(companies),
             "employees": len(employees),
@@ -61,8 +73,13 @@ def build_ibys_export_summary(db: Session, *, osgb_id: int | None = None) -> dic
     }
 
 
-def build_ibys_export_zip(db: Session, *, osgb_id: int | None = None) -> tuple[bytes, str]:
-    companies = _companies_for_osgb(db, osgb_id)
+def build_ibys_export_zip(
+    db: Session,
+    *,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> tuple[bytes, str]:
+    companies = _companies_for_osgb(db, osgb_id, company_id)
     company_ids = [c.id for c in companies]
     company_names = {c.id: c.name for c in companies}
     employees: list[Employee] = []

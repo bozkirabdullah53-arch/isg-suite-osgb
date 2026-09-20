@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from app.api.company_access import ensure_company_access, find_professional_for_user
+from app.api.company_access import ensure_company_access, ensure_company_in_osgb, find_professional_for_user
 from app.api.deps import (
     get_current_user,
     reject_company_bound_admin_from_osgb_internal,
@@ -288,30 +288,45 @@ def _get_visit(db: Session, visit_id: int, user: User) -> ServiceVisit:
     raise HTTPException(403, "Bu ziyarete erişim yetkiniz yok.")
 
 @router.get("/dashboard")
-def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
+def osgb_dashboard(
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN)),
+):
     oid = active_osgb(user, osgb_id, db)
+    scoped_company = ensure_company_in_osgb(db, company_id, oid) if company_id is not None else None
+    scoped_company_id = scoped_company.id if scoped_company else None
     today = date.today()
     soon = today + timedelta(days=30)
 
     def count(model, *where):
         return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
 
-    workplaces = count(Company, Company.osgb_id == oid, Company.is_active == True)
+    company_scope = [scoped_company_id] if scoped_company_id is not None else None
+    company_filters = [Company.osgb_id == oid, Company.is_active == True]
+    if company_scope is not None:
+        company_filters.append(Company.id.in_(company_scope))
+    workplaces = count(Company, *company_filters)
 
+    assignment_filters = [
+        WorkplaceAssignment.osgb_id == oid,
+        WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+    ]
+    if scoped_company_id is not None:
+        assignment_filters.append(WorkplaceAssignment.company_id == scoped_company_id)
+    assigned_pro_ids = set(db.scalars(select(WorkplaceAssignment.professional_id).where(*assignment_filters)).all())
+    professional_filters = [
+        IsgProfessional.osgb_id == oid,
+        IsgProfessional.is_active == True,
+    ]
+    if scoped_company_id is not None:
+        # A company-scoped dashboard must not show professionals belonging only
+        # to another workplace in the same OSGB.
+        professional_filters.append(IsgProfessional.id.in_(assigned_pro_ids or {-1}))
     pros = list(
         db.scalars(
-            select(IsgProfessional).where(
-                IsgProfessional.osgb_id == oid,
-                IsgProfessional.is_active == True,
-            ).order_by(IsgProfessional.full_name)
-        ).all()
-    )
-    assigned_pro_ids = set(
-        db.scalars(
-            select(WorkplaceAssignment.professional_id).where(
-                WorkplaceAssignment.osgb_id == oid,
-                WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
-            )
+            select(IsgProfessional).where(*professional_filters).order_by(IsgProfessional.full_name)
         ).all()
     )
 
@@ -362,18 +377,22 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
             ],
         }
 
-    companies = {
-        c.id: c.name
-        for c in db.scalars(select(Company).where(Company.osgb_id == oid)).all()
-    }
+    company_query = select(Company).where(Company.osgb_id == oid)
+    if scoped_company_id is not None:
+        company_query = company_query.where(Company.id == scoped_company_id)
+    companies = {c.id: c.name for c in db.scalars(company_query).all()}
+    company_ids = list(companies.keys())
+    contract_filters = [
+        ServiceContract.osgb_id == oid,
+        func.lower(ServiceContract.status) == "active",
+        ServiceContract.end_date.is_not(None),
+        ServiceContract.end_date.between(today, soon),
+    ]
+    if scoped_company_id is not None:
+        contract_filters.append(ServiceContract.company_id.in_(company_ids))
     expiring = list(
         db.scalars(
-            select(ServiceContract).where(
-                ServiceContract.osgb_id == oid,
-                func.lower(ServiceContract.status) == "active",
-                ServiceContract.end_date.is_not(None),
-                ServiceContract.end_date.between(today, soon),
-            ).order_by(ServiceContract.end_date)
+            select(ServiceContract).where(*contract_filters).order_by(ServiceContract.end_date)
         ).all()
     )
     upcoming_contracts = [
@@ -398,6 +417,8 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         FinanceTransaction.status == "pending",
         FinanceTransaction.due_date.is_not(None),
     )
+    if scoped_company_id is not None:
+        income_pending = (*income_pending, FinanceTransaction.company_id == scoped_company_id)
     overdue_row = db.execute(
         select(
             func.count(),
@@ -448,7 +469,7 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         sds_overdue_count = int(
             db.scalar(
                 select(func.count()).select_from(ChemicalProduct).where(
-                    ChemicalProduct.company_id.in_(company_ids),
+                    ChemicalProduct.company_id.in_(company_ids or [-1]),
                     ChemicalProduct.is_active.is_(True),
                     ChemicalProduct.next_review_date.is_not(None),
                     ChemicalProduct.next_review_date < today,
@@ -459,7 +480,7 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         sds_due_soon_count = int(
             db.scalar(
                 select(func.count()).select_from(ChemicalProduct).where(
-                    ChemicalProduct.company_id.in_(company_ids),
+                    ChemicalProduct.company_id.in_(company_ids or [-1]),
                     ChemicalProduct.is_active.is_(True),
                     ChemicalProduct.next_review_date.is_not(None),
                     ChemicalProduct.next_review_date.between(today, soon),
@@ -486,14 +507,15 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
     else:
         month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    visit_filters = [
+        ServiceVisit.osgb_id == oid,
+        ServiceVisit.visit_date >= month_start,
+        ServiceVisit.visit_date <= month_end,
+    ]
+    if scoped_company_id is not None:
+        visit_filters.append(ServiceVisit.company_id == scoped_company_id)
     visit_month = list(
-        db.scalars(
-            select(ServiceVisit).where(
-                ServiceVisit.osgb_id == oid,
-                ServiceVisit.visit_date >= month_start,
-                ServiceVisit.visit_date <= month_end,
-            )
-        ).all()
+        db.scalars(select(ServiceVisit).where(*visit_filters)).all()
     )
     visits_this_month = len(visit_month)
     visits_qr_checkins = sum(1 for v in visit_month if getattr(v, "checked_in_at", None))
@@ -519,6 +541,9 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
 
     return {
         "osgb_id": oid,
+        "company_id": scoped_company_id,
+        "company_name": scoped_company.name if scoped_company else None,
+        "scope": "company" if scoped_company else "osgb",
         "workplaces": workplaces,
         "professionals_by_type": by_type,
         "unassigned_by_type": unassigned_by_type,
@@ -549,12 +574,15 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
 @router.get("/module-kpis")
 def module_kpis(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN)),
 ):
     """OSGB merkezi modül KPI — risk/DÖF, eğitim yenileme, sağlık periyodik takip."""
     oid = active_osgb(user, osgb_id, db)
-    return build_module_kpis(db, oid)
+    if company_id is not None:
+        ensure_company_in_osgb(db, company_id, oid)
+    return build_module_kpis(db, oid, company_id=company_id)
 
 
 @router.get("/visits/calendar")

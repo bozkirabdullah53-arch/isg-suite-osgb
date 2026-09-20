@@ -25,19 +25,20 @@ def _lead_high(record: HealthRecord) -> bool:
     )
 
 
-def _company_map(db: Session, osgb_id: int) -> dict[int, str]:
-    rows = db.scalars(
-        select(Company).where(Company.osgb_id == osgb_id, Company.is_active.is_(True))
-    ).all()
+def _company_map(db: Session, osgb_id: int, company_id: int | None = None) -> dict[int, str]:
+    stmt = select(Company).where(Company.osgb_id == osgb_id, Company.is_active.is_(True))
+    if company_id is not None:
+        stmt = stmt.where(Company.id == company_id)
+    rows = db.scalars(stmt).all()
     return {c.id: c.name for c in rows}
 
 
-def build_module_kpis(db: Session, osgb_id: int) -> dict:
+def build_module_kpis(db: Session, osgb_id: int, company_id: int | None = None) -> dict:
     today = date.today()
     soon = today + timedelta(days=30)
     dof_soon = today + timedelta(days=7)
 
-    companies = _company_map(db, osgb_id)
+    companies = _company_map(db, osgb_id, company_id)
     company_ids = list(companies.keys()) or [0]
 
     risks = list(
@@ -167,6 +168,8 @@ def build_module_kpis(db: Session, osgb_id: int) -> dict:
 
     return {
         "osgb_id": osgb_id,
+        "company_id": company_id,
+        "scope": "company" if company_id is not None else "osgb",
         "company_count": len(companies),
         "period": {"due_soon_days": 30, "dof_soon_days": 7},
         "risk": {

@@ -297,6 +297,34 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
     return _merge_membership_companies(db, user, [])
 
 
+def ensure_company_in_osgb(
+    db: Session,
+    company_id: int | None,
+    osgb_id: int,
+    *,
+    active_only: bool = True,
+) -> Company:
+    """Resolve a requested workplace only inside the selected OSGB scope.
+
+    OSGB dashboards may be narrowed to one workplace, but the client-provided
+    id must never be allowed to cross the OSGB boundary.  Keeping this check in
+    the shared access module makes the dashboard, oversight and integration
+    endpoints use the same fail-closed rule.
+    """
+    if company_id is None:
+        raise HTTPException(400, "Firma seçiniz.")
+    stmt = select(Company).where(
+        Company.id == int(company_id),
+        Company.osgb_id == int(osgb_id),
+    )
+    if active_only:
+        stmt = stmt.where(Company.is_active.is_(True))
+    company = db.scalar(stmt)
+    if not company:
+        raise HTTPException(404, "İşyeri bu OSGB kapsamında bulunamadı.")
+    return company
+
+
 def _merge_membership_companies(db: Session, user: User, base: list[int]) -> list[int]:
     """P1-04: WorkplaceMembership satırları erişimi genişletir (daraltmaz)."""
     try:

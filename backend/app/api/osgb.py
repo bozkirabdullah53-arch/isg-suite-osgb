@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from app.api.company_access import find_professional_for_user, link_user_to_professional
+from app.api.company_access import ensure_company_in_osgb, find_professional_for_user, link_user_to_professional
 from app.api.deps import (
     get_current_user,
     reject_company_bound_admin_from_osgb_internal,
@@ -187,6 +187,7 @@ def update_osgb(
 @router.get("/oversight")
 def osgb_oversight(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -195,7 +196,11 @@ def osgb_oversight(
         if not user.osgb_id:
             raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
         osgb_id = user.osgb_id
-    return build_oversight(db, osgb_id=osgb_id)
+    if company_id is not None:
+        if osgb_id is None:
+            raise HTTPException(400, "Firma kapsamı için OSGB seçilmelidir.")
+        ensure_company_in_osgb(db, company_id, osgb_id)
+    return build_oversight(db, osgb_id=osgb_id, company_id=company_id)
 
 
 @router.get("/capacity")
@@ -348,6 +353,7 @@ def csgb_audit_pack(
 @router.get("/csgb-audit-pack/summary")
 def csgb_audit_pack_summary(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -358,7 +364,11 @@ def csgb_audit_pack_summary(
         osgb_id = user.osgb_id
     elif osgb_id is not None:
         _scope_osgb(user, osgb_id)
-    return build_csgb_audit_dashboard_summary(db, osgb_id=osgb_id)
+    if company_id is not None:
+        if osgb_id is None:
+            raise HTTPException(400, "Firma kapsamı için OSGB seçilmelidir.")
+        ensure_company_in_osgb(db, company_id, osgb_id)
+    return build_csgb_audit_dashboard_summary(db, osgb_id=osgb_id, company_id=company_id)
 
 
 @router.get("/csgb-audit-pack/bundle")
@@ -402,6 +412,7 @@ def mevzuat_panel(
 @router.get("/katip-prep")
 def katip_prep(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -412,12 +423,17 @@ def katip_prep(
         osgb_id = user.osgb_id
     elif osgb_id is not None:
         _scope_osgb(user, osgb_id)
-    return build_katip_prep(db, osgb_id=osgb_id)
+    if company_id is not None:
+        if osgb_id is None:
+            raise HTTPException(400, "Firma kapsamı için OSGB seçilmelidir.")
+        ensure_company_in_osgb(db, company_id, osgb_id)
+    return build_katip_prep(db, osgb_id=osgb_id, company_id=company_id)
 
 
 @router.get("/katip-prep/export.csv")
 def katip_prep_export_csv(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -428,7 +444,11 @@ def katip_prep_export_csv(
         osgb_id = user.osgb_id
     elif osgb_id is not None:
         _scope_osgb(user, osgb_id)
-    data, filename = katip_prep_csv(db, osgb_id=osgb_id)
+    if company_id is not None:
+        if osgb_id is None:
+            raise HTTPException(400, "Firma kapsamı için OSGB seçilmelidir.")
+        ensure_company_in_osgb(db, company_id, osgb_id)
+    data, filename = katip_prep_csv(db, osgb_id=osgb_id, company_id=company_id)
     return StreamingResponse(
         iter([data]),
         media_type="text/csv; charset=utf-8",
@@ -439,6 +459,7 @@ def katip_prep_export_csv(
 @router.get("/integration-readiness")
 def integration_readiness(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -449,7 +470,11 @@ def integration_readiness(
         osgb_id = user.osgb_id
     elif osgb_id is not None:
         _scope_osgb(user, osgb_id)
-    return build_integration_readiness(db, osgb_id=osgb_id)
+    if company_id is not None:
+        if osgb_id is None:
+            raise HTTPException(400, "Firma kapsamı için OSGB seçilmelidir.")
+        ensure_company_in_osgb(db, company_id, osgb_id)
+    return build_integration_readiness(db, osgb_id=osgb_id, company_id=company_id)
 
 
 @router.get("/integrations/status")

@@ -2367,6 +2367,7 @@ function ThemeToggle({theme,onToggle,floating}){
 }
 
 function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,preview,loading,className=''}){
+  const hasCompany=Boolean(String(companyName||'').trim());
   const hasNace=Boolean(String(naceCode||'').trim());
   const activityText=activity
     || (hasNace?'Faaliyet tanımı resmî katalogda bulunamadı.':'Bu işyeri için NACE bilgisi tanımlanmamış.');
@@ -2379,7 +2380,7 @@ function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,previe
       <div className="global-nace-context-head">
         <span className="global-nace-context-kicker"><Building2 size={13}/> İŞYERİ NACE BİLGİSİ</span>
       </div>
-      <strong className="global-nace-context-company">{companyName||'Seçili işyeri'}</strong>
+      <strong className="global-nace-context-company">{companyName||'Firma seçiniz'}</strong>
       <div className="global-nace-context-code">
         <span>NACE KODU</span>
         <strong>{naceCode||'Bilgi yok'}</strong>
@@ -2390,7 +2391,7 @@ function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,previe
       </div>
       <div className="global-nace-context-row global-nace-context-activity">
         <span>FAALİYET TANIMI</span>
-        <p title={activityText}>{activityText}</p>
+        <p title={activityText}>{hasCompany?activityText:'OSGB ana panelini görmek için önce firma seçiniz.'}</p>
       </div>
       {loading&&<small className="global-nace-context-loading">NACE kataloğu yükleniyor…</small>}
     </section>
@@ -2505,11 +2506,13 @@ function App(){
       setContextCompanies(companies);
       setNaceCatalog(sectors);
       const persisted=readPersistedCompanyId();
-      const preferredId=user.company_id
+      const preferredId=active==='osgb_dashboard'
+        ? ''
+        : user.company_id
         ? String(user.company_id)
         : (active==='notifications'
           ? ''
-          : (persisted||((companies.length===1)?String(companies[0].id):'')));
+          : persisted);
       const preferred=companies.find((row)=>String(row.id)===preferredId);
       setSelectedContextCompanyId(preferred?String(preferred.id):'');
       setNaceDraft('');
@@ -2623,6 +2626,12 @@ function App(){
     setNaceDraft('');
   },[active]);
 
+  useEffect(()=>{
+    if(active!=='osgb_dashboard') return;
+    setSelectedContextCompanyId('');
+    persistSelectedCompanyId('');
+  },[active]);
+
   const selectedContextCompany=contextCompanies.find(
     (row)=>String(row.id)===String(selectedContextCompanyId),
   )||null;
@@ -2637,9 +2646,12 @@ function App(){
     preview:Boolean(draftNace),
     loading:naceContextLoading,
   };
-  // NACE bağlamı yalnızca gerçek bir firma/işyeri seçimi yapıldıktan sonra
-  // gösterilir. Formda yazılan geçici NACE değeri tek başına kartı açmaz.
+  // NACE detayları gerçek bir firma/işyeri seçimiyle gösterilir. OSGB ana
+  // panelinde seçim yapılana kadar kart, kapsam seçimi için placeholder olur.
   const hasGlobalNaceContext=Boolean(selectedContextCompany);
+  const showOsgbScopePlaceholder=active==='osgb_dashboard'
+    && (user.role==='global_admin'||user.role==='company_admin');
+  const showGlobalNaceContext=hasGlobalNaceContext||showOsgbScopePlaceholder;
 
   function publicApplyHash(){
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')||''}catch{return ''}
@@ -3102,7 +3114,7 @@ function App(){
             <span>{mobileMoreOpen?'Kapat':'Menü'}</span>
           </button>
         </nav>
-        <div className="global-nace-context-desktop" hidden={!hasGlobalNaceContext}>
+        <div className="global-nace-context-desktop" hidden={!showGlobalNaceContext}>
           <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-desktop-card"/>
         </div>
         <button type="button" className="logout" onClick={logout}>
@@ -3169,7 +3181,7 @@ function App(){
           </div>
         </header>
         <main className="content">
-          <div className="mobile-nace-context" hidden={!hasGlobalNaceContext}>
+          <div className="mobile-nace-context" hidden={!showGlobalNaceContext}>
             <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-mobile-card"/>
           </div>
           {!user.is_eisa && user.subscription_write_allowed===false && (

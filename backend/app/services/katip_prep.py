@@ -29,10 +29,17 @@ def _has_contract_file(a: WorkplaceAssignment) -> bool:
     return bool((a.contract_storage_path or "").strip() or (a.contract_file_name or "").strip())
 
 
-def build_katip_prep(db: Session, *, osgb_id: int | None = None) -> dict[str, Any]:
+def build_katip_prep(
+    db: Session,
+    *,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> dict[str, Any]:
     stmt = select(WorkplaceAssignment).where(WorkplaceAssignment.status == AssignmentStatus.ACTIVE)
     if osgb_id is not None:
         stmt = stmt.where(WorkplaceAssignment.osgb_id == osgb_id)
+    if company_id is not None:
+        stmt = stmt.where(WorkplaceAssignment.company_id == company_id)
     assignments = list(db.scalars(stmt.order_by(WorkplaceAssignment.id)).all())
 
     company_ids = {a.company_id for a in assignments}
@@ -99,6 +106,7 @@ def build_katip_prep(db: Session, *, osgb_id: int | None = None) -> dict[str, An
         "stub": True,
         "note": "Gerçek İSG-KATİP API bağlantısı yok; sistem kayıtlarından hazırlık listesi üretilir.",
         "osgb_id": osgb_id,
+        "company_id": company_id,
         "summary": {
             "active_assignments": len(assignments),
             "complete": complete,
@@ -111,8 +119,13 @@ def build_katip_prep(db: Session, *, osgb_id: int | None = None) -> dict[str, An
     }
 
 
-def katip_prep_csv(db: Session, *, osgb_id: int | None = None) -> tuple[bytes, str]:
-    data = build_katip_prep(db, osgb_id=osgb_id)
+def katip_prep_csv(
+    db: Session,
+    *,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> tuple[bytes, str]:
+    data = build_katip_prep(db, osgb_id=osgb_id, company_id=company_id)
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(

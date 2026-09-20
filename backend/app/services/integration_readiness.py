@@ -17,10 +17,15 @@ from app.services.katip_prep import PREP_VERSION, build_katip_prep
 READINESS_VERSION = "checklist-v1"
 
 
-def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> dict[str, Any]:
-    ibys = build_ibys_export_summary(db, osgb_id=osgb_id)
-    katip = build_katip_prep(db, osgb_id=osgb_id)
-    csgb_pack = build_csgb_audit_pack(db, osgb_id=osgb_id)
+def build_integration_readiness(
+    db: Session,
+    *,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> dict[str, Any]:
+    ibys = build_ibys_export_summary(db, osgb_id=osgb_id, company_id=company_id)
+    katip = build_katip_prep(db, osgb_id=osgb_id, company_id=company_id)
+    csgb_pack = build_csgb_audit_pack(db, osgb_id=osgb_id, company_id=company_id)
 
     ibys_sum = ibys.get("summary") or {}
     companies = int(ibys_sum.get("companies") or 0)
@@ -129,6 +134,8 @@ def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> d
             "CSV export, KATİP eksik listesi ve ÇSGB paket özeti üzerinden hazırlık kontrolü."
         ),
         "osgb_id": osgb_id,
+        "company_id": company_id,
+        "scope": "company" if company_id is not None else "osgb",
         "checklist": checklist,
         "summary": {
             "ready": ready_n,

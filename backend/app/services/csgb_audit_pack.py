@@ -766,9 +766,13 @@ def build_csgb_audit_pack(
     }
 
 
-def build_csgb_audit_dashboard_summary(db: Session, osgb_id: int | None = None) -> dict[str, Any]:
+def build_csgb_audit_dashboard_summary(
+    db: Session,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> dict[str, Any]:
     """Ana Panel için hafif özet: hazırlık % + öncelikli eksikler (tam pack üzerinden)."""
-    pack = build_csgb_audit_pack(db, osgb_id=osgb_id)
+    pack = build_csgb_audit_pack(db, osgb_id=osgb_id, company_id=company_id)
     sum_ = pack.get("summary") or {}
     missing_items = pack.get("missing_items") or [
         {"code": None, "title": g.split(":", 1)[0], "status": "priority", "detail": g}
@@ -776,6 +780,8 @@ def build_csgb_audit_dashboard_summary(db: Session, osgb_id: int | None = None) 
     ]
     return {
         "osgb": pack.get("osgb"),
+        "company_id": company_id,
+        "scope": "company" if company_id is not None else "osgb",
         "generated_at": pack.get("generated_at"),
         "bundle_version": pack.get("bundle_version"),
         "summary": sum_,

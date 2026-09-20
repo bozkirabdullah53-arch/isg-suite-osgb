@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {api,downloadFile,uploadFile} from './api';
-import {Camera,Clock3,FileCheck2,Plus,ScanLine,TrendingDown,TrendingUp,Wallet} from 'lucide-react';
+import {Building2,Camera,Clock3,FileCheck2,Plus,ScanLine,TrendingDown,TrendingUp,Wallet} from 'lucide-react';
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 import {SiteQrCameraModal} from './field_qr_scan';
 import {AppModal} from './ui_modal';
@@ -10,6 +10,7 @@ import {
  canUseVisitCheckInOutQrForCompany,
 } from './visit_qr_policy';
 import {effectiveAssignmentStatus} from './assignment_status';
+import {persistSelectedCompanyId} from './nace_context';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -165,6 +166,7 @@ async function copyText(text){
 
 export function OsgbDashboard({user, onNavigate}){
  const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
+ const[companies,setCompanies]=useState([]),[companyId,setCompanyId]=useState('');
  const[ops,setOps]=useState(null);
  const[kpis,setKpis]=useState(null);
  const[csgb,setCsgb]=useState(null);
@@ -208,23 +210,28 @@ export function OsgbDashboard({user, onNavigate}){
   setContractsOpen(false);
  }
 
- async function load(id){
-  if(!id){setData(null);setOps(null);setKpis(null);setCsgb(null);setInteg(null);setAdapterStatus(null);return}
-  setData(await api(`/operations/dashboard?osgb_id=${id}`));
+ function clearDashboardData(){
+  setData(null);setOps(null);setKpis(null);setCsgb(null);setInteg(null);setAdapterStatus(null);
+ }
+
+ async function load(id=oid,cid=companyId){
+  if(!id||!cid){clearDashboardData();return}
+  const scopeQuery=`?osgb_id=${encodeURIComponent(id)}&company_id=${encodeURIComponent(cid)}`;
+  setData(await api(`/operations/dashboard${scopeQuery}`));
   try{
-   setOps(await api(`/osgb/oversight?osgb_id=${id}`));
+   setOps(await api(`/osgb/oversight${scopeQuery}`));
   }catch(_){setOps(null)}
   try{
-   setKpis(await api(`/operations/module-kpis?osgb_id=${id}`));
+   setKpis(await api(`/operations/module-kpis${scopeQuery}`));
   }catch(_){setKpis(null)}
   try{
-   setCsgb(await api(`/osgb/csgb-audit-pack/summary?osgb_id=${id}`));
+   setCsgb(await api(`/osgb/csgb-audit-pack/summary${scopeQuery}`));
   }catch(_){setCsgb(null)}
   try{
-   setInteg(await api(`/osgb/integration-readiness?osgb_id=${id}`));
+   setInteg(await api(`/osgb/integration-readiness${scopeQuery}`));
   }catch(_){setInteg(null)}
   try{
-   setAdapterStatus(await api(`/osgb/integrations/status?osgb_id=${id}`));
+   setAdapterStatus(await api(`/osgb/integrations/status?osgb_id=${encodeURIComponent(id)}`));
   }catch(_){setAdapterStatus(null)}
  }
 
@@ -262,13 +269,54 @@ export function OsgbDashboard({user, onNavigate}){
  }
 
  useEffect(()=>{
+  let cancelled=false;
   api('/osgb').then(o=>{
-   setOrgs(o);
-   const id=String(osgbId(user,o)||'');
-   setOid(id);
-   if(id) load(id);
+   if(cancelled) return;
+   const rows=Array.isArray(o)?o:[];
+   setOrgs(rows);
+   setOid(String(osgbId(user,rows)||''));
+  }).catch(()=>{
+   if(!cancelled) setOrgs([]);
   });
- },[]);
+  return()=>{cancelled=true};
+ },[user?.id,user?.osgb_id]);
+
+ useEffect(()=>{
+  if(!oid) return undefined;
+  let cancelled=false;
+  api('/companies').then((rows)=>{
+   if(cancelled) return;
+   const list=(Array.isArray(rows)?rows:[]).filter((row)=>
+    row?.is_active!==false && String(row.osgb_id)===String(oid)
+   );
+   setCompanies(list);
+   // OSGB ana paneli her açılışta açık bir kapsam ister; tek firma olsa bile
+   // son kullanılan/ilk firma otomatik seçilmez.
+   setCompanyId('');
+   persistSelectedCompanyId('');
+   window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{detail:{source:'osgb-dashboard'}}));
+  }).catch(()=>{
+   if(!cancelled) setCompanies([]);
+  });
+  return()=>{cancelled=true};
+ },[oid,user?.role]);
+
+ useEffect(()=>{
+  if(oid&&companyId) void load(oid,companyId);
+  else clearDashboardData();
+ },[oid,companyId]);
+
+ const selectedCompany=companies.find((row)=>String(row.id)===String(companyId))||null;
+
+ function chooseCompany(value){
+  const next=String(value||'');
+  const selected=companies.find((row)=>String(row.id)===next);
+  setCompanyId(next);
+  persistSelectedCompanyId(next);
+  window.dispatchEvent(new CustomEvent('isg:company-selected',{
+   detail:next?{companyId:next,company:selected}: {},
+  }));
+ }
 
  const byType=data?.professionals_by_type||{};
  const unBy=data?.unassigned_by_type||{};
@@ -284,11 +332,11 @@ export function OsgbDashboard({user, onNavigate}){
  const csgbGaps=csgb?.missing_items||[];
 
  async function downloadCsgbZip(){
-  if(!oid) return;
+  if(!oid||!companyId) return;
   setCsgbDlBusy(true);
   try{
    const stamp=new Date().toISOString().slice(0,10);
-   await downloadFile(`/osgb/csgb-audit-pack/bundle?osgb_id=${oid}`,`csgb-denetim-paketi-${stamp}.zip`);
+   await downloadFile(`/osgb/csgb-audit-pack/bundle?osgb_id=${encodeURIComponent(oid)}&company_id=${encodeURIComponent(companyId)}`,`csgb-isyeri-paketi-${companyId}-${stamp}.zip`);
   }catch(e){alert(e.message||'ZIP indirilemedi')}
   finally{setCsgbDlBusy(false)}
  }
@@ -301,11 +349,49 @@ export function OsgbDashboard({user, onNavigate}){
 
   {orgs.length>1&&user.role==='global_admin'&&<section className="panel" style={{marginBottom:16}}>
    <label className="field"><span>OSGB</span>
-    <select value={oid} onChange={e=>{const v=e.target.value;setOid(v);load(v)}}>
+    <select value={oid} onChange={e=>{const v=e.target.value;setOid(v);setCompanyId('');persistSelectedCompanyId('');window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{detail:{source:'osgb-dashboard'}}))}}>
      {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
     </select>
    </label>
   </section>}
+
+  <section className="panel" style={{marginBottom:16,border:'1px solid #b9d4ea',background:'linear-gradient(135deg,#f8fcff 0%,#eef8f8 100%)'}}>
+   <div style={{display:'flex',justifyContent:'space-between',gap:16,flexWrap:'wrap',alignItems:'flex-end'}}>
+    <div style={{minWidth:240,flex:'1 1 320px'}}>
+     <div style={{display:'flex',alignItems:'center',gap:8,color:'#0f766e',fontSize:12,fontWeight:800,letterSpacing:'.04em'}}>
+      <Building2 size={17}/> AKTİF İŞYERİ KAPSAMI
+     </div>
+     <h3 style={{margin:'6px 0 4px'}}>Firma seçiniz</h3>
+     <p style={{margin:0,color:'#64748b',fontSize:13}}>
+      OSGB ana panelindeki tüm sayaçlar, uyarılar ve denetim özeti seçtiğiniz işyerine göre gösterilir.
+     </p>
+    </div>
+    <label className="field" style={{margin:0,minWidth:280,flex:'1 1 340px'}}>
+     <span>Firma / işyeri</span>
+     <select value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={!companies.length}>
+      <option value="">Firma seçiniz</option>
+      {companies.map((row)=><option key={row.id} value={row.id}>{row.name}</option>)}
+     </select>
+    </label>
+   </div>
+   {selectedCompany&&(
+    <div style={{display:'flex',gap:18,flexWrap:'wrap',marginTop:14,paddingTop:12,borderTop:'1px solid #d6e8eb',fontSize:13,color:'#475569'}}>
+     <span><strong style={{color:'#123b5d'}}>Seçili firma:</strong> {selectedCompany.name}</span>
+     <span><strong style={{color:'#123b5d'}}>NACE:</strong> {selectedCompany.nace_code||'—'}</span>
+     <span><strong style={{color:'#123b5d'}}>Tehlike:</strong> {selectedCompany.hazard_class||'Belirlenmedi'}</span>
+    </div>
+   )}
+  </section>
+
+  {!companyId ? (
+   <section className="panel" style={{marginBottom:16,textAlign:'center',padding:'38px 24px'}}>
+    <Building2 size={38} color="#0f766e" style={{marginBottom:8}}/>
+    <h3 style={{margin:'0 0 6px'}}>Başlamak için firma seçiniz</h3>
+    <p style={{margin:0,color:'#64748b',fontSize:14}}>
+     Firma seçilmeden hiçbir işyeri verisi OSGB ana paneline otomatik bağlanmaz.
+    </p>
+   </section>
+  ) : <>
 
   {integ&&(
    <section className="panel" style={{marginBottom:16}}>
@@ -831,6 +917,7 @@ export function OsgbDashboard({user, onNavigate}){
     />
    </section>
   )}
+  </>}
  </>
 }
 
