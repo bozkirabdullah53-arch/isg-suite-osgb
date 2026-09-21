@@ -13,7 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from fastapi import Depends, File, HTTPException, UploadFile
+from fastapi import Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api import remote_training as remote_api
@@ -288,17 +288,21 @@ def _delete_existing_company_logo(company_id: int) -> None:
             raise HTTPException(500, "Önceki firma logosu güvenli biçimde kaldırılamadı.")
 
 
-def _assert_workplace_company_logo_manager(db: Session, user: User) -> Company:
-    """Only a company-scoped workplace account may change its own logo."""
+def _assert_workplace_company_logo_manager(
+    db: Session,
+    user: User,
+    requested_company_id: int | None = None,
+) -> Company:
+    """Allow workplace accounts and assigned safety specialists to manage their own accessible company logo."""
     remote_api._manager(user)
-    if not remote_service.is_workplace_account(user):
-        raise HTTPException(
-            403,
-            "Firma logosunu yalnızca işyeri hesabı kendi işyeri için yönetebilir.",
-        )
-    company_id = int(user.company_id or 0)
+    if remote_service.is_workplace_account(user):
+        company_id = int(user.company_id or 0)
+    else:
+        if getattr(user, "role", None) != getattr(remote_api.UserRole, "SAFETY_SPECIALIST", None):
+            raise HTTPException(403, "Firma logosunu bu hesap yönetemez.")
+        company_id = int(requested_company_id or 0)
     if company_id <= 0:
-        raise HTTPException(403, "İşyeri hesabı bir firmaya bağlı değil.")
+        raise HTTPException(422, "Firma seçilmelidir.")
     remote_api.ensure_company_access(db, user, company_id)
     company = db.get(Company, company_id)
     if not company or not company.is_active:
@@ -317,19 +321,21 @@ def _company_logo_output(company: Company) -> dict[str, Any]:
 
 
 def get_remote_company_logo(
+    company_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    company = _assert_workplace_company_logo_manager(db, user)
+    company = _assert_workplace_company_logo_manager(db, user, company_id)
     return _company_logo_output(company)
 
 
 async def upload_remote_company_logo(
     file: UploadFile = File(...),
+    company_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    company = _assert_workplace_company_logo_manager(db, user)
+    company = _assert_workplace_company_logo_manager(db, user, company_id)
     original = Path(file.filename or "logo.png")
     extension = original.suffix.lower()
     if extension not in REMOTE_LOGO_EXTENSIONS or (
@@ -373,10 +379,11 @@ async def upload_remote_company_logo(
 
 
 def delete_remote_company_logo(
+    company_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    company = _assert_workplace_company_logo_manager(db, user)
+    company = _assert_workplace_company_logo_manager(db, user, company_id)
     _delete_existing_company_logo(company.id)
     remote_service.audit(
         db,
