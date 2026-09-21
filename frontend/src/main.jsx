@@ -1644,15 +1644,15 @@ function Employees({user}){
         : "Örnek Excel'i İndir → PERSONEL LİSTESİ sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Sütunlar: #, Adı Soyadı (zorunlu), TC Kimlik No, Görevi, Departman, Şube, İşe Giriş, İşten Çıkış (GG.AA.YYYY), Özel Durum. Durum ve işlem sütunları sistem tarafından oluşturulur. Boş hücreler mevcut kayıtlardaki bilgileri silmez; dolu gönderilen alanlar birebir işlenir. Çıkış Tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca seçili işyerine aktarılır."}
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
-    <Table cols={[
+    <Table className="employees-table" cols={[
       {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
-      {key:'full_name',label:'Ad Soyad'},
+      {key:'full_name',label:'Ad Soyad',render:r=><span className="employee-name" title={r.full_name||'—'}>{r.full_name||'—'}</span>},
       {key:'national_id_masked',label:'TC Kimlik No',render:r=>r.national_id_masked||'—'},
       {key:'job_title',label:'Görev'},
       {key:'department',label:'Departman'},
       {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
-      {key:'start_date',label:'İşe Giriş'},
-      {key:'exit_date',label:'İşten Çıkış',render:r=>r.exit_date||'—'},
+      {key:'start_date',label:'İşe Giriş',render:r=><time className="employee-date" dateTime={r.start_date||undefined}>{r.start_date||'—'}</time>},
+      {key:'exit_date',label:'İşten Çıkış',render:r=><time className="employee-date" dateTime={r.exit_date||undefined}>{r.exit_date||'—'}</time>},
       {key:'gender',label:'Cinsiyet',render:r=>r.gender||'—'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active===true}/>},
