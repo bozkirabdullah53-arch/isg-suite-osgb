@@ -22,6 +22,8 @@ def test_hazard_type_classifier_handles_turkish_terms():
     assert classify_hazard_type("Biyolojik Riskler", "Enfeksiyon") == "biological"
     assert classify_hazard_type("Kimyasal Riskler", "Solvent") == "chemical"
     assert classify_hazard_type("Fiziksel Riskler", "Gürültü") == "physical"
+    assert classify_hazard_type("Ergonomik Riskler", "Elle taşıma") == "ergonomic"
+    assert classify_hazard_type("Psikososyal Riskler", "İş stresi") == "psychosocial"
 
 
 def test_battery_nace_candidate_labels_are_turkish():
@@ -109,6 +111,13 @@ def test_build_risk_analytics_sorts_dominant_types_and_keeps_nace_candidates_sep
     assert result["summary"]["dominant_risk"] == "Solvent"
     assert result["risk_types"][0]["key"] == "chemical"
     assert result["risk_types"][0]["percentage"] == 66.7
+    assert {item["key"] for item in result["risk_types"]} >= {
+        "physical",
+        "chemical",
+        "biological",
+        "ergonomic",
+        "psychosocial",
+    }
     assert result["dominant_risks"][0]["label"] == "Solvent"
     assert len(result["potential_hazards"]) == 2
     assert result["potential_hazards"][0]["source"] == "NACE"

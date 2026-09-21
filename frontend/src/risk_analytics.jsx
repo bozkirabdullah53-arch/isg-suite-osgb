@@ -1,9 +1,11 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
+  Accessibility,
   Activity,
   AlertTriangle,
   BarChart3,
   Beaker,
+  Brain,
   Building2,
   Info,
   RefreshCw,
@@ -17,6 +19,8 @@ const TYPE_ICONS = {
   physical: Activity,
   chemical: Beaker,
   biological: ShieldCheck,
+  ergonomic: Accessibility,
+  psychosocial: Brain,
   other: AlertTriangle,
 };
 
@@ -276,7 +280,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
           <div className="ra-section-heading"><div><span>RİSK ÖNCELİKLENDİRME</span><h2>Dominant risk görünümü</h2><p>Yüzde sıralaması, risk skoru ile maruz kalan kişi sayısını birlikte dikkate alır.</p></div></div>
           <section className="ra-chart-grid">
             <article className="ra-panel ra-panel--chart">
-              <div className="ra-panel-title"><div><h3>Tehlike türleri dağılımı</h3><p>Fiziksel, kimyasal ve biyolojik risklerin ağırlıklı payı</p></div><Activity size={20} /></div>
+              <div className="ra-panel-title"><div><h3>Tehlike türleri dağılımı</h3><p>Fiziksel, kimyasal, biyolojik, ergonomik ve psikososyal risklerin ağırlıklı payı</p></div><Activity size={20} /></div>
               {types.some((item) => item.risk_count > 0) ? <><DonutChart items={types} /><div className="ra-type-card-grid">{types.filter((item) => item.risk_count > 0).map((item) => <RiskTypeCard key={item.key} item={item} />)}</div></> : <div className="ra-chart-empty">Henüz işyerine ait aktif risk değerlendirmesi kaydı bulunmuyor.</div>}
             </article>
             <article className="ra-panel ra-panel--chart">
@@ -291,7 +295,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
           </section>
 
           <section className="ra-panel">
-            <div className="ra-panel-title"><div><h3>İşyeri risk değerlendirmesi özeti</h3><p>Fiziksel, kimyasal ve biyolojik tehlike türlerinde bildirilen kişi sayıları</p></div><Users size={20} /></div>
+            <div className="ra-panel-title"><div><h3>İşyeri risk değerlendirmesi özeti</h3><p>Fiziksel, kimyasal, biyolojik, ergonomik ve psikososyal tehlike türlerinde bildirilen kişi sayıları</p></div><Users size={20} /></div>
             <div className="ra-table-wrap"><table className="ra-table"><thead><tr><th>Tehlike türü</th><th>Risk kaydı</th><th>Maruz kişi</th><th>Dominans skoru</th><th>Pay</th></tr></thead><tbody>{types.map((item) => <tr key={item.key}><td><span className="ra-table-type"><span style={{background: item.color}} />{item.label}</span></td><td>{number(item.risk_count)}</td><td>{number(item.exposed_worker_count)}</td><td>{number(item.dominance_score)}</td><td><strong>{percent(item.percentage)}</strong></td></tr>)}{!types.some((item) => item.risk_count > 0) && <tr><td colSpan="5" className="ra-table-empty">Henüz risk değerlendirmesi kaydı yok.</td></tr>}</tbody></table></div>
           </section>
 
