@@ -20,17 +20,7 @@
     <meta name="theme-color" content="#0b2854" />
     <script>
       (function captureMobileInstallPrompt() {
-        function isMobile() {
-          try {
-            return window.matchMedia('(pointer: coarse)').matches
-              || window.matchMedia('(max-width: 820px)').matches
-              || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-          } catch (_) {
-            return false;
-          }
-        }
         window.addEventListener('beforeinstallprompt', function (event) {
-          if (!isMobile()) return;
           event.preventDefault();
           window.__isgDeferredInstallPrompt = event;
         });
