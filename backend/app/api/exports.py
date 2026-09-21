@@ -11,6 +11,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from pathlib import Path
+from xml.sax.saxutils import escape
 from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -122,6 +123,7 @@ def export_employees_pdf(
     font = "EmployeeReportSans" if font_path.exists() else "Helvetica"
     bold_font = "EmployeeReportSans-Bold" if bold_path.exists() else "Helvetica-Bold"
     company = db.get(Company, company_id) if company_id else None
+    safe = lambda value: escape(str(value or ""))
     women = sum(1 for row in rows if str(row.gender or "").lower() in {"kadın", "kadin", "female", "f"})
     men = sum(1 for row in rows if str(row.gender or "").lower() in {"erkek", "male", "m"})
     disabled = sum(1 for row in rows if row.special_status and "engelli" in row.special_status.lower())
@@ -131,11 +133,11 @@ def export_employees_pdf(
     title_style = ParagraphStyle("EmployeeTitle", parent=styles["Title"], fontName=bold_font, fontSize=16, leading=20)
     body_style = ParagraphStyle("EmployeeBody", parent=styles["BodyText"], fontName=font, fontSize=8, leading=10)
     company_text = company.name if company else "Tüm işyerleri"
-    title = Paragraph(company_text, title_style)
+    title = Paragraph(safe(company_text), title_style)
     meta = Paragraph(
-        f"<b>Firma:</b> {company_text} &nbsp;&nbsp; <b>SGK Sicil No:</b> {(company.sgk_registry_no if company else None) or '—'} &nbsp;&nbsp; "
-        f"<b>NACE:</b> {(company.nace_code if company else None) or '—'} &nbsp;&nbsp; <b>Tehlike Sınıfı:</b> {(company.hazard_class if company else None) or '—'}<br/>"
-        f"<b>Adres:</b> {(company.address if company else None) or '—'} &nbsp;&nbsp; <b>Telefon:</b> {(company.phone if company else None) or '—'}<br/>"
+        f"<b>Firma:</b> {safe(company_text)} &nbsp;&nbsp; <b>SGK Sicil No:</b> {safe(company.sgk_registry_no if company else None) or '—'} &nbsp;&nbsp; "
+        f"<b>NACE:</b> {safe(company.nace_code if company else None) or '—'} &nbsp;&nbsp; <b>Tehlike Sınıfı:</b> {safe(company.hazard_class if company else None) or '—'}<br/>"
+        f"<b>Adres:</b> {safe(company.address if company else None) or '—'} &nbsp;&nbsp; <b>Telefon:</b> {safe(company.phone if company else None) or '—'}<br/>"
         f"<b>Personel Özeti:</b> Toplam {len(rows)} | Kadın {women} | Erkek {men} | Cinsiyet belirtilmemiş {unknown_gender} | Engelli {disabled}", body_style)
     data = [["#", "Ad Soyad", "TC Kimlik No", "Görev", "Departman", "Şube", "Cinsiyet", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"]]
     data.extend([
@@ -143,7 +145,7 @@ def export_employees_pdf(
          r.start_date.isoformat() if r.start_date else "", r.exit_date.isoformat() if r.exit_date else "", r.special_status or "", "Aktif" if r.is_active else "Pasif"]
         for index, r in enumerate(rows, start=1)
     ])
-    data = [[Paragraph(str(value or ""), body_style) for value in row] for row in data]
+    data = [[Paragraph(safe(value), body_style) for value in row] for row in data]
     data[0] = [Paragraph(str(value), ParagraphStyle("EmployeeHeader", parent=body_style, fontName=bold_font, textColor=colors.white, alignment=1)) for value in data[0]]
     table = Table(data, repeatRows=1, colWidths=[7 * mm, 31 * mm, 25 * mm, 23 * mm, 23 * mm, 23 * mm, 19 * mm, 23 * mm, 23 * mm, 25 * mm, 17 * mm])
     table.setStyle(TableStyle([
