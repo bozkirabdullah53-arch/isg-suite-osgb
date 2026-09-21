@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -129,8 +129,11 @@ function DonutChart({items}) {
 export function RiskAnalyticsPage({user, onNavigate}) {
   const workplaceAccount = user?.role === 'company_admin' && Number(user?.company_id) > 0;
   const [companies, setCompanies] = useState([]);
-  const [companyId, setCompanyId] = useState(user?.company_id ? String(user.company_id) : '');
+  const [companyId, setCompanyId] = useState(
+    workplaceAccount && user?.company_id ? String(user.company_id) : ''
+  );
   const [data, setData] = useState(null);
+  const analyticsRequestRef = useRef(0);
   const [busy, setBusy] = useState(false);
   const [companyBusy, setCompanyBusy] = useState(true);
   const [error, setError] = useState('');
@@ -146,9 +149,9 @@ export function RiskAnalyticsPage({user, onNavigate}) {
         setCompanies(list);
         const preferred = workplaceAccount && user?.company_id
           ? String(user.company_id)
-          : user?.company_id && list.some((item) => String(item.id) === String(user.company_id))
-            ? String(user.company_id)
-            : list.length === 1 ? String(list[0].id) : '';
+          : '';
+        analyticsRequestRef.current += 1;
+        setData(null);
         setCompanyId(preferred);
       } catch (loadError) {
         if (!cancelled) setError(loadError.message || 'İşyeri listesi yüklenemedi.');
@@ -160,8 +163,10 @@ export function RiskAnalyticsPage({user, onNavigate}) {
   }, [user?.company_id, user?.role]);
 
   async function loadAnalytics(id = companyId) {
+    const requestId = ++analyticsRequestRef.current;
     if (!id) {
       setData(null);
+      setBusy(false);
       return;
     }
     setBusy(true);
@@ -169,17 +174,35 @@ export function RiskAnalyticsPage({user, onNavigate}) {
     setData(null);
     try {
       const result = await api(`/risks/analytics?company_id=${encodeURIComponent(id)}`);
-      setData(result);
+      if (requestId === analyticsRequestRef.current) setData(result);
     } catch (loadError) {
-      setError(loadError.message || 'Risk analitiği yüklenemedi.');
+      if (requestId === analyticsRequestRef.current) {
+        setError(loadError.message || 'Risk analitiği yüklenemedi.');
+      }
     } finally {
-      setBusy(false);
+      if (requestId === analyticsRequestRef.current) setBusy(false);
     }
   }
 
   useEffect(() => {
-    if (companyId) void loadAnalytics(companyId);
+    if (!companyId) {
+      analyticsRequestRef.current += 1;
+      setData(null);
+      setBusy(false);
+      setError('');
+      return;
+    }
+    void loadAnalytics(companyId);
   }, [companyId]);
+
+  function handleCompanyChange(event) {
+    const nextCompanyId = event.target.value;
+    analyticsRequestRef.current += 1;
+    setData(null);
+    setError('');
+    setBusy(false);
+    setCompanyId(nextCompanyId);
+  }
 
   const selectedCompany = companies.find((item) => String(item.id) === String(companyId));
   const summary = data?.summary || {};
@@ -209,7 +232,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
         ) : (
           <label className="ra-company-select">
             <span>İşyeri seçin</span>
-            <select value={companyId} onChange={(event) => setCompanyId(event.target.value)} disabled={companyBusy || !companies.length}>
+            <select value={companyId} onChange={handleCompanyChange} disabled={companyBusy || !companies.length}>
               <option value="">İşyeri seçiniz</option>
               {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
             </select>
