@@ -20,7 +20,7 @@
 - [ ] PyJWT ve frontend lockfile bağımlılıkları güncel/senkron olmalıdır.
 - [ ] Access token `localStorage` içinde bulunmamalı; refresh cookie HttpOnly/Secure ve SameSite=Lax olmalıdır.
 - [ ] Ayrıntılı sistem sağlık ve asenkron iş durumu endpoint'leri kimlik doğrulama gerektirmelidir; herkese açık `/health` yalnızca liveness için kullanılmalıdır.
-- [ ] Migration `0122`/`0123` açılışta `alembic upgrade head` ile uygulanır; deploy sonrası global admin ile `GET /api/v1/security/audit-chain` → `supported=true, ok=true, chain_breaks=0, hash_breaks=0` doğrulanmalıdır.
+- [ ] Migration `0122`–`0125` açılışta `alembic upgrade head` ile uygulanır; deploy sonrası global admin ile `GET /api/v1/security/audit-chain` → `supported=true, ok=true, chain_breaks=0, hash_breaks=0` doğrulanmalıdır.
 - [ ] Kullanıcı/OSGB kalıcı silme akışları 0122 sonrası detach-safe'tir; atıf olayları (`audit_actor_detach`, `audit_company_detach`) audit trail'de görünmelidir (regresyon: `test_audit_chain.py`, `test_osgb_purge.py`).
 - [ ] İSG-KATİP 48 saatlik yetkilendirme penceresi runbook'u: `docs/IBYS_PRODUCTION_READINESS_2026-09-21.md` §1 — pencere açılmadan `integration-readiness` + `katip-prep/export.csv` + `sync-field-roles` tamamlanmış olmalıdır.
 
