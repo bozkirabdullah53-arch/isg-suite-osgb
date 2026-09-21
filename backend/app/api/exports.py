@@ -130,24 +130,21 @@ def export_employees_pdf(
     doc = SimpleDocTemplate(stream, pagesize=landscape(A4), rightMargin=8 * mm, leftMargin=8 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
     title_style = ParagraphStyle("EmployeeTitle", parent=styles["Title"], fontName=bold_font, fontSize=16, leading=20)
     body_style = ParagraphStyle("EmployeeBody", parent=styles["BodyText"], fontName=font, fontSize=8, leading=10)
-    title = Paragraph("İSG Personel Listesi ve Müfettiş Bilgilendirme Raporu", title_style)
     company_text = company.name if company else "Tüm işyerleri"
+    title = Paragraph(company_text, title_style)
     meta = Paragraph(
         f"<b>Firma:</b> {company_text} &nbsp;&nbsp; <b>SGK Sicil No:</b> {(company.sgk_registry_no if company else None) or '—'} &nbsp;&nbsp; "
         f"<b>NACE:</b> {(company.nace_code if company else None) or '—'} &nbsp;&nbsp; <b>Tehlike Sınıfı:</b> {(company.hazard_class if company else None) or '—'}<br/>"
         f"<b>Adres:</b> {(company.address if company else None) or '—'} &nbsp;&nbsp; <b>Telefon:</b> {(company.phone if company else None) or '—'}<br/>"
         f"<b>Personel Özeti:</b> Toplam {len(rows)} | Kadın {women} | Erkek {men} | Cinsiyet belirtilmemiş {unknown_gender} | Engelli {disabled}", body_style)
-    briefing = Paragraph(
-        "Bu rapor, işyerindeki çalışan listesinin İSG denetiminde hızlı ve doğrulanabilir biçimde sunulması amacıyla hazırlanmıştır. "
-        "NACE kodu ve tehlike sınıfı, işyerinin yürüttüğü faaliyetlere göre uygulanacak risk değerlendirmesi, eğitim, sağlık gözetimi, "
-        "acil durum ve periyodik kontrol planlamasının temelini oluşturur. Personel görevleri, çalışma tarihleri, özel durumları ve aktiflik "
-        "bilgileri işyeri kayıtlarıyla birlikte değerlendirilmelidir; cinsiyet bilgisi yalnızca personel kaydında açıkça belirtilmişse sayılır.", body_style)
     data = [["#", "Ad Soyad", "TC Kimlik No", "Görev", "Departman", "Şube", "Cinsiyet", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"]]
     data.extend([
         [str(index), r.full_name, r.national_id_masked or "", r.job_title or "", r.department or "", branch_names.get(r.branch_id, ""), r.gender or "",
          r.start_date.isoformat() if r.start_date else "", r.exit_date.isoformat() if r.exit_date else "", r.special_status or "", "Aktif" if r.is_active else "Pasif"]
         for index, r in enumerate(rows, start=1)
     ])
+    data = [[Paragraph(str(value or ""), body_style) for value in row] for row in data]
+    data[0] = [Paragraph(str(value), ParagraphStyle("EmployeeHeader", parent=body_style, fontName=bold_font, textColor=colors.white, alignment=1)) for value in data[0]]
     table = Table(data, repeatRows=1, colWidths=[7 * mm, 31 * mm, 25 * mm, 23 * mm, 23 * mm, 23 * mm, 19 * mm, 23 * mm, 23 * mm, 25 * mm, 17 * mm])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F4C5C")),
@@ -159,7 +156,7 @@ def export_employees_pdf(
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
     ]))
-    doc.build([title, Spacer(1, 5 * mm), meta, Spacer(1, 3 * mm), briefing, Spacer(1, 5 * mm), table])
+    doc.build([title, Spacer(1, 5 * mm), meta, Spacer(1, 5 * mm), table])
     stream.seek(0)
     return StreamingResponse(stream, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="personel-listesi.pdf"'})
 
