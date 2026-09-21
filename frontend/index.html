@@ -18,14 +18,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="İSG Suite" />
     <meta name="theme-color" content="#0b2854" />
-    <script>
-      (function captureMobileInstallPrompt() {
-        window.addEventListener('beforeinstallprompt', function (event) {
-          event.preventDefault();
-          window.__isgDeferredInstallPrompt = event;
-        });
-      })();
-    </script>
+    <script type="module" src="/src/pwa_install_capture.js"></script>
     <style>
       .global-contact-help {
         position: fixed;
