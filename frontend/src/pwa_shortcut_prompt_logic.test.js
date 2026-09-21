@@ -23,13 +23,13 @@ function fakeWindow({standalone = false, ua = 'Android', maxWidth = true, coarse
 }
 
 describe('mobile shortcut prompt', () => {
-  it('asks only on first mobile browser visit', () => {
+  it('asks before the user has answered and not when already installed', () => {
     expect(shouldAskShortcutPrompt({
       mobile: true,
       standalone: false,
       choice: '',
     })).toBe(true);
-    expect(shouldAskShortcutPrompt({mobile: false, standalone: false, choice: ''})).toBe(false);
+    expect(shouldAskShortcutPrompt({mobile: false, standalone: false, choice: ''})).toBe(true);
     expect(shouldAskShortcutPrompt({mobile: true, standalone: true, choice: ''})).toBe(false);
     expect(shouldAskShortcutPrompt({mobile: true, standalone: false, choice: 'dismissed'})).toBe(false);
   });
@@ -58,6 +58,7 @@ describe('mobile shortcut prompt', () => {
 
   it('explains iOS add-to-home-screen when native install is unavailable', () => {
     expect(shortcutInstructionText(true)).toContain('Ana Ekrana Ekle');
-    expect(shortcutInstructionText(false)).toContain('Ana ekrana ekle');
+    expect(shortcutInstructionText(false, true)).toContain('Ana ekrana ekle');
+    expect(shortcutInstructionText(false, false)).toContain('masaüstüne');
   });
 });
