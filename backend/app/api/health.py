@@ -293,6 +293,9 @@ def _to_response(
 
         for field in SENSITIVE_TEXT_FIELDS:
             setattr(data, field, None)
+        # Yapılandırılmış anamnezdeki sayısal klinik yoğunluk alanı da
+        # metin alanlarıyla aynı minimum-gerekli görünürlük kuralına tabidir.
+        data.anamnesis_smoking_pack_years = None
         # DSP klinik karar üretmez; liste yanıtı hekim uygunluk kararını da
         # taşımamalıdır. Kayıt ve dosya kapsamı yine atama + tenant ile korunur.
         data.fitness_status = None
