@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-labelledby="title desc">
+  <title id="title">EİSA güvenlik simgesi</title>
+  <desc id="desc">Yeşil tonlarda modern kalkan ve onay işareti</desc>
+  <defs>
+    <linearGradient id="shield" x1="28" y1="24" x2="166" y2="176" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#69e7c8"/>
+      <stop offset="0.46" stop-color="#16b89b"/>
+      <stop offset="1" stop-color="#0b6d73"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="165%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#082f49" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M100 12 178 53v63c0 45-31 77-78 96-47-19-78-51-78-96V53Z" fill="#0b2854"/>
+    <path d="M100 31 160 63v51c0 34-22 59-60 77-38-18-60-43-60-77V63Z" fill="url(#shield)"/>
+    <path d="m55 114 32 32 61-73" fill="none" stroke="#f4fffc" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M100 31V16" fill="none" stroke="#69e7c8" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="100" cy="10" r="6" fill="#69e7c8"/>
+  </g>
+</svg>

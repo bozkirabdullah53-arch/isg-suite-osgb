@@ -2074,7 +2074,7 @@ export function OsgbApplyPage({ onBack }) {
     <main className="login-shell login-shell--form login-shell--apply">
       <div className="login-wrap login-wrap--form login-wrap--apply">
         <div className="login-brand login-brand--apply">
-          <img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
+          <img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
         </div>
         <section className="login-card login-card--apply">
           <h1>OSGB Başvuru</h1>
@@ -2181,7 +2181,7 @@ export function SpecialistRegisterPage({ onBack, onRegistered }) {
     <main className="login-shell login-shell--form login-shell--apply">
       <div className="login-wrap login-wrap--form login-wrap--apply">
         <div className="login-brand login-brand--apply">
-          <img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
+          <img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
         </div>
         <section className="login-card login-card--apply">
           <h1>İş Güvenliği Uzmanı Bireysel Başvuru</h1>

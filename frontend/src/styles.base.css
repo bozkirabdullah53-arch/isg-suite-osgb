@@ -40,6 +40,11 @@ button, input { font: inherit; }
   align-items: center;
   width: 100%;
   flex-shrink: 0;
+  padding: 5px 14px;
+  border: 1px solid rgba(203, 229, 225, .72);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 10px 26px rgba(9, 64, 75, .10);
 }
 
 .login-eisa-logo {

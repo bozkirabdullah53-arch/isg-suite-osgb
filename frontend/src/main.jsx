@@ -485,7 +485,7 @@ function Login({done,onApply,onSpecialistApply}){
     <main className={mode==='mfa_setup'||mode==='recovery'||mode==='forced_password'?'login-shell login-shell--form':'login-shell'}>
       {mode==='login'&&<LoginShowcase/>}
       <div className={mode==='mfa_setup'||mode==='recovery'||mode==='forced_password'?'login-wrap login-wrap--form':'login-wrap'}>
-        {mode!=='login'&&<div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>}
+        {mode!=='login'&&<div className="login-brand"><img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>}
         <section className="login-card">
           <h1>İSG Suite</h1>
           <p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p>
@@ -647,7 +647,7 @@ function Login({done,onApply,onSpecialistApply}){
             </div>
           )}
           {mode==='login'&&(
-            <div className="login-brand login-brand--card"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
+            <div className="login-brand login-brand--card"><img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
           )}
         </section>
       </div>
@@ -3072,7 +3072,7 @@ function App(){
           aria-current={active===homeId?'page':undefined}
         >
           <img
-            src="/eisa-logo-icon.png"
+            src="/eisa-logo-icon.svg"
             alt="EİSA ana sayfa"
             className="sidebar-logo eisa-logo-icon"
           />
