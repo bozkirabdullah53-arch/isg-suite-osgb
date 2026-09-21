@@ -23,6 +23,7 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'workplace_home',
   'workplace_status',
   'employer_oversight',
+  'risk_analytics',
   'employees',
   'personnel_training_records',
   'remote_training',
@@ -47,6 +48,7 @@ export const WORKPLACE_KIOSK_MODULES = WORKPLACE_MANAGER_MODULES;
 
 export const WORKPLACE_MENU_SECTIONS = Object.freeze([
   {label: 'İşyeri Özeti', items: ['workplace_home', 'workplace_status', 'employer_oversight']},
+  {label: 'Risk ve Analitik', items: ['risk_analytics']},
   {label: 'Personel ve Eğitim', items: ['employees', 'personnel_training_records', 'remote_training']},
   {
     label: 'İSG Kayıtları',

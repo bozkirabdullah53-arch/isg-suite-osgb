@@ -15,6 +15,7 @@ export const PROFESSIONAL_MENU_SECTIONS = {
         'visit_qr',
         'field_inspection',
         'risk',
+        'risk_analytics',
         'capa',
         'employees',
         'visits',
@@ -64,6 +65,7 @@ export const PROFESSIONAL_MENU_SECTIONS = {
       label: 'Günlük İş Akışı',
       items: [
         'dashboard',
+        'risk_analytics',
         'health',
         'prescriptions',
         'visit_notebook',
