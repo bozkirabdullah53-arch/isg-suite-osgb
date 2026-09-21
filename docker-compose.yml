@@ -18,6 +18,9 @@ services:
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your environment}
       FRONTEND_ORIGIN: http://localhost:5173
       CLAMAV_HOST: ${CLAMAV_HOST:-}
+      # F-06: boşsa bellek içi rate-limit (mevcut davranış). Yerel test için
+      # `docker compose --profile redis up -d` + REDIS_URL=redis://redis:6379/0
+      REDIS_URL: ${REDIS_URL:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -39,6 +42,15 @@ services:
     ports:
       # ISG-012: clamd korumasız protokoldür; yalnız yerel erişime açılır.
       - "127.0.0.1:3310:3310"
+
+  # F-06 opsiyonel: Redis (paylaşımlı rate-limit) — `docker compose --profile redis up -d`
+  # + backend'e REDIS_URL=redis://redis:6379/0. Boşsa bellek içi yedek devrede kalır.
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
 
 volumes:
   postgres_data:

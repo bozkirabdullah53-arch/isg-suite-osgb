@@ -42,9 +42,18 @@ services:
       # F-01 ENGELLENDİ (2026-09-21 probe): mail.isgsuite.tr:587 EHLO'da STARTTLS
       # YOK; 465/993/995 timeout; pop3.isgsuite.tr CAPA'da STLS YOK (isimtescil
       # "Mail Server 2"). TLS'i şimdi açmak parola sıfırlama mailini ve inbox
-      # senkronunu KIRARDI. Mevcut çalışan değerler korunuyor; kalıcı çözüm:
-      # sağlayıcıda SSL/STARTTLS etkinleştirme veya SMTP relay (SendGrid/Brevo/
-      # Workspace) + IMAPS destekli posta kutusuna geçiş. Detay: güvenlik raporu F-01.
+      # senkronunu KIRARDI. Mevcut çalışan değerler korunuyor.
+      #
+      # BREVO SMTP RELAY CUTOVER (onaylandı 2026-09-21 — docs/SECURITY_INFRA_ROLLOUT.md):
+      # Brevo hesabı + domain auth (SPF/DKIM) hazır olunca Render Dashboard'da:
+      #   SMTP_HOST     = smtp-relay.brevo.com
+      #   SMTP_PORT     = 587
+      #   SMTP_USE_TLS  = true
+      #   SMTP_USERNAME = <Brevo SMTP login>        (secret — sync:false)
+      #   SMTP_PASSWORD = <Brevo SMTP key>          (secret — sync:false)
+      #   SMTP_FROM_EMAIL = info@isgsuite.tr        (Brevo'da doğrulanmış domain)
+      # Doğrulama: parola sıfırlama maili uçtan uca + delivery log "sent".
+      # Kod değişikliği GEREKMEZ (mailer.py SMTP/STARTTLS destekli).
       - key: SMTP_USE_TLS
         value: "false"
       - key: SMTP_USE_SSL
@@ -78,6 +87,9 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
+      # F-06: Render Key Value (Redis) oluşturup REDIS_URL'i buraya bağlayın —
+      # rate_limit.py otomatik Redis backend'e geçer; boş/erişilemezse bellek içi
+      # yedek devrede kalır (canlıyı bozmaz). Adımlar: docs/SECURITY_INFRA_ROLLOUT.md
       - key: REDIS_URL
         sync: false
       - key: ASYNC_JOBS_FORCE_OFF
