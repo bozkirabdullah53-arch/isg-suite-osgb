@@ -45,3 +45,49 @@ class RegulatoryIdentity(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+class ProfessionalRegulatoryIdentity(Base):
+    """Encrypted TCKN/YKN vault row for an İSG professional/instructor.
+
+    Professional identities are scoped to the OSGB, never copied into training
+    rows, and plaintext is only resolved inside authority adapters.
+    """
+    __tablename__ = "professional_regulatory_identities"
+    __table_args__ = (
+        UniqueConstraint(
+            "professional_id",
+            "identity_type",
+            name="uq_prof_reg_identity_professional_type",
+        ),
+        UniqueConstraint(
+            "osgb_id",
+            "identity_type",
+            "lookup_hash",
+            name="uq_prof_reg_identity_osgb_lookup",
+        ),
+        Index("ix_prof_reg_identity_osgb", "osgb_id"),
+        Index("ix_prof_reg_identity_professional", "professional_id"),
+        Index("ix_prof_reg_identity_lookup", "lookup_hash"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    osgb_id: Mapped[int] = mapped_column(
+        ForeignKey("osgb_organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    professional_id: Mapped[int] = mapped_column(
+        ForeignKey("isg_professionals.id", ondelete="CASCADE"), nullable=False
+    )
+    identity_type: Mapped[str] = mapped_column(String(20), nullable=False, default="tckn")
+    masked_value: Mapped[str] = mapped_column(String(32), nullable=False)
+    ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
+    lookup_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    encryption_version: Mapped[str] = mapped_column(String(24), nullable=False, default="rid:v1")
+    verified_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
