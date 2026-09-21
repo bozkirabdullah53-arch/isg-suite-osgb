@@ -47,7 +47,7 @@ from app.models.entities import (
     WorkplaceAssignment,
 )
 from app.schemas.health import HealthRecordCreate, HealthRecordResponse, HealthRecordUpdate
-from app.services.health_field_crypto import DecryptedRecordView, encrypt_payload
+from app.services.health_field_crypto import DecryptedRecordView, SENSITIVE_TEXT_FIELDS, encrypt_payload
 from app.services.health_audit import (
     append_health_access,
     append_health_revision,
@@ -232,6 +232,19 @@ def _to_response(
             fitness_status=row.fitness_status,
             physician_professional_id=row.physician_professional_id,
             physician_name=row.physician_name,
+            diagnosis=view.diagnosis,
+            laboratory_result_summary=view.laboratory_result_summary,
+            anamnesis_chronic_diseases=view.anamnesis_chronic_diseases,
+            anamnesis_past_medical_history=view.anamnesis_past_medical_history,
+            anamnesis_family_history=view.anamnesis_family_history,
+            anamnesis_current_medications=view.anamnesis_current_medications,
+            anamnesis_allergies=view.anamnesis_allergies,
+            anamnesis_smoking_status=view.anamnesis_smoking_status,
+            anamnesis_smoking_pack_years=row.anamnesis_smoking_pack_years,
+            anamnesis_alcohol_use=view.anamnesis_alcohol_use,
+            anamnesis_occupational_history=view.anamnesis_occupational_history,
+            anamnesis_previous_exposures=view.anamnesis_previous_exposures,
+            anamnesis_current_complaints=view.anamnesis_current_complaints,
             summary=view.summary,
             confidential_note=view.confidential_note,
             informed_consent=bool(row.informed_consent),
@@ -264,18 +277,7 @@ def _to_response(
             version=row.version,
         )
     data = HealthRecordResponse.model_validate(row)
-    for field in (
-        "confidential_note",
-        "summary",
-        "restrictions",
-        "audiometry_result",
-        "spirometry_result",
-        "chest_xray_result",
-        "follow_up_note",
-        "other_biological_test",
-        "exposures",
-        "suggested_tests",
-    ):
+    for field in SENSITIVE_TEXT_FIELDS:
         setattr(data, field, getattr(view, field))
     data.employee_name = employee.full_name if employee else None
     data.job_title = employee.job_title if employee else None
@@ -1463,6 +1465,20 @@ def health_form_html(
         )
     )
     conf = view.confidential_note if full_health_view else None
+    diagnosis_txt = view.diagnosis if full_health_view else None
+    laboratory_summary = view.laboratory_result_summary if full_health_view else None
+    anamnesis_lines = [
+        ("Kronik hastalıklar", view.anamnesis_chronic_diseases),
+        ("Geçmiş hastalık / ameliyat", view.anamnesis_past_medical_history),
+        ("Aile öyküsü", view.anamnesis_family_history),
+        ("Kullanılan ilaçlar", view.anamnesis_current_medications),
+        ("Alerjiler", view.anamnesis_allergies),
+        ("Sigara", view.anamnesis_smoking_status),
+        ("Alkol", view.anamnesis_alcohol_use),
+        ("Mesleki geçmiş", view.anamnesis_occupational_history),
+        ("Geçmiş maruziyetler", view.anamnesis_previous_exposures),
+        ("Güncel yakınmalar", view.anamnesis_current_complaints),
+    ] if full_health_view else []
     audiometry_txt = view.audiometry_result if full_health_view else None
     spirometry_txt = view.spirometry_result if full_health_view else None
     chest_txt = view.chest_xray_result if full_health_view else None
@@ -1519,6 +1535,14 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 {cell('Uygunluk', FITNESS_LABELS.get(record.fitness_status, record.fitness_status.value))}
 {cell('Bilgilendirme Onayı', consent_txt)}
 </div>
+<h3>Yapılandırılmış Anamnez</h3>
+<div class="grid">
+{''.join(cell(label, value or '') for label, value in anamnesis_lines)}
+{cell('Sigara paket-yıl', record.anamnesis_smoking_pack_years if record.anamnesis_smoking_pack_years is not None else '')}
+</div>
+<h3>Hekim Değerlendirmesi</h3>
+<p><strong>Tanı / değerlendirme:</strong> {safe(diagnosis_txt) or '—'}</p>
+<p><strong>Laboratuvar sonuç özeti:</strong> {safe(laboratory_summary) or '—'}</p>
 <h3>Tetkikler</h3>
 <div class="grid">
 {cell('Odyometri', f"{record.audiometry_date or ''} / {audiometry_txt or ''}".strip(' /'))}
