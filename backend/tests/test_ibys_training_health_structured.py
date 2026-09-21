@@ -106,3 +106,103 @@ def test_structured_anamnesis_sensitive_text_is_encrypted(monkeypatch):
         assert encrypted[key].startswith("enc:v1:")
         assert value not in encrypted[key]
         assert decrypt_field(encrypted[key]) == value
+
+
+
+def test_instructor_readiness_backfill_is_masked_and_exact_scope(monkeypatch):
+    import json
+
+    from app.api.trainings import instructor_regulatory_readiness
+    from app.models.entities import (
+        Company,
+        TrainingSession,
+        User,
+        UserRole,
+    )
+
+    monkeypatch.setenv("REGULATORY_IDENTITY_ENCRYPTION_KEY", "Q" * 48)
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        osgb = OsgbOrganization(name="Readiness OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(
+            name="Readiness Firma",
+            osgb_id=osgb.id,
+            hazard_class="Tehlikeli",
+            is_active=True,
+        )
+        db.add(company)
+        db.flush()
+        manager = User(
+            email="readiness-global@test.local",
+            full_name="Readiness Global",
+            hashed_password="not-used-in-unit-test",
+            role=UserRole.GLOBAL_ADMIN,
+            is_active=True,
+        )
+        professional = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="Test Eğitmen",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            certificate_class="A",
+            certificate_number="EGT-A-001",
+            is_active=True,
+        )
+        db.add_all([manager, professional])
+        db.flush()
+        training = TrainingSession(
+            company_id=company.id,
+            title="Readiness Eğitimi",
+            training_type="İlk Defa",
+            delivery_method="Yüz yüze",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 9, 2),
+            duration_hours=12,
+            renewal_years=2,
+            hazard_class="Tehlikeli",
+            sector="nace_test",
+            instructor_name="  TEST   EĞİTMEN ",
+            evaluation_method="Sınav",
+            attendance_verified=True,
+            success_verified=True,
+            created_by_id=manager.id,
+        )
+        db.add(training)
+        db.commit()
+
+        first = instructor_regulatory_readiness(
+            company_id=None,
+            include_archived=True,
+            db=db,
+            user=manager,
+        )
+        assert first["full_identity_exposed"] is False
+        assert first["counts"]["link_available"] == 1
+        assert first["rows"][0]["candidate_professionals"][0]["professional_id"] == professional.id
+        assert first["rows"][0]["identities"] == []
+
+        synthetic_tckn = "10000000146"
+        upsert_professional_identity(
+            db,
+            osgb_id=osgb.id,
+            professional_id=professional.id,
+            identity_type="tckn",
+            raw_value=synthetic_tckn,
+        )
+        training.instructor_professional_id = professional.id
+        db.commit()
+
+        ready = instructor_regulatory_readiness(
+            company_id=None,
+            include_archived=True,
+            db=db,
+            user=manager,
+        )
+        assert ready["counts"]["ready"] == 1
+        row = ready["rows"][0]
+        assert row["status"] == "ready"
+        assert row["identities"][0]["masked_value"] == "*******0146"
+        assert synthetic_tckn not in json.dumps(ready, ensure_ascii=False)
