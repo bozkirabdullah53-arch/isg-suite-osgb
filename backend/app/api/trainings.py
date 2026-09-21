@@ -37,6 +37,7 @@ from app.models.remote_training import RemoteTrainingCertificate
 from app.models.training_presentation_approval import TrainingPresentationApproval
 from app.schemas.training import (
     InstructorIdentityUpsert,
+    InstructorProfessionalLink,
     TrainingArchiveRequest,
     TrainingCreate,
     TrainingResponse,
@@ -980,6 +981,40 @@ def update_training(
         setattr(row, k, v)
     if new_ids is not None:
         _replace_participants(db, row, new_ids)
+    db.commit()
+    return _load_training(db, training_id)
+
+
+@router.put("/{training_id}/instructor-regulatory-link", response_model=TrainingResponse)
+def link_historical_training_instructor(
+    training_id: int,
+    payload: InstructorProfessionalLink,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_training_package_manager),
+):
+    """Link an existing training to the canonical professional without rewriting history.
+
+    Completed/archived records may be linked only when the stored instructor
+    name already matches the professional. This prevents a regulatory backfill
+    from silently changing who delivered the training.
+    """
+    row = _load_training(db, training_id)
+    ensure_access(db, user, row.company_id)
+    company = db.get(Company, row.company_id)
+    professional = db.get(IsgProfessional, payload.professional_id)
+    if not company or not professional or not professional.is_active:
+        raise HTTPException(404, "İşyeri veya aktif eğitici/profesyonel bulunamadı.")
+    if company.osgb_id is None or int(professional.osgb_id) != int(company.osgb_id):
+        raise HTTPException(422, "Seçilen eğitici bu işyerinin bağlı olduğu OSGB kapsamında değil.")
+
+    stored_name = " ".join(str(row.instructor_name or "").split()).casefold()
+    canonical_name = " ".join(str(professional.full_name or "").split()).casefold()
+    if stored_name != canonical_name:
+        raise HTTPException(
+            409,
+            "Tarihsel eğitici adı profesyonel kaydıyla eşleşmiyor; otomatik bağlantı yapılmadı.",
+        )
+    row.instructor_professional_id = professional.id
     db.commit()
     return _load_training(db, training_id)
 
