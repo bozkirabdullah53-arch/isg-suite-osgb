@@ -1282,7 +1282,7 @@ function Employees({user}){
   const[healthRows,setHealthRows]=useState([]);
   const[healthBusy,setHealthBusy]=useState(false);
   const[healthError,setHealthError]=useState('');
-  const emptyEmployeeForm=(branchId='')=>({full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',exit_date:'',special_status:'',branch_id:branchId,is_active:true});
+  const emptyEmployeeForm=(branchId='')=>({full_name:'',national_id_masked:'',job_title:'',department:'',gender:'',start_date:'',exit_date:'',special_status:'',branch_id:branchId,is_active:true});
   const[form,setForm]=useState(emptyEmployeeForm());
 
   const selectedCompany=companies.find(c=>String(c.id)===String(selectedCompanyId));
@@ -1372,6 +1372,7 @@ function Employees({user}){
       national_id_masked:row.national_id_masked||'',
       job_title:row.job_title||'',
       department:row.department||'',
+      gender:row.gender||'',
       start_date:row.start_date||'',
       exit_date:row.exit_date||'',
       special_status:row.special_status||'',
@@ -1652,6 +1653,7 @@ function Employees({user}){
       {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
       {key:'start_date',label:'İşe Giriş'},
       {key:'exit_date',label:'İşten Çıkış',render:r=>r.exit_date||'—'},
+      {key:'gender',label:'Cinsiyet',render:r=>r.gender||'—'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active===true}/>},
       {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
@@ -1724,6 +1726,7 @@ function Employees({user}){
       <Field label="T.C. Kimlik (maskeli)" value={form.national_id_masked} onChange={e=>setForm({...form,national_id_masked:e.target.value})}/>
       <Field label="Branş / Görev" value={form.job_title} onChange={e=>setForm({...form,job_title:e.target.value})}/>
       <Field label="Departman" value={form.department} onChange={e=>setForm({...form,department:e.target.value})}/>
+      <Select label="Cinsiyet" value={form.gender} onChange={e=>setForm({...form,gender:e.target.value})}><option value="">Belirtilmedi</option><option value="Kadın">Kadın</option><option value="Erkek">Erkek</option></Select>
       <Field label="İşe Giriş Tarihi" type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
       <Field label="İşten Çıkış Tarihi" type="date" value={form.exit_date} onChange={e=>setForm({...form,exit_date:e.target.value,is_active:e.target.value?false:form.is_active})}/>
       <Field label="Engelli / Hükümlü Durumu" value={form.special_status} onChange={e=>setForm({...form,special_status:e.target.value})}/>

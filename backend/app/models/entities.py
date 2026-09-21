@@ -215,6 +215,7 @@ class Employee(Base):
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     exit_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     special_status: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     company: Mapped[Company] = relationship(back_populates="employees")
     branch: Mapped[Branch | None] = relationship(back_populates="employees")

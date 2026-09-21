@@ -5,9 +5,12 @@ from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from pathlib import Path
 from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.api.company_access import assigned_company_ids
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.entities import Branch, Employee, IsgRecord, User, UserRole
+from app.models.entities import Branch, Company, Employee, IsgRecord, User, UserRole
 
 router = APIRouter(prefix="/exports", tags=["Dışa Aktarım"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -64,7 +67,7 @@ def export_employees_excel(
         branch.id: branch.name
         for branch in db.scalars(select(Branch).where(Branch.company_id.in_({row.company_id for row in rows}))).all()
     } if rows else {}
-    ws.append(["#", "Adı Soyadı", "TC Kimlik No", "Görevi", "Departman", "Şube", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"])
+    ws.append(["#", "Adı Soyadı", "TC Kimlik No", "Görevi", "Departman", "Şube", "Cinsiyet", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"])
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = "A1:J1"
     for cell in ws[1]:
@@ -77,10 +80,11 @@ def export_employees_excel(
             r.job_title or "",
             r.department or "",
             branch_names.get(r.branch_id, ""),
+            r.gender or "",
             r.start_date.isoformat() if r.start_date else "",
             r.exit_date.isoformat() if r.exit_date else "",
             r.special_status or "",
-            "Evet" if r.is_active else "Hayır",
+            "Aktif" if r.is_active else "Pasif",
         ])
     stream = BytesIO()
     wb.save(stream)
@@ -109,28 +113,53 @@ def export_employees_pdf(
         for branch in db.scalars(select(Branch).where(Branch.company_id.in_({row.company_id for row in rows}))).all()
     } if rows else {}
     styles = getSampleStyleSheet()
-    for row in ws.iter_rows(min_row=2, min_col=3, max_col=3):
-        row[0].number_format = "@"
+    font_path = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "DejaVuSans.ttf"
+    bold_path = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "DejaVuSans-Bold.ttf"
+    if font_path.exists():
+        pdfmetrics.registerFont(TTFont("EmployeeReportSans", str(font_path)))
+        if bold_path.exists():
+            pdfmetrics.registerFont(TTFont("EmployeeReportSans-Bold", str(bold_path)))
+    font = "EmployeeReportSans" if font_path.exists() else "Helvetica"
+    bold_font = "EmployeeReportSans-Bold" if bold_path.exists() else "Helvetica-Bold"
+    company = db.get(Company, company_id) if company_id else None
+    women = sum(1 for row in rows if str(row.gender or "").lower() in {"kadın", "kadin", "female", "f"})
+    men = sum(1 for row in rows if str(row.gender or "").lower() in {"erkek", "male", "m"})
+    disabled = sum(1 for row in rows if row.special_status and "engelli" in row.special_status.lower())
+    unknown_gender = len(rows) - women - men
     stream = BytesIO()
     doc = SimpleDocTemplate(stream, pagesize=landscape(A4), rightMargin=8 * mm, leftMargin=8 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
-    title = Paragraph("Personel Listesi", styles["Title"])
-    data = [["#", "Ad Soyad", "TC Kimlik No", "Görev", "Departman", "Şube", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"]]
+    title_style = ParagraphStyle("EmployeeTitle", parent=styles["Title"], fontName=bold_font, fontSize=16, leading=20)
+    body_style = ParagraphStyle("EmployeeBody", parent=styles["BodyText"], fontName=font, fontSize=8, leading=10)
+    title = Paragraph("İSG Personel Listesi ve Müfettiş Bilgilendirme Raporu", title_style)
+    company_text = company.name if company else "Tüm işyerleri"
+    meta = Paragraph(
+        f"<b>Firma:</b> {company_text} &nbsp;&nbsp; <b>SGK Sicil No:</b> {(company.sgk_registry_no if company else None) or '—'} &nbsp;&nbsp; "
+        f"<b>NACE:</b> {(company.nace_code if company else None) or '—'} &nbsp;&nbsp; <b>Tehlike Sınıfı:</b> {(company.hazard_class if company else None) or '—'}<br/>"
+        f"<b>Adres:</b> {(company.address if company else None) or '—'} &nbsp;&nbsp; <b>Telefon:</b> {(company.phone if company else None) or '—'}<br/>"
+        f"<b>Personel Özeti:</b> Toplam {len(rows)} | Kadın {women} | Erkek {men} | Cinsiyet belirtilmemiş {unknown_gender} | Engelli {disabled}", body_style)
+    briefing = Paragraph(
+        "Bu rapor, işyerindeki çalışan listesinin İSG denetiminde hızlı ve doğrulanabilir biçimde sunulması amacıyla hazırlanmıştır. "
+        "NACE kodu ve tehlike sınıfı, işyerinin yürüttüğü faaliyetlere göre uygulanacak risk değerlendirmesi, eğitim, sağlık gözetimi, "
+        "acil durum ve periyodik kontrol planlamasının temelini oluşturur. Personel görevleri, çalışma tarihleri, özel durumları ve aktiflik "
+        "bilgileri işyeri kayıtlarıyla birlikte değerlendirilmelidir; cinsiyet bilgisi yalnızca personel kaydında açıkça belirtilmişse sayılır.", body_style)
+    data = [["#", "Ad Soyad", "TC Kimlik No", "Görev", "Departman", "Şube", "Cinsiyet", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"]]
     data.extend([
-        [str(index), r.full_name, r.national_id_masked or "", r.job_title or "", r.department or "", branch_names.get(r.branch_id, ""),
+        [str(index), r.full_name, r.national_id_masked or "", r.job_title or "", r.department or "", branch_names.get(r.branch_id, ""), r.gender or "",
          r.start_date.isoformat() if r.start_date else "", r.exit_date.isoformat() if r.exit_date else "", r.special_status or "", "Aktif" if r.is_active else "Pasif"]
         for index, r in enumerate(rows, start=1)
     ])
-    table = Table(data, repeatRows=1, colWidths=[8 * mm, 37 * mm, 31 * mm, 28 * mm, 28 * mm, 28 * mm, 24 * mm, 24 * mm, 28 * mm, 18 * mm])
+    table = Table(data, repeatRows=1, colWidths=[7 * mm, 31 * mm, 25 * mm, 23 * mm, 23 * mm, 23 * mm, 19 * mm, 23 * mm, 23 * mm, 25 * mm, 17 * mm])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F4C5C")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, 0), bold_font),
+        ("FONTNAME", (0, 1), (-1, -1), font),
         ("FONTSIZE", (0, 0), (-1, -1), 7),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
     ]))
-    doc.build([title, table])
+    doc.build([title, Spacer(1, 5 * mm), meta, Spacer(1, 3 * mm), briefing, Spacer(1, 5 * mm), table])
     stream.seek(0)
     return StreamingResponse(stream, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="personel-listesi.pdf"'})
 

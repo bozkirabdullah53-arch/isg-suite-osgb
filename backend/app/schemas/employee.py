@@ -16,6 +16,7 @@ class EmployeeCreate(BaseModel):
     exit_date: date | None = None
     hire_date: date | None = Field(default=None, exclude=True)
     special_status: str | None = None
+    gender: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -56,6 +57,7 @@ class EmployeeUpdate(BaseModel):
     exit_date: date | None = None
     hire_date: date | None = Field(default=None, exclude=True)
     special_status: str | None = None
+    gender: str | None = None
     is_active: bool | None = None
 
     @model_validator(mode="before")
@@ -109,5 +111,6 @@ class EmployeeResponse(BaseModel):
     start_date: date | None = None
     exit_date: date | None = None
     special_status: str | None = None
+    gender: str | None = None
     is_active: bool
     model_config = ConfigDict(from_attributes=True)

@@ -104,6 +104,9 @@ _HEADER_ALIASES: dict[str, str] = {
     "subesi": "branch_name",
     "branch": "branch_name",
     "branchname": "branch_name",
+    "cinsiyet": "gender",
+    "gender": "gender",
+    "cins": "gender",
 }
 
 
@@ -234,6 +237,7 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
             "job_title": None,
             "department": None,
             "branch_name": None,
+            "gender": None,
             "start_date": None,
             "exit_date": None,
             "special_status": None,
@@ -256,6 +260,8 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
                 item["department"] = _cell(raw) or None
             elif key == "branch_name":
                 item["branch_name"] = _cell(raw) or None
+            elif key == "gender":
+                item["gender"] = _cell(raw) or None
             elif key == "start_date":
                 item["start_date"] = _parse_date(raw)
             elif key == "exit_date":
@@ -279,6 +285,7 @@ TEMPLATE_HEADERS = [
     "Görevi",
     "Departman",
     "Şube",
+    "Cinsiyet",
     "İşe Giriş",
     "İşten Çıkış",
     "Özel Durum",
@@ -308,7 +315,7 @@ def build_import_template_xlsx() -> bytes:
     """Kullanıcı şablonunun birebir kopyası: tek sayfa, 1. satır başlık, 90 numaralı satır.
 
     Sütun düzeni: # | Adı Soyadı | TC Kimlik No | Görevi | Departman | Şube |
-    İşe Giriş | İşten Çıkış | Özel Durum. Tarih sütunları GG.AA.YYYY biçimlidir; hiçbir
+    Cinsiyet | İşe Giriş | İşten Çıkış | Özel Durum. Tarih sütunları GG.AA.YYYY biçimlidir; hiçbir
     hücrede giriş engelleyen doğrulama/dropdown yoktur.
     """
     wb = Workbook()
@@ -331,13 +338,13 @@ def build_import_template_xlsx() -> bytes:
             if col_idx in (1, 3):
                 cell.number_format = "###"
                 cell.alignment = Alignment(horizontal="right", vertical="center")
-            elif col_idx in (7, 8):
+            elif col_idx in (8, 9):
                 cell.number_format = "DD.MM.YYYY"
                 cell.alignment = Alignment(horizontal="center", vertical="center")
             else:
                 cell.alignment = Alignment(vertical="center")
 
-    widths = {1: 3.11, 2: 25.55, 3: 13.0, 4: 14.78, 5: 18.0, 6: 16.0, 7: 11.44, 8: 11.22, 9: 18.0}
+    widths = {1: 3.11, 2: 25.55, 3: 16.0, 4: 14.78, 5: 18.0, 6: 16.0, 7: 14.0, 8: 11.44, 9: 11.22, 10: 18.0}
     for col_idx, width in widths.items():
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 

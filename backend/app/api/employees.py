@@ -222,7 +222,7 @@ def list_employees(
 
 @router.get("/import-template.xlsx")
 def download_employee_import_template(user: User = Depends(get_current_user)):
-    """Kullanıcıya personel Excel şablonu (# / Adı Soyadı / TC Kimlik No / Görevi / Engelli-Hükümlü / Giriş Tarihi / Çıkış Tarihi)."""
+    """Kullanıcıya ekranla aynı personel Excel şablonunu verir."""
     _ = user
     data = build_import_template_xlsx()
     return StreamingResponse(
@@ -510,7 +510,7 @@ async def import_excel(
             if row_branch_id is not None:
                 existing.branch_id = row_branch_id
             existing.full_name = data["full_name"]
-            for field in ("job_title", "department", "start_date", "special_status"):
+            for field in ("job_title", "department", "gender", "start_date", "special_status"):
                 value = data.get(field)
                 if value is not None:
                     setattr(existing, field, value)
@@ -528,6 +528,7 @@ async def import_excel(
             national_id_masked=national_id,
             job_title=data.get("job_title"),
             department=data.get("department"),
+            gender=data.get("gender"),
             start_date=data.get("start_date"),
             exit_date=data.get("exit_date"),
             special_status=data.get("special_status"),
