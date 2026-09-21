@@ -713,3 +713,40 @@
   line-height: 1.15;
   white-space: nowrap;
 }
+
+
+/* Aktif personel görünümünde çıkış tarihi sütunu gösterilmez. Pasif/arşiv
+   görünümü 12 sütunlu düzeni korur ve çıkış tarihini göstermeye devam eder. */
+.employees-table[data-column-count="11"] th:nth-child(1),
+.employees-table[data-column-count="11"] td:nth-child(1) { width: 3.5%; }
+.employees-table[data-column-count="11"] th:nth-child(2),
+.employees-table[data-column-count="11"] td:nth-child(2) { width: 14.5%; }
+.employees-table[data-column-count="11"] th:nth-child(3),
+.employees-table[data-column-count="11"] td:nth-child(3) { width: 10%; }
+.employees-table[data-column-count="11"] th:nth-child(4),
+.employees-table[data-column-count="11"] td:nth-child(4) { width: 6%; }
+.employees-table[data-column-count="11"] th:nth-child(5),
+.employees-table[data-column-count="11"] td:nth-child(5) { width: 8.5%; }
+.employees-table[data-column-count="11"] th:nth-child(6),
+.employees-table[data-column-count="11"] td:nth-child(6) { width: 6%; }
+.employees-table[data-column-count="11"] th:nth-child(7),
+.employees-table[data-column-count="11"] td:nth-child(7) { width: 9.5%; }
+.employees-table[data-column-count="11"] th:nth-child(8),
+.employees-table[data-column-count="11"] td:nth-child(8) { width: 8%; }
+.employees-table[data-column-count="11"] th:nth-child(9),
+.employees-table[data-column-count="11"] td:nth-child(9) { width: 8.5%; }
+.employees-table[data-column-count="11"] th:nth-child(10),
+.employees-table[data-column-count="11"] td:nth-child(10) { width: 7%; }
+.employees-table[data-column-count="11"] th:nth-child(11),
+.employees-table[data-column-count="11"] td:nth-child(11) { width: 18.5%; }
+
+.employees-table[data-column-count="11"] td:nth-child(7) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.employees-table[data-column-count="11"] td:nth-child(9),
+.employees-table[data-column-count="11"] td:nth-child(11) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
