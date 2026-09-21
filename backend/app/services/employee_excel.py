@@ -11,8 +11,6 @@ from typing import Any
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from app.services.national_id_format import normalize_national_id
 
@@ -150,8 +148,12 @@ def _parse_date(value: Any) -> date | None:
 
 
 def _personnel_sheet(wb):
+    # Kullanıcı dosyaları aylık adlandırılabiliyor ("EYLÜL 2026 PERSONEL LİSTESİ").
     for name in wb.sheetnames:
         if _norm(name) == "personel":
+            return wb[name]
+    for name in wb.sheetnames:
+        if "personel" in _norm(name):
             return wb[name]
     return wb.active
 
@@ -263,236 +265,79 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
 
 
 TEMPLATE_HEADERS = [
+    "#",
     "Adı Soyadı",
     "TC Kimlik No",
     "Görevi",
-    "İşe Giriş Tarihi",
-    "İşten Çıkış Tarihi",
     "Engelli/Hükümlü",
+    "Giriş Tarihi",
+    "Çıkış Tarihi",
 ]
 
-TEMPLATE_DATA_START = 5
-TEMPLATE_DATA_ROWS = 100
+TEMPLATE_SHEET_NAME = "PERSONEL LİSTESİ"
+TEMPLATE_DATA_START = 2
+TEMPLATE_DATA_ROWS = 90
 SPECIAL_STATUS_CHOICES = ("Yok", "Engelli", "Hükümlü", "Engelli ve Hükümlü")
 
-_TEAL = "0F766E"
-_TEAL_DARK = "115E59"
-_TEAL_LIGHT = "CCFBF1"
-_HEADER_BG = "0F4C5C"
-_WHITE = "FFFFFF"
-_MUTED = "64748B"
-_BORDER = "CBD5E1"
-_ZEBRA = "F8FAFC"
+_BORDER = "000000"
 _THIN = Side(style="thin", color=_BORDER)
+_CELL_BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
+_FONT_NAME = "Calibri"
+_FONT_SIZE = 10
 
 
 def _style_header_cell(cell, *, required: bool = False) -> None:
-    cell.font = Font(bold=True, color=_WHITE, name="Calibri", size=11)
-    cell.fill = PatternFill("solid", fgColor=_HEADER_BG)
-    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    cell.border = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
+    cell.font = Font(bold=True, name=_FONT_NAME, size=_FONT_SIZE)
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = _CELL_BORDER
     if required:
-        cell.font = Font(bold=True, color="FEF3C7", name="Calibri", size=11)
+        cell.fill = PatternFill("solid", fgColor="FEF3C7")
 
 
 def build_import_template_xlsx() -> bytes:
+    """Kullanıcı şablonunun birebir kopyası: tek sayfa, 1. satır başlık, 90 numaralı satır.
+
+    Sütun düzeni: # | Adı Soyadı | TC Kimlik No | Görevi | Engelli/Hükümlü |
+    Giriş Tarihi | Çıkış Tarihi. Tarih sütunları GG.AA.YYYY biçimlidir; hiçbir
+    hücrede giriş engelleyen doğrulama/dropdown yoktur.
+    """
     wb = Workbook()
     ws = wb.active
-    ws.title = "Personel"
+    ws.title = TEMPLATE_SHEET_NAME
     last_col = get_column_letter(len(TEMPLATE_HEADERS))
     last_data = TEMPLATE_DATA_START + TEMPLATE_DATA_ROWS - 1
 
-    ws.merge_cells(f"A1:{last_col}1")
-    ws["A1"] = "İSG Suite OSGB — Personel Aktarım Şablonu"
-    ws["A1"].font = Font(bold=True, color=_WHITE, name="Calibri", size=16)
-    ws["A1"].fill = PatternFill("solid", fgColor=_TEAL)
-    ws["A1"].alignment = Alignment(horizontal="left", vertical="center", indent=1)
-
-    ws.merge_cells(f"A2:{last_col}2")
-    ws["A2"] = (
-        "Başlık satırını silmeyin. Sarı sütun zorunludur. Örnek satırları Ornek sayfasından kopyalayabilirsiniz. "
-        "Doldurduğunuz bu dosyayı Personel Yönetimi → Excel Yükle ile aktarın."
-    )
-    ws["A2"].font = Font(color=_TEAL_DARK, name="Calibri", size=10)
-    ws["A2"].fill = PatternFill("solid", fgColor=_TEAL_LIGHT)
-    ws["A2"].alignment = Alignment(horizontal="left", vertical="center", wrap_text=True, indent=1)
-
-    ws.merge_cells(f"A3:{last_col}3")
-    ws["A3"] = "Sütunlar: Adı Soyadı *  |  TC Kimlik No  |  Görevi  |  İşe Giriş Tarihi (GG.AA.YYYY)  |  Engelli/Hükümlü"
-    ws["A3"].font = Font(color=_MUTED, name="Calibri", size=9, italic=True)
-    ws["A3"].alignment = Alignment(horizontal="left", vertical="center", indent=1)
-
     for idx, title in enumerate(TEMPLATE_HEADERS, start=1):
-        cell = ws.cell(TEMPLATE_DATA_START - 1, idx, title)
-        _style_header_cell(cell, required=(idx == 1))
+        cell = ws.cell(1, idx, title)
+        _style_header_cell(cell, required=(idx == 2))
 
     for row_idx in range(TEMPLATE_DATA_START, last_data + 1):
+        seq_cell = ws.cell(row_idx, 1, row_idx - TEMPLATE_DATA_START + 1)
+        seq_cell.number_format = "###"
         for col_idx in range(1, len(TEMPLATE_HEADERS) + 1):
-            cell = ws.cell(row_idx, col_idx, None)
-            cell.border = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
-            cell.alignment = Alignment(vertical="center")
-            cell.font = Font(name="Calibri", size=11, color="0F172A")
-            if row_idx % 2 == 0:
-                cell.fill = PatternFill("solid", fgColor=_ZEBRA)
-        ws.cell(row_idx, 2).number_format = "@"
-        ws.cell(row_idx, 4).number_format = "DD.MM.YYYY"
-        ws.cell(row_idx, 5).alignment = Alignment(horizontal="center", vertical="center")
+            cell = ws.cell(row_idx, col_idx)
+            cell.border = _CELL_BORDER
+            cell.font = Font(name=_FONT_NAME, size=_FONT_SIZE)
+            if col_idx in (1, 3):
+                cell.number_format = "###"
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            elif col_idx in (6, 7):
+                cell.number_format = "DD.MM.YYYY"
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            else:
+                cell.alignment = Alignment(vertical="center")
 
-    table = Table(displayName="PersonelListesi", ref=f"A{TEMPLATE_DATA_START - 1}:{last_col}{last_data}")
-    table.tableStyleInfo = TableStyleInfo(
-        name="TableStyleMedium2",
-        showFirstColumn=False,
-        showLastColumn=False,
-        showRowStripes=True,
-        showColumnStripes=False,
-    )
-    ws.add_table(table)
-
-    tc_len = DataValidation(
-        type="textLength",
-        operator="lessThanOrEqual",
-        formula1="11",
-        allow_blank=True,
-        showErrorMessage=True,
-        errorTitle="TC Kimlik No",
-        error="TC Kimlik No 11 haneli olmalıdır. Boş bırakılabilir.",
-        promptTitle="TC Kimlik No",
-        prompt="11 haneli T.C. kimlik numarası. Excel'in bilimsel gösterime çevirmemesi için metin olarak yazın.",
-        showInputMessage=True,
-    )
-    tc_len.add(f"B{TEMPLATE_DATA_START}:B{last_data}")
-    ws.add_data_validation(tc_len)
-
-    date_dv = DataValidation(
-        type="date",
-        operator="between",
-        formula1="DATE(1950,1,1)",
-        formula2="DATE(2100,12,31)",
-        allow_blank=True,
-        showErrorMessage=True,
-        errorTitle="İşe Giriş Tarihi",
-        error="Tarihi GG.AA.YYYY olarak girin (ör. 15.03.2024).",
-        promptTitle="İşe Giriş Tarihi",
-        prompt="GG.AA.YYYY — örnek: 15.03.2024",
-        showInputMessage=True,
-    )
-    date_dv.add(f"D{TEMPLATE_DATA_START}:D{last_data}")
-    ws.add_data_validation(date_dv)
-
-    status_dv = DataValidation(
-        type="list",
-        formula1='"' + ",".join(SPECIAL_STATUS_CHOICES) + '"',
-        allow_blank=True,
-        showDropDown=False,
-        showErrorMessage=True,
-        errorTitle="Engelli/Hükümlü",
-        error="Listeden seçin: Yok, Engelli, Hükümlü, Engelli ve Hükümlü.",
-        promptTitle="Engelli/Hükümlü",
-        prompt="Açılır listeden seçin. Yok veya boş = özel durum yok.",
-        showInputMessage=True,
-    )
-    status_dv.add(f"E{TEMPLATE_DATA_START}:E{last_data}")
-    ws.add_data_validation(status_dv)
+    widths = {1: 3.11, 2: 25.55, 3: 13.0, 4: 14.78, 6: 11.44, 7: 11.22}
+    for col_idx, width in widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
 
     ws.freeze_panes = f"A{TEMPLATE_DATA_START}"
-    ws.auto_filter.ref = f"A{TEMPLATE_DATA_START - 1}:{last_col}{last_data}"
-    ws.row_dimensions[1].height = 28
-    ws.row_dimensions[2].height = 36
-    ws.row_dimensions[3].height = 18
-    ws.row_dimensions[TEMPLATE_DATA_START - 1].height = 24
-    widths = (28, 18, 24, 20, 22)
-    for idx, width in enumerate(widths, start=1):
-        ws.column_dimensions[get_column_letter(idx)].width = width
-    ws.sheet_view.showGridLines = False
+    ws.auto_filter.ref = f"A1:{last_col}1"
+    ws.print_title_rows = "1:1"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToPage = True
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
-    ws.page_setup.paperSize = ws.PAPERSIZE_A4
-    ws.print_title_rows = "1:4"
-    ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.protection.autoFilter = True
-    ws.protection.sheet = False
-
-    example = wb.create_sheet("Ornek")
-    example["A1"] = "Örnek doldurma — bu sayfa yüklenmez"
-    example["A1"].font = Font(bold=True, color=_WHITE, name="Calibri", size=14)
-    example["A1"].fill = PatternFill("solid", fgColor=_TEAL)
-    example.merge_cells("A1:E1")
-    example["A2"] = "Bu satırları kopyalayıp Personel sayfasına yapıştırabilirsiniz. Yükleme yalnızca Personel sayfasını okur."
-    example["A2"].font = Font(color=_TEAL_DARK, name="Calibri", size=10)
-    example.merge_cells("A2:E2")
-    for idx, title in enumerate(TEMPLATE_HEADERS, start=1):
-        cell = example.cell(4, idx, title)
-        _style_header_cell(cell, required=(idx == 1))
-    samples = [
-        ("Ali Veli", "12345678901", "Kaynakçı", date(2024, 1, 15), "Yok"),
-        ("Ayşe Yılmaz", "98765432109", "Operatör", date(2023, 3, 15), "Engelli"),
-        ("Mehmet Demir", "", "Forklift Operatörü", date(2022, 11, 1), "Hükümlü"),
-    ]
-    for offset, row in enumerate(samples):
-        for col, value in enumerate(row, start=1):
-            cell = example.cell(5 + offset, col, value)
-            cell.border = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
-            cell.font = Font(name="Calibri", size=11)
-            if col == 2:
-                cell.number_format = "@"
-            if col == 4:
-                cell.number_format = "DD.MM.YYYY"
-    for idx, width in enumerate(widths, start=1):
-        example.column_dimensions[get_column_letter(idx)].width = width
-    example.row_dimensions[1].height = 26
-    example.freeze_panes = "A5"
-    example.sheet_view.showGridLines = False
-
-    note = wb.create_sheet("Aciklama")
-    note["A1"] = "Nasıl kullanılır"
-    note["A1"].font = Font(bold=True, color=_WHITE, name="Calibri", size=14)
-    note["A1"].fill = PatternFill("solid", fgColor=_TEAL)
-    note.merge_cells("A1:C1")
-    guide = [
-        ("1", "Personel sayfasında sarı başlıklı Adı Soyadı sütununu doldurun."),
-        ("2", "TC, görev, işe giriş ve Engelli/Hükümlü isteğe bağlıdır; boş bırakılabilir."),
-        ("3", "İşe giriş tarihini 15.03.2024 biçiminde yazın veya Excel tarih seçicisini kullanın."),
-        ("4", "Engelli/Hükümlü hücresindeki oka basıp listeden seçin."),
-        ("5", "Başlık satırını, tabloyu ve sayfa adını değiştirmeyin."),
-        ("6", "Dosyayı .xlsx olarak kaydedip uygulamada Excel Yükle ile aktarın."),
-    ]
-    note["A3"] = "Adım"
-    note["B3"] = "İşlem"
-    note["C3"] = "Zorunlu"
-    for col in range(1, 4):
-        _style_header_cell(note.cell(3, col))
-    for idx, (step, text) in enumerate(guide, start=4):
-        note.cell(idx, 1, step)
-        note.cell(idx, 2, text)
-        note.cell(idx, 3, "Evet" if idx == 4 else "Hayır")
-        for col in range(1, 4):
-            note.cell(idx, col).border = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
-            note.cell(idx, col).font = Font(name="Calibri", size=11)
-    note["A11"] = "Sütun"
-    note["B11"] = "Zorunlu"
-    note["C11"] = "Açıklama"
-    for col in range(1, 4):
-        _style_header_cell(note.cell(11, col))
-    columns = [
-        ("Adı Soyadı", "Evet", "Personelin adı ve soyadı. Ad + Soyad ayrı sütun da kabul edilir."),
-        ("TC Kimlik No", "Hayır", "11 hane. Excel bilimsel gösterime çevirmesin diye metin biçimindedir."),
-        ("Görevi", "Hayır", "Branş / görev / unvan. Örn. Kaynakçı, Operatör."),
-        ("İşe Giriş Tarihi", "Hayır", "GG.AA.YYYY veya YYYY-AA-GG."),
-        ("Engelli/Hükümlü", "Hayır", "Yok, Engelli, Hükümlü, Engelli ve Hükümlü. Yok/boş = özel durum yok."),
-    ]
-    for idx, row in enumerate(columns, start=12):
-        for col, value in enumerate(row, start=1):
-            cell = note.cell(idx, col, value)
-            cell.border = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
-            cell.font = Font(name="Calibri", size=11)
-            cell.alignment = Alignment(wrap_text=True, vertical="center")
-    note.column_dimensions["A"].width = 22
-    note.column_dimensions["B"].width = 12
-    note.column_dimensions["C"].width = 78
-    note.row_dimensions[1].height = 26
-    note.sheet_view.showGridLines = False
 
     buf = BytesIO()
     wb.save(buf)

@@ -222,7 +222,7 @@ def list_employees(
 
 @router.get("/import-template.xlsx")
 def download_employee_import_template(user: User = Depends(get_current_user)):
-    """Kullanıcıya personel Excel şablonu (Adı Soyadı / TC / Görev / İşe giriş / Özel durum)."""
+    """Kullanıcıya personel Excel şablonu (# / Adı Soyadı / TC Kimlik No / Görevi / Engelli-Hükümlü / Giriş Tarihi / Çıkış Tarihi)."""
     _ = user
     data = build_import_template_xlsx()
     return StreamingResponse(
@@ -494,18 +494,20 @@ async def import_excel(
             )
 
         if existing is not None:
-            was_inactive = not existing.is_active
-            existing.branch_id = branch_id
+            # Boş hücre kuralı: Excel'de boş bırakılan alan mevcut kaydı silmez;
+            # yalnızca dolu gönderilen bilgiler birebir güncellenir.
+            if branch_id is not None:
+                existing.branch_id = branch_id
             existing.full_name = data["full_name"]
-            existing.job_title = data.get("job_title")
-            existing.department = data.get("department")
-            existing.start_date = data.get("start_date")
-            existing.exit_date = data.get("exit_date")
-            existing.special_status = data.get("special_status")
-            existing.is_active = data.get("exit_date") is None
+            for field in ("job_title", "department", "start_date", "special_status"):
+                value = data.get(field)
+                if value is not None:
+                    setattr(existing, field, value)
+            exit_value = data.get("exit_date")
+            if exit_value is not None:
+                existing.exit_date = exit_value
+                existing.is_active = False
             updated += 1
-            if was_inactive:
-                reactivated += 1
             continue
 
         obj = Employee(
