@@ -858,9 +858,13 @@ async def upload_training_logo(
     training_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_training_package_manager),
+    user: User = Depends(require_training_operator),
 ):
-    """Firma / eğitim logosu — PDF başlığına basılır."""
+    """Firma / eğitim logosu — PDF başlığına basılır.
+    
+    İSG uzmanı yalnızca erişebildiği/görevlendirildiği işyerinin eğitim kaydına
+    logo ekleyebilir; şirket erişimi aşağıda ayrıca doğrulanır.
+    """
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
     if row.archived_at:

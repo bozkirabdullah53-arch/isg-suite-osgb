@@ -398,8 +398,9 @@ export function TrainingPage({user}) {
   const canManagePackage = canManageTrainingPackage(user);
   const canOperate = canOperateTraining(user);
   // İSG uzmanı yalnızca erişebildiği/görevlendirildiği işyeri için eğitim
-  // kaydını hazırlayabilir. OSGB geneli arşiv/silme/logo işlemleri merkez
-  // yöneticisi ve global yönetici sınırında kalır.
+  // kaydını hazırlayabilir. Eğitim kaydına ait logo da aynı erişim kapsamında
+  // yüklenebilir; OSGB geneli arşiv/silme işlemleri merkez yöneticisi ve global
+  // yönetici sınırında kalır.
   const canEdit = canEditTrainingForm(user);
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   // Uzaktan eğitim sekmesi, meta isteği geciktiğinde veya geçici olarak
@@ -866,7 +867,7 @@ export function TrainingPage({user}) {
 
   async function maybeUploadLogo(trainingId) {
     const file = pendingLogoRef.current;
-    if (!file || !trainingId || !canManagePackage) {
+    if (!file || !trainingId || !canEdit) {
       pendingLogoRef.current = null;
       return;
     }
@@ -927,6 +928,7 @@ export function TrainingPage({user}) {
     // güncelle; aksi halde her tıklamada kopya eğitim oluşur ve PDF eski listeyi basar.
     if (savedTrainingId && savedPayload && sameExceptParticipants(payload, savedPayload)) {
       if (participantKey(payload) === participantKey(savedPayload)) {
+        await maybeUploadLogo(savedTrainingId);
         setOkMsg(`Kayıt #${savedTrainingId} güncel (${payload.participant_ids.length} katılımcı). PDF çıktıları hazır.`);
         return {id: savedTrainingId};
       }
@@ -937,6 +939,7 @@ export function TrainingPage({user}) {
           body: JSON.stringify({participant_ids: payload.participant_ids}),
         });
         setSavedPayload(payload);
+        await maybeUploadLogo(savedTrainingId);
         setOkMsg(`Kayıt #${savedTrainingId} güncellendi: ${payload.participant_ids.length} katılımcı.`);
         await load();
         return updated;
@@ -1505,7 +1508,7 @@ export function TrainingPage({user}) {
                 className="tp-input"
                 type="file"
                 accept=".png,.jpg,.jpeg,.gif,.webp"
-                disabled={!canManagePackage}
+                disabled={!canEdit}
                 onChange={(e) => {
                   pendingLogoRef.current = e.target.files?.[0] || null;
                 }}
