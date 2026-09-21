@@ -160,12 +160,23 @@ def downgrade() -> None:
     if "training_sessions" in inspector.get_table_names():
         columns = {item["name"] for item in inspector.get_columns("training_sessions")}
         if "instructor_professional_id" in columns:
+            foreign_keys = [
+                item
+                for item in inspector.get_foreign_keys("training_sessions")
+                if item.get("constrained_columns") == ["instructor_professional_id"]
+            ]
+            indexes = {
+                item.get("name")
+                for item in inspector.get_indexes("training_sessions")
+                if item.get("name")
+                and item.get("column_names") == ["instructor_professional_id"]
+            }
             with op.batch_alter_table("training_sessions") as batch:
-                batch.drop_index("ix_training_sessions_instructor_professional_id")
-                batch.drop_constraint(
-                    "fk_training_sessions_instructor_professional",
-                    type_="foreignkey",
-                )
+                for index_name in sorted(indexes):
+                    batch.drop_index(index_name)
+                for fk in foreign_keys:
+                    if fk.get("name"):
+                        batch.drop_constraint(str(fk["name"]), type_="foreignkey")
                 batch.drop_column("instructor_professional_id")
 
     inspector = sa.inspect(bind)
