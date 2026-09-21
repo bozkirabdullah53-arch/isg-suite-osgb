@@ -87,6 +87,19 @@ function emptyForm(user) {
     fitness_status: 'pending',
     physician_professional_id: '',
     physician_name: '',
+    diagnosis: '',
+    laboratory_result_summary: '',
+    anamnesis_chronic_diseases: '',
+    anamnesis_past_medical_history: '',
+    anamnesis_family_history: '',
+    anamnesis_current_medications: '',
+    anamnesis_allergies: '',
+    anamnesis_smoking_status: '',
+    anamnesis_smoking_pack_years: '',
+    anamnesis_alcohol_use: '',
+    anamnesis_occupational_history: '',
+    anamnesis_previous_exposures: '',
+    anamnesis_current_complaints: '',
     summary: '',
     confidential_note: '',
     informed_consent: false,
@@ -475,6 +488,19 @@ export function HealthPage({user}) {
       fitness_status: row.fitness_status || 'pending',
       physician_professional_id: row.physician_professional_id || '',
       physician_name: row.physician_name || '',
+      diagnosis: row.diagnosis || '',
+      laboratory_result_summary: row.laboratory_result_summary || '',
+      anamnesis_chronic_diseases: row.anamnesis_chronic_diseases || '',
+      anamnesis_past_medical_history: row.anamnesis_past_medical_history || '',
+      anamnesis_family_history: row.anamnesis_family_history || '',
+      anamnesis_current_medications: row.anamnesis_current_medications || '',
+      anamnesis_allergies: row.anamnesis_allergies || '',
+      anamnesis_smoking_status: row.anamnesis_smoking_status || '',
+      anamnesis_smoking_pack_years: row.anamnesis_smoking_pack_years ?? '',
+      anamnesis_alcohol_use: row.anamnesis_alcohol_use || '',
+      anamnesis_occupational_history: row.anamnesis_occupational_history || '',
+      anamnesis_previous_exposures: row.anamnesis_previous_exposures || '',
+      anamnesis_current_complaints: row.anamnesis_current_complaints || '',
       summary: row.summary || '',
       confidential_note: row.confidential_note || '',
       informed_consent: !!row.informed_consent,
@@ -522,6 +548,19 @@ export function HealthPage({user}) {
     return {
       ...base,
       fitness_status: form.fitness_status,
+      diagnosis: form.diagnosis || null,
+      laboratory_result_summary: form.laboratory_result_summary || null,
+      anamnesis_chronic_diseases: form.anamnesis_chronic_diseases || null,
+      anamnesis_past_medical_history: form.anamnesis_past_medical_history || null,
+      anamnesis_family_history: form.anamnesis_family_history || null,
+      anamnesis_current_medications: form.anamnesis_current_medications || null,
+      anamnesis_allergies: form.anamnesis_allergies || null,
+      anamnesis_smoking_status: form.anamnesis_smoking_status || null,
+      anamnesis_smoking_pack_years: numOrNull(form.anamnesis_smoking_pack_years),
+      anamnesis_alcohol_use: form.anamnesis_alcohol_use || null,
+      anamnesis_occupational_history: form.anamnesis_occupational_history || null,
+      anamnesis_previous_exposures: form.anamnesis_previous_exposures || null,
+      anamnesis_current_complaints: form.anamnesis_current_complaints || null,
       summary: form.summary || null,
       confidential_note: form.confidential_note || null,
       restrictions: form.restrictions || null,
@@ -662,7 +701,21 @@ export function HealthPage({user}) {
     ['Personel', detailRow.employee_name], ['Görev', detailRow.job_title], ['Bölüm', detailRow.department],
     ['Muayene türü', typeMap[detailRow.record_type] || detailRow.record_type], ['Muayene tarihi', detailRow.examination_date],
     ['Sonraki muayene', detailRow.next_examination_date], ['Uygunluk', FITNESS_FALLBACK[detailRow.fitness_status] || detailRow.fitness_status],
-    ['İşyeri hekimi', detailRow.physician_name], ['Özet', detailRow.summary], ['Hekim notu', detailRow.confidential_note],
+    ['İşyeri hekimi', detailRow.physician_name],
+    ['Hekim tanısı / değerlendirme', detailRow.diagnosis],
+    ['Laboratuvar sonuç özeti', detailRow.laboratory_result_summary],
+    ['Kronik hastalıklar', detailRow.anamnesis_chronic_diseases],
+    ['Geçmiş hastalık / ameliyat', detailRow.anamnesis_past_medical_history],
+    ['Aile öyküsü', detailRow.anamnesis_family_history],
+    ['Kullanılan ilaçlar', detailRow.anamnesis_current_medications],
+    ['Alerjiler', detailRow.anamnesis_allergies],
+    ['Sigara', detailRow.anamnesis_smoking_status],
+    ['Sigara paket-yıl', detailRow.anamnesis_smoking_pack_years],
+    ['Alkol', detailRow.anamnesis_alcohol_use],
+    ['Mesleki geçmiş', detailRow.anamnesis_occupational_history],
+    ['Geçmiş maruziyetler', detailRow.anamnesis_previous_exposures],
+    ['Güncel yakınmalar', detailRow.anamnesis_current_complaints],
+    ['Özet', detailRow.summary], ['Hekim notu', detailRow.confidential_note],
     ['Bilgilendirme onayı', detailRow.informed_consent ? 'Evet' : 'Hayır'], ['Onay zamanı', detailRow.informed_consent_at],
     ['Kısıtlamalar', detailRow.restrictions], ['Odyometri', `${detailRow.audiometry_date || ''} / ${detailRow.audiometry_result || ''}`],
     ['SFT', `${detailRow.spirometry_date || ''} / ${detailRow.spirometry_result || ''}`],
@@ -1057,6 +1110,34 @@ export function HealthPage({user}) {
                 <option key={p.id} value={p.id}>{p.name}{p.note ? ` (${p.note})` : ''}</option>
               ))}
             </Select>
+            {isPhysician && (
+              <>
+                <div style={{gridColumn: '1/-1', marginTop: 6, paddingTop: 12, borderTop: '1px solid #e2e8f0'}}>
+                  <strong>Yapılandırılmış Anamnez (İBYS hazırlığı)</strong>
+                  <div style={{fontSize: 12, color: '#64748b', marginTop: 4}}>
+                    Alanlar ayrı tutulur; eski özet ve maruziyet kayıtları korunur.
+                  </div>
+                </div>
+                <TextArea label="Kronik hastalıklar" value={form.anamnesis_chronic_diseases} onChange={(e) => setForm({...form, anamnesis_chronic_diseases: e.target.value})} />
+                <TextArea label="Geçmiş hastalık / ameliyat" value={form.anamnesis_past_medical_history} onChange={(e) => setForm({...form, anamnesis_past_medical_history: e.target.value})} />
+                <TextArea label="Aile öyküsü" value={form.anamnesis_family_history} onChange={(e) => setForm({...form, anamnesis_family_history: e.target.value})} />
+                <TextArea label="Kullanılan ilaçlar" value={form.anamnesis_current_medications} onChange={(e) => setForm({...form, anamnesis_current_medications: e.target.value})} />
+                <TextArea label="Alerjiler" value={form.anamnesis_allergies} onChange={(e) => setForm({...form, anamnesis_allergies: e.target.value})} />
+                <Select label="Sigara kullanımı" value={form.anamnesis_smoking_status} onChange={(e) => setForm({...form, anamnesis_smoking_status: e.target.value})}>
+                  <option value="">Belirtilmedi</option>
+                  <option value="never">Hiç kullanmadı</option>
+                  <option value="former">Bırakmış</option>
+                  <option value="current">Kullanıyor</option>
+                </Select>
+                <Field label="Sigara paket-yıl" type="number" min="0" max="300" step="0.1" value={form.anamnesis_smoking_pack_years} onChange={(e) => setForm({...form, anamnesis_smoking_pack_years: e.target.value})} />
+                <TextArea label="Alkol kullanımı" value={form.anamnesis_alcohol_use} onChange={(e) => setForm({...form, anamnesis_alcohol_use: e.target.value})} />
+                <TextArea label="Mesleki geçmiş" value={form.anamnesis_occupational_history} onChange={(e) => setForm({...form, anamnesis_occupational_history: e.target.value})} />
+                <TextArea label="Geçmiş mesleki maruziyetler" value={form.anamnesis_previous_exposures} onChange={(e) => setForm({...form, anamnesis_previous_exposures: e.target.value})} />
+                <TextArea label="Güncel yakınmalar" value={form.anamnesis_current_complaints} onChange={(e) => setForm({...form, anamnesis_current_complaints: e.target.value})} />
+                <TextArea label="Hekim tanısı / klinik değerlendirme" value={form.diagnosis} onChange={(e) => setForm({...form, diagnosis: e.target.value})} />
+                <TextArea label="Laboratuvar sonuç özeti" value={form.laboratory_result_summary} onChange={(e) => setForm({...form, laboratory_result_summary: e.target.value})} />
+              </>
+            )}
             {isPhysician && <TextArea label="Özet" value={form.summary} onChange={(e) => setForm({...form, summary: e.target.value})} />}
             {isPhysician && <TextArea label="Kısıtlamalar (uygunluk şartları)" value={form.restrictions} onChange={(e) => setForm({...form, restrictions: e.target.value})} />}
             {isPhysician && <TextArea label="Gizli hekim notu" value={form.confidential_note} onChange={(e) => setForm({...form, confidential_note: e.target.value})} />}
