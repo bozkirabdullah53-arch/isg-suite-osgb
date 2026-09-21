@@ -223,6 +223,7 @@ function emptyForm(user) {
     end_date: '',
     hazard_class: 'Çok Tehlikeli',
     sector: 'genel_uretim',
+    instructor_professional_id: null,
     instructor_name: '',
     instructor_qualification: '',
     workplace_physician: '',
@@ -534,6 +535,7 @@ export function TrainingPage({user}) {
     const first = instructorOptions[0];
     setForm((current) => ({
       ...current,
+      instructor_professional_id: first.professional_id || null,
       instructor_name: first.value,
       instructor_qualification: first.qualification || '',
     }));
@@ -550,13 +552,19 @@ export function TrainingPage({user}) {
   function pickInstructor(value) {
     if (value === '__custom__') {
       setManualInstructor(true);
-      setForm((f) => ({...f, instructor_name: '', instructor_qualification: ''}));
+      setForm((f) => ({
+        ...f,
+        instructor_professional_id: null,
+        instructor_name: '',
+        instructor_qualification: '',
+      }));
       return;
     }
     setManualInstructor(false);
     const picked = instructorOptions.find((o) => o.value === value);
     setForm((f) => ({
       ...f,
+      instructor_professional_id: picked?.professional_id || null,
       instructor_name: value,
       instructor_qualification: picked?.qualification || f.instructor_qualification,
     }));
@@ -655,7 +663,7 @@ export function TrainingPage({user}) {
     }
   }
 
-  const TEAM_FIELDS = ['instructor_name', 'instructor_qualification', 'workplace_physician', 'employer_representative'];
+  const TEAM_FIELDS = ['instructor_professional_id', 'instructor_name', 'instructor_qualification', 'workplace_physician', 'employer_representative'];
 
   /** Görevlendirmeden gelen adları forma yazar; kullanıcının elle yazdığını ezmez. */
   function applyTeamDefaults(info, {force = false} = {}) {
