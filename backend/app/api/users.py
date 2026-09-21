@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.api.tenant_access import (
 )
 from app.core.database import get_db
 from app.core.security import get_password_hash
+from app.services.audit import add_audit_log
 from app.models.entities import (
     AnnualPlanItem,
     AuditLog,
@@ -53,11 +54,30 @@ _FIELD_ROLES = {
 }
 
 
-def _detach_user_refs(db: Session, user_id: int, successor_id: int) -> None:
+def _detach_user_refs(db: Session, user_id: int, successor_id: int, actor: User | None = None) -> None:
     for model in _REASSIGN_CREATED_BY:
         db.execute(
             update(model).where(model.created_by_id == user_id).values(created_by_id=successor_id)
         )
+    # 0122: audit_logs içeriği append-only; FK bağı koparılmadan önce aktör
+    # atfı kalıcı bir audit olayı olarak yazılır (izlenebilirlik korunur).
+    detach_count = db.scalar(
+        select(func.count()).select_from(AuditLog).where(AuditLog.user_id == user_id)
+    ) or 0
+    if detach_count:
+        add_audit_log(
+            db,
+            user=actor,
+            action="audit_actor_detach",
+            entity_type="user",
+            entity_id=str(user_id),
+            description=(
+                f"Kullanıcı kalıcı siliniyor: {detach_count} audit kaydının aktör bağı "
+                f"(user_id) koparılacak; created_by referansları kullanıcı {successor_id}'ye devredildi."
+            ),
+            module="security",
+        )
+        db.flush()
     db.execute(update(AuditLog).where(AuditLog.user_id == user_id).values(user_id=None))
     db.execute(update(Notification).where(Notification.user_id == user_id).values(user_id=None))
 
@@ -209,7 +229,7 @@ def delete_user(
             raise HTTPException(400, "Sistemde en az bir aktif global yönetici kalmalıdır.")
 
     try:
-        _detach_user_refs(db, obj.id, current.id)
+        _detach_user_refs(db, obj.id, current.id, actor=current)
         db.delete(obj)
         db.commit()
     except IntegrityError:

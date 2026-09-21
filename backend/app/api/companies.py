@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import delete, inspect, or_, select, update
+from sqlalchemy import delete, func, inspect, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -363,6 +363,27 @@ def _purge_company_data(db: Session, company_id: int) -> None:
 
     # Nullable bağlar: ayır
     db.execute(update(User).where(User.company_id == company_id).values(company_id=None))
+    # 0122: audit_logs içeriği append-only; company_id bağı koparılmadan önce
+    # atıf olayı append edilir (kim/ne zaman/neden izi kalıcı kalır).
+    _audit_detach_count = db.scalar(
+        select(func.count()).select_from(AuditLog).where(AuditLog.company_id == company_id)
+    ) or 0
+    if _audit_detach_count:
+        from app.services.audit import add_audit_log
+
+        add_audit_log(
+            db,
+            user=None,
+            action="audit_company_detach",
+            entity_type="company",
+            entity_id=str(company_id),
+            description=(
+                f"Firma kalıcı siliniyor (purge): {_audit_detach_count} audit kaydının "
+                "firma bağı (company_id) koparılıyor."
+            ),
+            module="security",
+        )
+        db.flush()
     db.execute(update(AuditLog).where(AuditLog.company_id == company_id).values(company_id=None))
     db.execute(update(Notification).where(Notification.company_id == company_id).values(company_id=None))
     db.execute(

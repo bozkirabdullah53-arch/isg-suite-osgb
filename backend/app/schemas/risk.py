@@ -120,6 +120,7 @@ class RiskCreate(BaseModel):
     risk_definition: str = Field(min_length=3, max_length=2000)
     affected_people: str | None = Field(default=None, max_length=500)
     affected_group: str | None = Field(default=None, max_length=100)
+    exposed_worker_count: int | None = Field(default=None, ge=0, le=1000000)
     existing_measures: str | None = Field(default=None, max_length=2000)
     additional_measures: str | None = Field(default=None, max_length=2000)
     probability: float | None = Field(default=None, gt=0, le=100)
@@ -159,6 +160,7 @@ class RiskUpdate(BaseModel):
     risk_definition: str | None = Field(default=None, min_length=3, max_length=2000)
     affected_people: str | None = Field(default=None, max_length=500)
     affected_group: str | None = Field(default=None, max_length=100)
+    exposed_worker_count: int | None = Field(default=None, ge=0, le=1000000)
     existing_measures: str | None = Field(default=None, max_length=2000)
     additional_measures: str | None = Field(default=None, max_length=2000)
     probability: float | None = Field(default=None, gt=0, le=100)
@@ -278,6 +280,7 @@ class RiskResponse(BaseModel):
     risk_definition: str
     affected_people: str | None
     affected_group: str | None
+    exposed_worker_count: int | None = None
     existing_measures: str | None
     additional_measures: str | None
     probability: float

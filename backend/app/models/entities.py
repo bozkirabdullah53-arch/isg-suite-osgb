@@ -1296,6 +1296,8 @@ class RiskAssessment(Base):
     risk_definition: Mapped[str] = mapped_column(String(2000))
     affected_people: Mapped[str | None] = mapped_column(String(500), nullable=True)
     affected_group: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # İBYS tehlike kaynakları veri seti: maruz kalan çalışan sayısı (sayısal).
+    exposed_worker_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     existing_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     additional_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     # 5x5 keeps its integer values; Fine-Kinney needs decimal probability and

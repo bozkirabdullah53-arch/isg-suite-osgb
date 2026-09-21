@@ -212,3 +212,32 @@ def list_audit_logs(
         }
         for r in rows
     ]
+
+
+@router.get("/audit-chain")
+def audit_chain_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Doğrulanabilir audit zinciri durumu (0122) — yalnız global admin.
+
+    PostgreSQL production'da zincir kopması (chain_breaks) ve içerik tahrifatı
+    (hash_breaks) sayaçlarını döndürür; diğer ortamlarda supported=false.
+    Doğrulama isteğinin kendisi de append-only audit trail'e yazılır.
+    """
+    from app.services.audit_chain import verify_audit_chain
+
+    payload = verify_audit_chain(db)
+    add_audit_log(
+        db,
+        user=user,
+        action="audit_chain_verified",
+        entity_type="audit_logs",
+        description=(
+            f"supported={payload.get('supported')} ok={payload.get('ok')} "
+            f"chain_breaks={payload.get('chain_breaks')} hash_breaks={payload.get('hash_breaks')}"
+        ),
+        module="security",
+    )
+    db.commit()
+    return payload
