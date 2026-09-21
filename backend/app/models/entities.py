@@ -595,6 +595,9 @@ class AuditLog(Base):
     module: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Tamper-evident append-only chain. PostgreSQL assigns these on INSERT.
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    event_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
