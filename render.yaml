@@ -331,6 +331,12 @@ services:
       - path: /manifest.webmanifest
         name: Content-Type
         value: application/manifest+json
+      - path: /manifest.webmanifest
+        name: Cache-Control
+        value: no-store, no-cache, must-revalidate
+      - path: /sw.js
+        name: Cache-Control
+        value: no-store, no-cache, must-revalidate
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
