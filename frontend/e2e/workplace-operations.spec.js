@@ -325,17 +325,20 @@ test('workplace manager sees the scoped blood-lead warning and bulk register', a
 
   await page.goto('/#m=health');
   const content = page.locator('main.content');
-  await expect(content.getByText('Kan kurşunu takibi')).toBeVisible();
+  // getByText case-insensitive substring eşleştirir; sekme düğmesi "Kan Kurşunu
+  // Takibi" da eşleştiği için panel başlığı rol ile doğrulanır.
+  await expect(content.getByRole('heading', {name: 'Kan kurşunu takibi'})).toBeVisible();
   await expect(content.getByText(/Bağlayıcı biyolojik sınır: 70/)).toBeVisible();
   await expect(content.getByText(/Uyarı: bağlayıcı kan kurşunu sınırını aşan/)).toBeVisible();
   await expect(content.getByText('Sınır aşıldı', {exact: true}).first()).toBeVisible();
   await content.getByRole('button', {name: /Kan kurşunu toplu listesini aç/}).click();
   await expect(content.getByRole('heading', {name: 'Kan kurşunu toplu listesi'})).toBeVisible();
   await expect(content.locator('tbody tr').filter({hasText: 'Mehmet Akücü'})).toHaveCount(1);
-  await expect(content.getByRole('button', {name: 'Excel indir'})).toBeVisible();
+  // Paneldeki "Kurşun Excel indir" düğmesi substring eşleşmesin diye exact.
+  await expect(content.getByRole('button', {name: 'Excel indir', exact: true})).toBeVisible();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    content.getByRole('button', {name: 'Excel indir'}).click(),
+    content.getByRole('button', {name: 'Excel indir', exact: true}).click(),
   ]);
   expect(download.suggestedFilename()).toBe('kan-kursunu-listesi.xlsx');
   expect(state.errors).toEqual([]);
@@ -459,7 +462,8 @@ test('summary failure remains visible without blocking the modules', async ({pag
   await setup(page, {summaryError: true});
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('Kayıt sayıları yüklenemedi');
-  await expect(page.locator('.workplace-module-card')).toHaveCount(9);
+  // MODULE_CARDS: workplace hesabı için 12 kart (remote_training dahil).
+  await expect(page.locator('.workplace-module-card')).toHaveCount(12);
   await expect(page.locator('.workplace-module-grid')).not.toContainText('0 kayıt');
   await page.getByRole('button', {name: 'SDS / PKD modülünü aç'}).click();
   await expect(page).toHaveURL(/m=sds$/);
