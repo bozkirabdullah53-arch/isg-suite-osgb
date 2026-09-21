@@ -1540,6 +1540,12 @@ function Employees({user}){
       `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.xlsx`);
   }
 
+  function exportEmployeesPdf(){
+    if(!requireCompany()) return;
+    downloadFile(`/exports/employees.pdf?company_id=${selectedCompanyId}`,
+      `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.pdf`);
+  }
+
   async function openAllHealthInfo(){
     if(!requireCompany()) return;
     setHealthEmployee(null);
@@ -1595,6 +1601,7 @@ function Employees({user}){
   return <Page title="Personel Yönetimi" action={<div className="actions">
     {isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||healthBusy} onClick={openAllHealthInfo}><HeartPulse/>Sağlık Bilgileri</button>}
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
+    <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployeesPdf}><FileText/>PDF Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
     <label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Doldurulan Excel'i Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!visibleIds.length} onClick={toggleAll}>{allSelected?'Seçimi Kaldır':'Görünenlerin Tümünü Seç'}</button>
@@ -1639,6 +1646,7 @@ function Employees({user}){
     <Table cols={[
       {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
       {key:'full_name',label:'Ad Soyad'},
+      {key:'national_id_masked',label:'TC Kimlik No',render:r=>r.national_id_masked||'—'},
       {key:'job_title',label:'Görev'},
       {key:'department',label:'Departman'},
       {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
