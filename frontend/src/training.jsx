@@ -859,6 +859,7 @@ export function TrainingPage({user}) {
       end_date: f.end_date,
       hazard_class: f.hazard_class,
       sector: f.sector,
+      instructor_professional_id: f.instructor_professional_id ? Number(f.instructor_professional_id) : null,
       instructor_name: (f.instructor_name || '').trim(),
       instructor_qualification: f.instructor_qualification || null,
       workplace_physician: (f.workplace_physician || '').trim() || null,
