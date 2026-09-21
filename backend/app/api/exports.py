@@ -20,6 +20,7 @@ from app.api.company_access import assigned_company_ids
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Branch, Company, Employee, IsgRecord, User, UserRole
+from app.schemas.employee import normalize_gender
 
 router = APIRouter(prefix="/exports", tags=["Dışa Aktarım"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -124,8 +125,8 @@ def export_employees_pdf(
     bold_font = "EmployeeReportSans-Bold" if bold_path.exists() else "Helvetica-Bold"
     company = db.get(Company, company_id) if company_id else None
     safe = lambda value: escape(str(value or ""))
-    women = sum(1 for row in rows if str(row.gender or "").lower() in {"kadın", "kadin", "female", "f"})
-    men = sum(1 for row in rows if str(row.gender or "").lower() in {"erkek", "male", "m"})
+    women = sum(1 for row in rows if normalize_gender(row.gender) == "Kadın")
+    men = sum(1 for row in rows if normalize_gender(row.gender) == "Erkek")
     disabled = sum(1 for row in rows if row.special_status and "engelli" in row.special_status.lower())
     unknown_gender = len(rows) - women - men
     stream = BytesIO()

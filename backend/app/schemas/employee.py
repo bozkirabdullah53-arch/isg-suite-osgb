@@ -5,6 +5,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.core.input_rules import assert_date_order, assert_event_date, assert_meaningful_text, assert_person_name
 
 
+def normalize_gender(value: str | None) -> str | None:
+    """Store/report gender values consistently without guessing from names."""
+    if value is None:
+        return None
+    key = str(value).strip().casefold().replace("ı", "i")
+    if key in {"kadin", "female", "f"}:
+        return "Kadın"
+    if key in {"erkek", "male", "m"}:
+        return "Erkek"
+    return str(value).strip() or None
+
+
 class EmployeeCreate(BaseModel):
     company_id: int
     branch_id: int | None = None
@@ -32,6 +44,7 @@ class EmployeeCreate(BaseModel):
         self.full_name = assert_person_name(self.full_name, label="Ad soyad", required=True)
         self.job_title = assert_meaningful_text(self.job_title, label="Görev / unvan", min_len=2, required=False)
         self.department = assert_meaningful_text(self.department, label="Departman", min_len=2, required=False)
+        self.gender = normalize_gender(self.gender)
         self.start_date = assert_event_date(
             self.start_date, label="İşe giriş tarihi", required=False, allow_future_days=30
         )
@@ -77,6 +90,7 @@ class EmployeeUpdate(BaseModel):
             self.job_title = assert_meaningful_text(self.job_title, label="Görev / unvan", min_len=2, required=False)
         if self.department is not None:
             self.department = assert_meaningful_text(self.department, label="Departman", min_len=2, required=False)
+        self.gender = normalize_gender(self.gender)
         if self.start_date is not None:
             self.start_date = assert_event_date(
                 self.start_date, label="İşe giriş tarihi", required=False, allow_future_days=30

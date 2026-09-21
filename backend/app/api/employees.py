@@ -15,7 +15,7 @@ from app.api.company_access import accessible_company_ids_or_empty, ensure_compa
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Branch, Employee, User, UserRole
-from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate, normalize_gender
 from app.services.employee_excel import build_import_template_xlsx, parse_employees_workbook
 from app.services.capacity_engine import sync_company_service_requirements
 from app.services.national_id_format import normalize_national_id
@@ -512,6 +512,8 @@ async def import_excel(
             existing.full_name = data["full_name"]
             for field in ("job_title", "department", "gender", "start_date", "special_status"):
                 value = data.get(field)
+                if field == "gender":
+                    value = normalize_gender(value)
                 if value is not None:
                     setattr(existing, field, value)
             exit_value = data.get("exit_date")
@@ -528,7 +530,7 @@ async def import_excel(
             national_id_masked=national_id,
             job_title=data.get("job_title"),
             department=data.get("department"),
-            gender=data.get("gender"),
+            gender=normalize_gender(data.get("gender")),
             start_date=data.get("start_date"),
             exit_date=data.get("exit_date"),
             special_status=data.get("special_status"),
