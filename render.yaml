@@ -343,10 +343,10 @@ services:
         # is permitted over HTTPS while scripts, frames and API connections
         # remain restricted to their existing origins.
         value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' https: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-      - path: /manifest.webmanifest
+      - path: /manifest.json
         name: Content-Type
         value: application/manifest+json
-      - path: /manifest.webmanifest
+      - path: /manifest.json
         name: Cache-Control
         value: no-store, no-cache, must-revalidate
       - path: /sw.js
@@ -379,8 +379,11 @@ services:
         source: /.well-known/security.txt
         destination: /.well-known/security.txt
       - type: rewrite
+        source: /manifest.json
+        destination: /manifest.json
+      - type: rewrite
         source: /manifest.webmanifest
-        destination: /manifest.webmanifest
+        destination: /manifest.json
       - type: rewrite
         source: /*
         destination: /index.html

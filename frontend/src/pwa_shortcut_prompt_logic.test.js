@@ -1,10 +1,13 @@
 import {describe, expect, it} from 'vitest';
 
 import {
+  ACCEPTED_REASK_AFTER_MS,
+  DISMISSED_REASK_AFTER_MS,
   isIosDevice,
   isMobileViewport,
   isStandaloneDisplay,
   readShortcutChoice,
+  readShortcutEntry,
   shouldAskShortcutPrompt,
   shortcutInstructionText,
   writeShortcutChoice,
@@ -22,16 +25,67 @@ function fakeWindow({standalone = false, ua = 'Android', maxWidth = true, coarse
   };
 }
 
+function fakeStorage(initial = {}) {
+  const map = new Map(Object.entries(initial));
+  return {
+    getItem: (key) => (map.has(key) ? map.get(key) : null),
+    setItem: (key, value) => map.set(key, String(value)),
+  };
+}
+
 describe('mobile shortcut prompt', () => {
   it('asks before the user has answered and not when already installed', () => {
+    const now = Date.now();
     expect(shouldAskShortcutPrompt({
       mobile: true,
       standalone: false,
       choice: '',
+      now,
     })).toBe(true);
-    expect(shouldAskShortcutPrompt({mobile: false, standalone: false, choice: ''})).toBe(true);
-    expect(shouldAskShortcutPrompt({mobile: true, standalone: true, choice: ''})).toBe(false);
-    expect(shouldAskShortcutPrompt({mobile: true, standalone: false, choice: 'dismissed'})).toBe(false);
+    expect(shouldAskShortcutPrompt({mobile: false, standalone: false, choice: '', now})).toBe(true);
+    expect(shouldAskShortcutPrompt({mobile: true, standalone: true, choice: '', now})).toBe(false);
+    expect(shouldAskShortcutPrompt({
+      mobile: true,
+      standalone: false,
+      choice: 'dismissed',
+      choiceTime: now,
+      now,
+    })).toBe(false);
+    expect(shouldAskShortcutPrompt({
+      mobile: true,
+      standalone: false,
+      choice: 'installed',
+      choiceTime: 0,
+      now,
+    })).toBe(false);
+  });
+
+  it('re-asks after the grace periods expire', () => {
+    const now = Date.now();
+    expect(shouldAskShortcutPrompt({
+      choice: 'dismissed',
+      choiceTime: now - DISMISSED_REASK_AFTER_MS - 1000,
+      now,
+    })).toBe(true);
+    expect(shouldAskShortcutPrompt({
+      choice: 'dismissed',
+      choiceTime: now - DISMISSED_REASK_AFTER_MS + 60_000,
+      now,
+    })).toBe(false);
+    expect(shouldAskShortcutPrompt({
+      choice: 'accepted',
+      choiceTime: now - ACCEPTED_REASK_AFTER_MS - 1000,
+      now,
+    })).toBe(true);
+    expect(shouldAskShortcutPrompt({
+      choice: 'installed',
+      choiceTime: now - DISMISSED_REASK_AFTER_MS * 10,
+      now,
+    })).toBe(false);
+  });
+
+  it('asks again for legacy v1 answers without timestamp', () => {
+    expect(shouldAskShortcutPrompt({choice: 'dismissed', choiceTime: 0, now: Date.now()})).toBe(true);
   });
 
   it('detects mobile, iOS and installed display', () => {
@@ -45,15 +99,22 @@ describe('mobile shortcut prompt', () => {
     }))).toBe(false);
   });
 
-  it('remembers the first-visit answer in storage', () => {
-    const storage = new Map();
-    const adapter = {
-      getItem: (key) => storage.get(key) || null,
-      setItem: (key, value) => storage.set(key, value),
-    };
-    expect(readShortcutChoice(adapter)).toBe('');
-    writeShortcutChoice('dismissed', adapter);
-    expect(readShortcutChoice(adapter)).toBe('dismissed');
+  it('remembers the answer with a timestamp in storage', () => {
+    const storage = fakeStorage();
+    expect(readShortcutChoice(storage)).toBe('');
+    writeShortcutChoice('dismissed', storage);
+    const entry = readShortcutEntry(storage);
+    expect(entry.choice).toBe('dismissed');
+    expect(entry.time).toBeGreaterThan(Date.now() - 5000);
+  });
+
+  it('reads legacy v1 plain-string choices', () => {
+    const storage = fakeStorage({isg_pwa_shortcut_choice_v1: 'dismissed'});
+    const entry = readShortcutEntry(storage);
+    expect(entry.choice).toBe('dismissed');
+    expect(entry.time).toBe(0);
+    writeShortcutChoice('accepted', storage);
+    expect(readShortcutEntry(storage).choice).toBe('accepted');
   });
 
   it('explains iOS add-to-home-screen when native install is unavailable', () => {

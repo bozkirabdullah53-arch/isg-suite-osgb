@@ -26,7 +26,10 @@ async function setup(page, {
   await page.addInitScript(() => {
     const payload = btoa(JSON.stringify({sub: '9', exp: Math.floor(Date.now() / 1000) + 3600}));
     sessionStorage.setItem('isg_token', `e30.${payload}.fixture`);
-    localStorage.setItem('isg_pwa_shortcut_choice_v1', 'dismissed');
+    localStorage.setItem(
+      'isg_pwa_shortcut_choice_v2',
+      JSON.stringify({choice: 'dismissed', time: Date.now()}),
+    );
   });
   const json = (route, body, status = 200) => route.fulfill({
     status, contentType: 'application/json', body: JSON.stringify(body),

@@ -4,7 +4,7 @@ import {
   isIosDevice,
   isMobileViewport,
   isStandaloneDisplay,
-  readShortcutChoice,
+  readShortcutEntry,
   shouldAskShortcutPrompt,
   shortcutInstructionText,
   writeShortcutChoice,
@@ -30,13 +30,15 @@ export function PwaShortcutPrompt() {
   const [mobile, setMobile] = useState(false);
 
   useEffect(() => {
-    const choice = readShortcutChoice(storage());
+    const entry = readShortcutEntry(storage());
     const mobileViewport = isMobileViewport(window);
     setMobile(mobileViewport);
     const ask = shouldAskShortcutPrompt({
       mobile: mobileViewport,
       standalone: isStandaloneDisplay(window),
-      choice,
+      choice: entry.choice,
+      choiceTime: entry.time,
+      now: Date.now(),
     });
     if (ask) setOpen(true);
     if (window.__isgDeferredInstallPrompt) {

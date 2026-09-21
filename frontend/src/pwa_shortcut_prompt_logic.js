@@ -1,4 +1,8 @@
-export const PWA_SHORTCUT_STORAGE_KEY = 'isg_pwa_shortcut_choice_v1';
+export const PWA_SHORTCUT_STORAGE_KEY = 'isg_pwa_shortcut_choice_v2';
+export const LEGACY_PWA_SHORTCUT_STORAGE_KEY = 'isg_pwa_shortcut_choice_v1';
+
+export const DISMISSED_REASK_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+export const ACCEPTED_REASK_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export function isStandaloneDisplay(win = typeof window === 'undefined' ? undefined : window) {
   if (!win) return false;
@@ -26,27 +30,63 @@ export function isIosDevice(win = typeof window === 'undefined' ? undefined : wi
     || (nav.platform === 'MacIntel' && Number(nav.maxTouchPoints || 0) > 1);
 }
 
-export function readShortcutChoice(storage) {
-  try {
-    return String(storage?.getItem?.(PWA_SHORTCUT_STORAGE_KEY) || '').trim();
-  } catch (_) {
-    return '';
+function parseEntry(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return {choice: '', time: 0};
+  if (text.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(text);
+      return {
+        choice: String(parsed?.choice || '').trim(),
+        time: Number(parsed?.time) > 0 ? Number(parsed.time) : 0,
+      };
+    } catch (_) {
+      return {choice: '', time: 0};
+    }
   }
+  return {choice: text, time: 0};
+}
+
+export function readShortcutEntry(storage) {
+  try {
+    const current = parseEntry(storage?.getItem?.(PWA_SHORTCUT_STORAGE_KEY));
+    if (current.choice) return current;
+    return parseEntry(storage?.getItem?.(LEGACY_PWA_SHORTCUT_STORAGE_KEY));
+  } catch (_) {
+    return {choice: '', time: 0};
+  }
+}
+
+export function readShortcutChoice(storage) {
+  return readShortcutEntry(storage).choice;
 }
 
 export function writeShortcutChoice(value, storage) {
   const next = String(value || '').trim();
   if (!next || !storage?.setItem) return;
   try {
-    storage.setItem(PWA_SHORTCUT_STORAGE_KEY, next);
+    storage.setItem(
+      PWA_SHORTCUT_STORAGE_KEY,
+      JSON.stringify({choice: next, time: Date.now()}),
+    );
   } catch (_) {
     // Prompt remains usable when browser storage is blocked.
   }
 }
 
-export function shouldAskShortcutPrompt({standalone = false, mobile = false, choice = ''} = {}) {
+export function shouldAskShortcutPrompt({
+  standalone = false,
+  choice = '',
+  choiceTime = 0,
+  now = Date.now(),
+} = {}) {
   if (standalone) return false;
-  return !['dismissed', 'accepted', 'installed'].includes(String(choice || '').trim());
+  const answer = String(choice || '').trim();
+  if (!answer) return true;
+  if (!['dismissed', 'accepted', 'installed'].includes(answer)) return true;
+  if (answer === 'installed') return false;
+  if (answer === 'dismissed') return now - Number(choiceTime || 0) >= DISMISSED_REASK_AFTER_MS;
+  return now - Number(choiceTime || 0) >= ACCEPTED_REASK_AFTER_MS;
 }
 
 export function shortcutInstructionText(ios, mobile = true) {
