@@ -1,4 +1,4 @@
-const CACHE = "isg-suite-v18";
+const CACHE = "isg-suite-v19";
 const CORE = [
   "/manifest.json",
   "/icon.svg",

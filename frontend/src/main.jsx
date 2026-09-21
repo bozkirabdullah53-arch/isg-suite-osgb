@@ -3214,7 +3214,33 @@ createRoot(document.getElementById('root')).render(
 
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  const hadController = Boolean(navigator.serviceWorker.controller);
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(console.error);
+  });
+
+  // Yeni sürüm canlıya alındığında açık PWA sekmesi eski bundle ile çalışmaya
+  // devam eder; standalone modda elle yenileme yolu da yoktur. skipWaiting+claim
+  // sonrası controller değişince sayfayı bir kez otomatik yenile. İlk kurulumda
+  // (controller yokken) yenileme tetiklenmez.
+  let swReloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || swReloading) return;
+    swReloading = true;
+    window.location.reload();
+  });
+
+  // Uzun süre açık kalan PWA'da SW güncelleme kontrolü (24 saatlik tarayıcı
+  // periyodunu beklemeden) her görünür olduğunda — en fazla 5 dakikada bir — yapılsın.
+  let lastSwUpdateCheck = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    const now = Date.now();
+    if (now - lastSwUpdateCheck < 300000) return;
+    lastSwUpdateCheck = now;
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => reg && reg.update())
+      .catch(() => {});
   });
 }
