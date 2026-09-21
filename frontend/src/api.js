@@ -2,6 +2,7 @@ import {
   canAttemptTokenRefresh,
   clearAccessToken,
   getAccessToken,
+  refreshCookieMode,
   setAccessToken,
   setRefreshCookieMode,
 } from "./auth_session.js";
@@ -56,6 +57,33 @@ function fetchCredentials(path = "") {
 }
 
 let _refreshInFlight = null;
+
+/**
+ * Anonim (token + refresh cookie yok) gezinmede köprü script'leri /auth/me gibi
+ * korumalı yolları çağırıp gereksiz 401 + refresh denemesi üretmesin. Bu yollar
+ * giriş sayfasında ağa hiç çıkmadan reddedilir; sonuç mevcut 401 davranışıyla
+ * aynıdır (çağıranlar catch edip sessizce devre dışı kalır).
+ */
+const ANONYMOUS_PUBLIC_PREFIXES = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/mfa",
+  "/auth/logout",
+  "/legal",
+  "/eisa/error-reports",
+  "/health",
+];
+
+function isAnonymousSession() {
+  return !getAccessToken() && !refreshCookieMode();
+}
+
+function isAnonymousPublicPath(path) {
+  const p = String(path || "");
+  return ANONYMOUS_PUBLIC_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
 
 function accessTokenExpiresSoon(skewSec = 90) {
   try {
@@ -469,6 +497,16 @@ export async function api(path, options = {}) {
   const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
   const method = (fetchOpts.method || "GET").toUpperCase();
   const retries = isSafeReadMethod(method) ? (options._retries ?? (warm ? 1 : 3)) : 0;
+
+  // Anonim oturumda korumalı yolları ağa çıkmadan reddet (401/refresh spam'i yok).
+  if (isAnonymousSession() && !isAnonymousPublicPath(path)) {
+    const anonErr = new Error("Oturum gerekli — lütfen giriş yapın.");
+    anonErr.httpStatus = 401;
+    anonErr.httpPath = path;
+    anonErr.httpMethod = method;
+    anonErr.anonymous = true;
+    throw anonErr;
+  }
 
   // Access JWT süresi dolmak üzereyse önce refresh dene (bayrak yoksa da)
   if (!_didProactiveRefresh && !_didRefresh && accessTokenExpiresSoon() && getAccessToken()) {

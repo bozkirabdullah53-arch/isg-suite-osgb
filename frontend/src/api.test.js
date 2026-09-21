@@ -72,6 +72,9 @@ describe('api güvenli yeniden deneme politikası', () => {
     localStorage.clear();
     sessionStorage.clear();
     clearAccessToken();
+    // Guard'ı aşmak için geçerli (süresi uzak) token: bu blok oturumlu
+    // isteklerin yeniden deneme politikasını test eder.
+    sessionStorage.setItem('isg_token', tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600));
   });
 
   afterEach(() => {
@@ -92,13 +95,19 @@ describe('api güvenli yeniden deneme politikası', () => {
   });
 
   it.each(['POST', 'PATCH', 'DELETE'])('%s ağ hatasında yazma isteğini yeniden göndermez', async (method) => {
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (url) => {
+      // Token'lı oturumda ağ hatası EİSA istemci raporu da tetikler (ayrı fetch);
+      // sayım yalnız hedef yazma isteği üzerinden yapılır.
+      if (String(url).endsWith('/eisa/error-reports') || String(url).endsWith('/health')) {
+        return jsonResponse({});
+      }
       throw new TypeError('Failed to fetch');
     });
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(api('/osgb/assignments/189/end', {method, _retries: 3})).rejects.toThrow();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const writeCalls = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/osgb/assignments/189/end'));
+    expect(writeCalls).toHaveLength(1);
   });
 
   it('kullanıcının iptal ettiği GET isteğini yeniden denemez', async () => {
@@ -127,5 +136,54 @@ describe('api güvenli yeniden deneme politikası', () => {
 
     await expect(api('/auth/me', {_retries: 1})).resolves.toEqual({id: 1});
     expect(getAccessToken()).toBe(token);
+  });
+});
+
+describe('anonim oturum koruması', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    clearAccessToken();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('token ve refresh cookie yokken korumalı yolları ağa çıkmadan reddeder', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({}, 401));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api('/auth/me')).rejects.toMatchObject({httpStatus: 401, anonymous: true});
+    await expect(api('/dashboard/summary', {_retries: 0})).rejects.toMatchObject({httpStatus: 401});
+    await expect(api('/trainings/premium-policy', {_retries: 0})).rejects.toMatchObject({httpStatus: 401});
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('anonimken genel auth/legal yollarına izin verir', async () => {
+    const fetchMock = vi.fn(async (url) => {
+      if (String(url).endsWith('/health')) return jsonResponse({status: 'ok'});
+      return jsonResponse({access_token: tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600)});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api('/auth/login', {method: 'POST', body: '{}'})).resolves.toMatchObject({access_token: expect.any(String)});
+    await expect(api('/legal/documents', {_retries: 0})).resolves.toMatchObject({access_token: expect.any(String)});
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('refresh cookie modunda korumalı yol normal akışa geçer', async () => {
+    localStorage.setItem('isg_refresh_cookie', '1');
+    const fetchMock = vi.fn(async (url) => {
+      if (String(url).endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (String(url).endsWith('/auth/refresh')) {
+        return jsonResponse({access_token: tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600)});
+      }
+      return jsonResponse({id: 9});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api('/auth/me', {_retries: 0})).resolves.toEqual({id: 9});
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/auth/me'))).toBe(true);
   });
 });
