@@ -8,8 +8,10 @@ içindir, gerçek veritabanı kimlikleri değiştirilmez.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -30,6 +32,7 @@ from app.schemas.eisa_platform import OsgbApplicationApproveResponse
 from app.schemas.osgb_subscription import OsgbApplicationReject, OsgbApplicationResponse
 from app.services.audit import add_audit_log
 from app.services.eisa_platform import build_dashboard, resolved_trial_days, subscription_response
+from app.services.eisa_subscribers_pdf import build_individual_subscribers_pdf
 
 
 auth_router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
@@ -168,6 +171,10 @@ def list_individual_subscriptions(
     _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
     """Onaylanmış bireysel İSG uzmanı aboneliklerini OSGB aboneliklerinden ayrı listeler."""
+    return _individual_subscription_rows(db, q)
+
+
+def _individual_subscription_rows(db: Session, q: str | None = None) -> list[dict]:
     needle = (q or "").strip().lower()
     out: list[dict] = []
     for user, org in _individual_rows(db):
@@ -207,6 +214,28 @@ def list_individual_subscriptions(
         out.append(row)
     out.sort(key=lambda row: str(row.get("specialist_name") or "").lower())
     return out
+
+
+@eisa_router.get("/individual-subscriptions/export.pdf")
+def export_individual_subscriptions_pdf(
+    q: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Global panel — bireysel üye listesini PDF olarak indir (liste filtresiyle aynı)."""
+    rows = _individual_subscription_rows(db, q)
+    if not rows:
+        raise HTTPException(404, "PDF'e aktarılacak bireysel üye bulunamadı.")
+    pdf = build_individual_subscribers_pdf(
+        rows=rows,
+        search=q.strip() if q and q.strip() else None,
+    )
+    fname = f"bireysel-uyeler-{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 def _archive_individual(db: Session, user: User, org: OsgbOrganization) -> None:

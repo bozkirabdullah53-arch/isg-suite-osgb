@@ -1,4 +1,8 @@
-"""EİSA — OSGB abone listesi PDF dışa aktarımı (global panel)."""
+"""EİSA — abone listesi PDF dışa aktarımları (global panel).
+
+OSGB üyeleri ve bireysel üyeler için ortak yatay A4 tablo düzeni;
+``annual_plan_pdf`` ile aynı reportlab desenini kullanır.
+"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -22,7 +26,7 @@ STATUS_TR = {
     "cancelled": "İptal",
 }
 
-COLUMNS = [
+OSGB_COLUMNS = [
     (26, "#"),
     (168, "Abone (OSGB)"),
     (112, "Yetkili"),
@@ -32,6 +36,19 @@ COLUMNS = [
     (62, "Abonelik"),
     (54, "Bitiş"),
     (46, "Hesap"),
+]
+
+INDIVIDUAL_COLUMNS = [
+    (26, "#"),
+    (140, "Üye"),
+    (150, "E-posta"),
+    (80, "Telefon"),
+    (110, "Belge"),
+    (80, "Paket"),
+    (60, "Abonelik"),
+    (40, "Kalan"),
+    (55, "Bitiş"),
+    (45, "Hesap"),
 ]
 
 
@@ -89,29 +106,33 @@ def _fmt_date(value) -> str:
     return str(value)
 
 
-def _row_status(row: dict) -> str:
-    if not row.get("is_active", True):
-        return "Askıda"
-    status = row.get("effective_status") or row.get("subscription_status")
-    return STATUS_TR.get(str(status or ""), "—")
+def _cert_label(row: dict) -> str:
+    parts = [row.get("certificate_class"), row.get("certificate_number")]
+    parts = [str(p) for p in parts if p]
+    return " / ".join(parts) if parts else "—"
 
 
-def _row_end_date(row: dict) -> str:
-    if row.get("effective_status") == "trial" or row.get("subscription_status") == "trial":
-        value = row.get("trial_ends_at")
-    else:
-        value = row.get("current_period_ends_at")
-    return _fmt_date(value)
+def _days_label(row: dict) -> str:
+    days = row.get("days_remaining")
+    if days is None:
+        return "—"
+    try:
+        return str(int(days))
+    except (TypeError, ValueError):
+        return "—"
 
 
-def build_osgb_subscribers_pdf(
+def _build_list_pdf(
     *,
+    header_title: str,
+    title: str,
+    count_label: str,
+    columns: list[tuple[int, str]],
     rows: list[dict],
-    title: str = "OSGB Abone Listesi",
-    search: str | None = None,
-    generated_at: datetime | None = None,
+    cell_values,
+    search: str | None,
+    generated_at: datetime | None,
 ) -> bytes:
-    """EİSA global panel — abone (OSGB üyesi) liste PDF'i."""
     _ensure_fonts()
     buf = BytesIO()
     page = landscape(A4)
@@ -127,7 +148,7 @@ def build_osgb_subscribers_pdf(
         c.setFillColorRGB(0.1, 0.1, 0.1)
         c.setFont(_FONT_B, 7)
         x = ml + 2
-        for width, label in COLUMNS:
+        for width, label in columns:
             c.drawString(x, y, label)
             x += width
         return y - 18
@@ -137,13 +158,13 @@ def build_osgb_subscribers_pdf(
         c.rect(0, h - 48, w, 48, fill=1, stroke=0)
         c.setFillColorRGB(1, 1, 1)
         c.setFont(_FONT_B, 12)
-        c.drawCentredString(w / 2, h - 22, "EİSA — OSGB ABONE LİSTESİ")
+        c.drawCentredString(w / 2, h - 22, header_title)
         c.setFont(_FONT, 8)
         c.drawCentredString(w / 2, h - 36, title or "")
         y = h - 64
         c.setFillColorRGB(0.2, 0.2, 0.2)
         c.setFont(_FONT, 8)
-        meta = f"Oluşturma: {olusturma}  |  Toplam abone: {len(rows)}  |  Sayfa {page_no}"
+        meta = f"Oluşturma: {olusturma}  |  {count_label}: {len(rows)}  |  Sayfa {page_no}"
         if search:
             meta += f"  |  Arama: “{search}”"
         c.drawString(ml, y, _fit(c, meta, uw, _FONT, 8))
@@ -157,7 +178,7 @@ def build_osgb_subscribers_pdf(
     if not rows:
         c.setFillColorRGB(0.4, 0.4, 0.4)
         c.setFont(_FONT, 8)
-        c.drawString(ml + 2, y, "Listelenecek abone yok.")
+        c.drawString(ml + 2, y, "Listelenecek kayıt yok.")
         y -= row_h
 
     for idx, row in enumerate(rows, start=1):
@@ -170,21 +191,11 @@ def build_osgb_subscribers_pdf(
             c.setFillColorRGB(0.97, 0.98, 1)
             c.rect(ml, y - 4, uw, row_h, fill=1, stroke=0)
 
-        vals = [
-            str(idx),
-            row.get("name") or "—",
-            row.get("responsible_manager") or "—",
-            row.get("contact_email") or "—",
-            row.get("contact_phone") or "—",
-            row.get("package_name") or "—",
-            _row_status(row),
-            _row_end_date(row),
-            "Aktif" if row.get("is_active", True) else "Pasif",
-        ]
+        vals = cell_values(row, idx)
         c.setFillColorRGB(0.15, 0.15, 0.15)
         c.setFont(_FONT, 7)
         x = ml + 2
-        for (width, _label), text in zip(COLUMNS, vals):
+        for (width, _label), text in zip(columns, vals):
             c.drawString(x, y, _fit(c, str(text), width - 4, _FONT, 7))
             x += width
         y -= row_h
@@ -200,3 +211,90 @@ def build_osgb_subscribers_pdf(
     c.save()
     buf.seek(0)
     return buf.read()
+
+
+def _osgb_cells(row: dict, idx: int) -> list[str]:
+    if not row.get("is_active", True):
+        status = "Askıda"
+    else:
+        raw = row.get("effective_status") or row.get("subscription_status")
+        status = STATUS_TR.get(str(raw or ""), "—")
+    if row.get("effective_status") == "trial" or row.get("subscription_status") == "trial":
+        end = _fmt_date(row.get("trial_ends_at"))
+    else:
+        end = _fmt_date(row.get("current_period_ends_at"))
+    return [
+        str(idx),
+        row.get("name") or "—",
+        row.get("responsible_manager") or "—",
+        row.get("contact_email") or "—",
+        row.get("contact_phone") or "—",
+        row.get("package_name") or "—",
+        status,
+        end,
+        "Aktif" if row.get("is_active", True) else "Pasif",
+    ]
+
+
+def build_osgb_subscribers_pdf(
+    *,
+    rows: list[dict],
+    title: str = "OSGB Abone Listesi",
+    search: str | None = None,
+    generated_at: datetime | None = None,
+) -> bytes:
+    """EİSA global panel — abone (OSGB üyesi) liste PDF'i."""
+    return _build_list_pdf(
+        header_title="EİSA — OSGB ABONE LİSTESİ",
+        title=title,
+        count_label="Toplam abone",
+        columns=OSGB_COLUMNS,
+        rows=rows,
+        cell_values=_osgb_cells,
+        search=search,
+        generated_at=generated_at,
+    )
+
+
+def _individual_cells(row: dict, idx: int) -> list[str]:
+    raw = row.get("effective_status") or row.get("status")
+    status = STATUS_TR.get(str(raw or ""), "—")
+    if str(raw or "") == "trial":
+        end = _fmt_date(row.get("trial_ends_at"))
+    else:
+        end = _fmt_date(row.get("current_period_ends_at"))
+    account_active = row.get("account_active")
+    if account_active is None:
+        account_active = True
+    return [
+        str(idx),
+        row.get("specialist_name") or row.get("osgb_name") or "—",
+        row.get("specialist_email") or row.get("contact_email") or "—",
+        row.get("specialist_phone") or row.get("contact_phone") or "—",
+        _cert_label(row),
+        row.get("package_name") or "—",
+        status,
+        _days_label(row),
+        end,
+        "Aktif" if account_active else "Pasif",
+    ]
+
+
+def build_individual_subscribers_pdf(
+    *,
+    rows: list[dict],
+    title: str = "Bireysel Üye Listesi",
+    search: str | None = None,
+    generated_at: datetime | None = None,
+) -> bytes:
+    """EİSA global panel — bireysel İSG uzmanı üye liste PDF'i."""
+    return _build_list_pdf(
+        header_title="EİSA — BİREYSEL ÜYE LİSTESİ",
+        title=title,
+        count_label="Toplam bireysel üye",
+        columns=INDIVIDUAL_COLUMNS,
+        rows=rows,
+        cell_values=_individual_cells,
+        search=search,
+        generated_at=generated_at,
+    )

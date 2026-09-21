@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
-import { api } from './api';
+import { Download, Trash2 } from 'lucide-react';
+import { api, downloadFile } from './api';
 import { Msg, Page, RefreshButton, SearchBar, SimpleSubscriptionList, SubscriptionDetailModal } from './eisa';
 
 export function EisaIndividualSubscriptionsPage() {
@@ -34,6 +34,23 @@ export function EisaIndividualSubscriptionsPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  async function exportPdf() {
+    setBusy(true);
+    setMsg('');
+    try {
+      const p = new URLSearchParams();
+      if (q.trim()) p.set('q', q.trim());
+      await downloadFile(
+        `/eisa/individual-subscriptions/export.pdf${p.toString() ? `?${p}` : ''}`,
+        `bireysel-uyeler-${new Date().toISOString().slice(0, 10)}.pdf`,
+      );
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function deleteIndividual(row) {
     const specialistName = String(row.specialist_name || row.osgb_name || '').trim();
@@ -80,6 +97,9 @@ export function EisaIndividualSubscriptionsPage() {
       <div className="eisa-toolbar">
         <SearchBar value={q} onChange={setQ} placeholder="Uzman adı, e-posta, belge no…" />
         <button type="button" disabled={busy} onClick={load}>Ara</button>
+        <button type="button" className="secondary" disabled={busy || !rows.length} onClick={exportPdf}>
+          <Download size={16} /> PDF İndir
+        </button>
       </div>
       <Msg text={msg} />
       <SimpleSubscriptionList
