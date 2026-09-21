@@ -54,6 +54,7 @@ class TrainingCreate(BaseModel):
     end_date: date
     hazard_class: str
     sector: str = Field(min_length=4, max_length=140)
+    instructor_professional_id: int | None = Field(default=None, gt=0)
     instructor_name: str = Field(min_length=3, max_length=160)
     instructor_qualification: str | None = Field(default=None, max_length=220)
     workplace_physician: str | None = Field(default=None, max_length=160)
@@ -242,6 +243,7 @@ class TrainingResponse(BaseModel):
     duration_hours: int
     renewal_years: int
     sector: str | None
+    instructor_professional_id: int | None = None
     instructor_name: str
     instructor_qualification: str | None
     workplace_physician: str | None = None
@@ -281,3 +283,9 @@ class TrainingVerifyResponse(BaseModel):
     certificate_number: str | None = None
     participant_name: str | None = None
     message: str | None = None
+
+
+class InstructorIdentityUpsert(BaseModel):
+    """Sensitive input: raw identity is validated/encrypted and never echoed."""
+    identity_type: str = Field(default="tckn", pattern="^(tckn|ykn)$")
+    raw_value: str = Field(min_length=10, max_length=20)
