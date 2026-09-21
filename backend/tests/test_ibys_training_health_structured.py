@@ -113,6 +113,8 @@ def test_instructor_readiness_backfill_is_masked_and_exact_scope(monkeypatch):
     import json
 
     from app.api.trainings import instructor_regulatory_readiness
+    from app.models import training_presentation  # noqa: F401
+    from app.models import training_presentation_approval  # noqa: F401
     from app.models.entities import (
         Company,
         TrainingSession,
