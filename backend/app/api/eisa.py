@@ -1,10 +1,12 @@
 """EİSA — platform üst yönetimi: OSGB başvuru, abonelik, finans, paket, bildirim."""
 from datetime import datetime, timedelta
+from io import BytesIO
 import logging
 from pathlib import Path
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -76,6 +78,7 @@ from app.services.eisa_platform import (
     snapshot_subscription,
     subscription_response,
 )
+from app.services.eisa_subscribers_pdf import build_osgb_subscribers_pdf
 from app.services.osgb_subscription import (
     approve_application,
     get_or_create_subscription,
@@ -468,13 +471,7 @@ def delete_application(
     return {"ok": True, "id": application_id, "message": "Başvuru kaydı silindi."}
 
 
-@router.get("/osgb-users", response_model=list[EisaOsgbUserResponse])
-def list_osgb_users(
-    q: str | None = None,
-    active: bool | None = None,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
-):
+def _query_osgb_users(db: Session, q: str | None, active: bool | None) -> list[EisaOsgbUserResponse]:
     stmt = select(OsgbOrganization).where(OsgbOrganization.is_individual.is_(False)).order_by(OsgbOrganization.name)
     if active is True:
         stmt = stmt.where(OsgbOrganization.is_active.is_(True), OsgbOrganization.archived_at.is_(None))
@@ -495,6 +492,39 @@ def list_osgb_users(
             or needle in (r.tax_number or "").lower()
         ]
     return out
+
+
+@router.get("/osgb-users", response_model=list[EisaOsgbUserResponse])
+def list_osgb_users(
+    q: str | None = None,
+    active: bool | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    return _query_osgb_users(db, q, active)
+
+
+@router.get("/osgb-users/export.pdf")
+def export_osgb_users_pdf(
+    q: str | None = None,
+    active: bool | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Global panel — OSGB abone listesini PDF olarak indir (liste filtresiyle aynı)."""
+    rows = _query_osgb_users(db, q, active)
+    if not rows:
+        raise HTTPException(404, "PDF'e aktarılacak abone bulunamadı.")
+    pdf = build_osgb_subscribers_pdf(
+        rows=[r.model_dump() for r in rows],
+        search=q.strip() if q and q.strip() else None,
+    )
+    fname = f"osgb-aboneleri-{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 @router.patch("/osgb-users/{osgb_id}/deactivate")

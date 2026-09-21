@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, downloadFile, API_URL } from './api';
-import { Check, RefreshCw, Trash2, X } from 'lucide-react';
+import { Check, Download, RefreshCw, Trash2, X } from 'lucide-react';
 import {
   LEGAL_DOCS_VERSION,
   LegalDocModal,
@@ -408,6 +408,23 @@ export function EisaOsgbUsersPage() {
 
   useEffect(() => { void load(); }, []);
 
+  async function exportPdf() {
+    setBusy(true);
+    setMsg('');
+    try {
+      const p = new URLSearchParams();
+      if (q) p.set('q', q);
+      await downloadFile(
+        `/eisa/osgb-users/export.pdf${p.toString() ? `?${p}` : ''}`,
+        `osgb-aboneleri-${new Date().toISOString().slice(0, 10)}.pdf`,
+      );
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleActive(row) {
     const shouldActivate = osgbNeedsActivation(row);
     const action = shouldActivate ? 'yeniden aktifleştirmek' : 'pasife almak';
@@ -492,6 +509,9 @@ export function EisaOsgbUsersPage() {
       <div className="eisa-toolbar">
         <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
         <button type="button" disabled={busy} onClick={load}>Ara</button>
+        <button type="button" className="secondary" disabled={busy || !rows.length} onClick={exportPdf}>
+          <Download size={16} /> PDF İndir
+        </button>
       </div>
       <Msg text={msg} />
       <SimpleSubscriptionList
