@@ -1,4 +1,6 @@
 from io import BytesIO
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -131,15 +133,33 @@ def export_employees_pdf(
     unknown_gender = len(rows) - women - men
     stream = BytesIO()
     doc = SimpleDocTemplate(stream, pagesize=landscape(A4), rightMargin=8 * mm, leftMargin=8 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
-    title_style = ParagraphStyle("EmployeeTitle", parent=styles["Title"], fontName=bold_font, fontSize=16, leading=20)
+    title_style = ParagraphStyle("EmployeeTitle", parent=styles["Title"], fontName=bold_font, fontSize=16, leading=20, spaceAfter=0)
+    date_style = ParagraphStyle("EmployeeDate", parent=styles["BodyText"], fontName=font, fontSize=8, textColor=colors.HexColor("#475569"), alignment=2)
     body_style = ParagraphStyle("EmployeeBody", parent=styles["BodyText"], fontName=font, fontSize=8, leading=10)
+    label_style = ParagraphStyle("EmployeeLabel", parent=body_style, fontName=bold_font, textColor=colors.HexColor("#0F4C5C"))
     company_text = company.name if company else "Tüm işyerleri"
     title = Paragraph(safe(company_text), title_style)
-    meta = Paragraph(
-        f"<b>Firma:</b> {safe(company_text)} &nbsp;&nbsp; <b>SGK Sicil No:</b> {safe(company.sgk_registry_no if company else None) or '—'} &nbsp;&nbsp; "
-        f"<b>NACE:</b> {safe(company.nace_code if company else None) or '—'} &nbsp;&nbsp; <b>Tehlike Sınıfı:</b> {safe(company.hazard_class if company else None) or '—'}<br/>"
-        f"<b>Adres:</b> {safe(company.address if company else None) or '—'} &nbsp;&nbsp; <b>Telefon:</b> {safe(company.phone if company else None) or '—'}<br/>"
-        f"<b>Personel Özeti:</b> Toplam {len(rows)} | Kadın {women} | Erkek {men} | Cinsiyet belirtilmemiş {unknown_gender} | Engelli {disabled}", body_style)
+    report_time = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")
+    title_block = Table(
+        [[title, Paragraph(f"Rapor tarihi<br/>{report_time} (Türkiye saati)", date_style)]],
+        colWidths=[140 * mm, 45 * mm],
+    )
+    title_block.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+    meta = Table([
+        [Paragraph("Firma Unvanı", label_style), Paragraph(safe(company_text), body_style), Paragraph("SGK Sicil No", label_style), Paragraph(safe(company.sgk_registry_no if company else None) or "—", body_style)],
+        [Paragraph("NACE Kodu", label_style), Paragraph(safe(company.nace_code if company else None) or "—", body_style), Paragraph("Tehlike Sınıfı", label_style), Paragraph(safe(company.hazard_class if company else None) or "—", body_style)],
+        [Paragraph("Adres", label_style), Paragraph(safe(company.address if company else None) or "—", body_style), Paragraph("Telefon", label_style), Paragraph(safe(company.phone if company else None) or "—", body_style)],
+    ], colWidths=[27 * mm, 72 * mm, 31 * mm, 55 * mm))
+    meta.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    summary = Paragraph(
+        f"<b>Personel Özeti</b> &nbsp; Toplam: {len(rows)} &nbsp; | &nbsp; Kadın: {women} &nbsp; | &nbsp; Erkek: {men} &nbsp; | &nbsp; Cinsiyet belirtilmemiş: {unknown_gender} &nbsp; | &nbsp; Engelli: {disabled}", body_style)
     data = [["#", "Ad Soyad", "TC Kimlik No", "Görev", "Departman", "Şube", "Cinsiyet", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"]]
     data.extend([
         [str(index), r.full_name, r.national_id_masked or "", r.job_title or "", r.department or "", branch_names.get(r.branch_id, ""), r.gender or "",
@@ -161,7 +181,7 @@ def export_employees_pdf(
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
     ]))
-    doc.build([title, Spacer(1, 5 * mm), meta, Spacer(1, 5 * mm), table])
+    doc.build([title_block, Spacer(1, 4 * mm), meta, Spacer(1, 3 * mm), summary, Spacer(1, 5 * mm), table])
     stream.seek(0)
     return StreamingResponse(stream, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="personel-listesi.pdf"'})
 
