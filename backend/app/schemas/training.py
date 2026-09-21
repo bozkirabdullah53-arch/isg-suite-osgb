@@ -289,3 +289,8 @@ class InstructorIdentityUpsert(BaseModel):
     """Sensitive input: raw identity is validated/encrypted and never echoed."""
     identity_type: str = Field(default="tckn", pattern="^(tckn|ykn)$")
     raw_value: str = Field(min_length=10, max_length=20)
+
+
+class InstructorProfessionalLink(BaseModel):
+    """Controlled historical linkage; does not rewrite instructor name."""
+    professional_id: int = Field(gt=0)
