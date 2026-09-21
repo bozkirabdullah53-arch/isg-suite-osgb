@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {BarChart3, Download, RefreshCw} from 'lucide-react';
+import {BarChart3, Building2, Download, RefreshCw} from 'lucide-react';
 import {api, downloadFile} from './api';
+import {persistSelectedCompanyId} from './nace_context';
 
 const MODULE_FOR_CHECK = {
   training_compliance: 'training',
@@ -96,14 +97,21 @@ function Metric({label, value, tone}) {
 
 export function SpecialistReportCenterPage({onNavigate}) {
   const [data, setData] = useState(null);
+  const [companies, setCompanies] = useState([]);
+  const [companyId, setCompanyId] = useState('');
+  const [companiesBusy, setCompaniesBusy] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  async function load() {
+  async function load(id = companyId) {
+    if (!id) {
+      setData(null);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      setData(await api('/reports/specialist-summary'));
+      setData(await api('/reports/specialist-summary?company_id=' + encodeURIComponent(id)));
     } catch (e) {
       setData(null);
       setError(e.message || 'Uzman raporu yüklenemedi.');
@@ -112,16 +120,63 @@ export function SpecialistReportCenterPage({onNavigate}) {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setCompaniesBusy(true);
+    api('/companies?active=true').then((rows) => {
+      if (cancelled) return;
+      setCompanies(Array.isArray(rows) ? rows : []);
+      // Rapor merkezi her açılışta açık kapsam ister; tek işyeri olsa bile
+      // otomatik seçim yapılmaz ve firma seçilmeden rapor verisi yüklenmez.
+      setCompanyId('');
+      setData(null);
+      persistSelectedCompanyId('');
+      window.dispatchEvent(new CustomEvent('isg:nace-context-reset', {
+        detail: {source: 'specialist-report-center'},
+      }));
+    }).catch((e) => {
+      if (cancelled) return;
+      setCompanies([]);
+      setError(e.message || 'Atanmış işyerleri yüklenemedi.');
+    }).finally(() => {
+      if (!cancelled) setCompaniesBusy(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (companyId) void load(companyId);
+    else setData(null);
+  }, [companyId]);
 
   const totals = data?.totals || {};
-  const companies = data?.companies || [];
+  const reportCompanies = data?.companies || [];
   const events = data?.events || [];
   const eventGroups = useMemo(() => events.slice(0, 24), [events]);
+  const selectedCompany = companies.find((row) => String(row.id) === String(companyId)) || null;
+
+  function chooseCompany(value) {
+    const next = String(value || '');
+    const selected = companies.find((row) => String(row.id) === next);
+    setCompanyId(next);
+    setData(null);
+    setError('');
+    persistSelectedCompanyId(next);
+    window.dispatchEvent(new CustomEvent('isg:company-selected', {
+      detail: next ? {companyId: next, company: selected} : {},
+    }));
+  }
 
   async function exportReport() {
+    if (!companyId) {
+      setError('Rapor indirmek için önce firma / işyeri seçiniz.');
+      return;
+    }
     try {
-      await downloadFile('/reports/specialist-summary.txt', 'uzman-raporu-' + new Date().toISOString().slice(0, 10) + '.txt');
+      await downloadFile(
+        '/reports/specialist-summary.txt?company_id=' + encodeURIComponent(companyId),
+        'uzman-raporu-' + companyId + '-' + new Date().toISOString().slice(0, 10) + '.txt',
+      );
     } catch (e) {
       setError(e.message || 'Rapor indirilemedi.');
     }
@@ -132,10 +187,10 @@ export function SpecialistReportCenterPage({onNavigate}) {
       <div className="page-title">
         <h3 style={{display: 'flex', alignItems: 'center', gap: 8}}><BarChart3 size={22} /> Uzman Rapor Merkezi</h3>
         <div className="actions" style={{gap: 8}}>
-          <button type="button" className="secondary" disabled={busy} onClick={() => void load()}>
+          <button type="button" className="secondary" disabled={busy || !companyId} onClick={() => void load()}>
             <RefreshCw size={16} /> Yenile
           </button>
-          <button type="button" disabled={busy || !data} onClick={() => void exportReport()}>
+          <button type="button" disabled={busy || !companyId || !data} onClick={() => void exportReport()}>
             <Download size={16} /> TXT indir
           </button>
         </div>
@@ -149,6 +204,45 @@ export function SpecialistReportCenterPage({onNavigate}) {
         {error && <p className="error" style={{marginBottom: 0}}>{error}</p>}
       </section>
 
+
+      <section className="panel" style={{marginBottom: 16, border: '1px solid #b9d4ea', background: 'linear-gradient(135deg,#f8fcff 0%,#eef8f8 100%)'}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end'}}>
+          <div style={{minWidth: 240, flex: '1 1 320px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: 8, color: '#0f766e', fontSize: 12, fontWeight: 800, letterSpacing: '.04em'}}>
+              <Building2 size={17} /> AKTİF İŞYERİ KAPSAMI
+            </div>
+            <h3 style={{margin: '6px 0 4px'}}>Firma / işyeri seçiniz</h3>
+            <p style={{margin: 0, color: '#64748b', fontSize: 13}}>
+              Rapor merkezi yalnız seçtiğiniz işyerinin verilerini gösterir. Firma seçilmeden hiçbir rapor verisi yüklenmez.
+            </p>
+          </div>
+          <label className="field" style={{margin: 0, minWidth: 280, flex: '1 1 340px'}}>
+            <span>Firma / işyeri</span>
+            <select value={companyId} onChange={(e) => chooseCompany(e.target.value)} disabled={companiesBusy || !companies.length}>
+              <option value="">{companiesBusy ? 'İşyerleri yükleniyor…' : 'Firma seçiniz'}</option>
+              {companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+            </select>
+          </label>
+        </div>
+        {selectedCompany && (
+          <div style={{display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid #d6e8eb', fontSize: 13, color: '#475569'}}>
+            <span><strong style={{color: '#123b5d'}}>Seçili firma:</strong> {selectedCompany.name}</span>
+            <span><strong style={{color: '#123b5d'}}>NACE:</strong> {selectedCompany.nace_code || '—'}</span>
+            <span><strong style={{color: '#123b5d'}}>Tehlike:</strong> {selectedCompany.hazard_class || 'Belirlenmedi'}</span>
+          </div>
+        )}
+      </section>
+
+      {!companyId ? (
+        <section className="panel" style={{marginBottom: 16, textAlign: 'center', padding: '38px 24px'}}>
+          <Building2 size={38} color="#0f766e" style={{marginBottom: 8}} />
+          <h3 style={{margin: '0 0 6px'}}>Başlamak için firma seçiniz</h3>
+          <p style={{margin: 0, color: '#64748b', fontSize: 14}}>
+            Uzman Rapor Merkezi, firma seçildikten sonra yalnız o işyerinin sayaçlarını, uygunluk durumunu ve aksiyonlarını getirir.
+          </p>
+        </section>
+      ) : (
+        <>
       <div className="cards" style={{marginBottom: 16}}>
         <Metric label="İşyeri" value={totals.workplaces} />
         <Metric label="Aktif çalışan" value={totals.employees} />
@@ -164,7 +258,7 @@ export function SpecialistReportCenterPage({onNavigate}) {
           <table>
             <thead><tr><th>İşyeri</th><th>NACE / tehlike</th><th>Çalışan</th><th>Açık risk</th><th>Kontrol</th><th>Mevzuat</th><th>İşlem</th></tr></thead>
             <tbody>
-              {companies.length ? companies.map((row) => {
+              {reportCompanies.length ? reportCompanies.map((row) => {
                 const failedChecks = (row.checks || []).filter((check) => !check.passed);
                 return (
                   <tr key={row.company_id}>
@@ -229,6 +323,8 @@ export function SpecialistReportCenterPage({onNavigate}) {
           </div>
         ) : <p className="empty">Yaklaşan veya geciken aksiyon bulunamadı.</p>}
       </section>
+        </>
+      )}
     </>
   );
 }
