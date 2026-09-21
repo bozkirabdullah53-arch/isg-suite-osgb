@@ -15,12 +15,12 @@ import unicodedata
 
 ANALYTICS_SCHEMA_VERSION = "risk-nace-analytics-v1"
 
-RISK_TYPE_ORDER = ("physical", "chemical", "biological", "other")
+RISK_TYPE_ORDER = ("physical", "chemical", "biological", "ergonomic", "psychosocial", "other")
 
 RISK_TYPE_META: dict[str, dict[str, str]] = {
     "physical": {
         "label": "Fiziksel",
-        "description": "Gürültü, titreşim, makine, elektrik, ergonomi, yangın ve benzeri fiziksel kaynaklar.",
+        "description": "Gürültü, titreşim, makine, elektrik, yangın ve benzeri fiziksel kaynaklar.",
         "color": "#0f766e",
     },
     "chemical": {
@@ -33,9 +33,19 @@ RISK_TYPE_META: dict[str, dict[str, str]] = {
         "description": "Biyolojik etken, enfeksiyon, kan/vücut sıvısı, hijyen ve zoonotik kaynaklar.",
         "color": "#7c3aed",
     },
+    "ergonomic": {
+        "label": "Ergonomik",
+        "description": "Elle taşıma, tekrarlı iş, uygunsuz duruş, ekranlı araçlar ve kas-iskelet yükleri.",
+        "color": "#2563eb",
+    },
+    "psychosocial": {
+        "label": "Psikososyal",
+        "description": "Stres, iş yükü, mobbing, şiddet, vardiya düzeni ve diğer psikososyal etkenler.",
+        "color": "#db2777",
+    },
     "other": {
         "label": "Diğer",
-        "description": "İlk üç başlığa güvenli biçimde sınıflandırılamayan diğer tehlike kayıtları.",
+        "description": "Ana risk türlerine güvenli biçimde sınıflandırılamayan diğer tehlike kayıtları.",
         "color": "#64748b",
     },
 }
@@ -43,7 +53,8 @@ RISK_TYPE_META: dict[str, dict[str, str]] = {
 
 # Sınıflandırma yalnızca açıklanabilir katalog metni ve risk kaydı alanlarıyla
 # yapılır. Öncelik sırası, örneğin "kimyasal ve biyolojik" gibi birleşik
-# kategori adlarında daha özel biyolojik/kimyasal anlamı korur.
+# kategori adlarında daha özel biyolojik/kimyasal/psikososyal/ergonomik
+# anlamı korur.
 _BIOLOGICAL_TERMS = (
     "biyolojik",
     "biolojik",
@@ -75,6 +86,48 @@ _CHEMICAL_TERMS = (
     "refrigerant",
     "tehlikeli madde",
 )
+_PSYCHOSOCIAL_TERMS = (
+    "psikososyal",
+    "psikolojik",
+    "psychosocial",
+    "psychological",
+    "stres",
+    "stress",
+    "mobbing",
+    "tukenmis",
+    "burnout",
+    "siddet",
+    "violence",
+    "is yuku",
+    "workload",
+    "vardiya",
+    "shift",
+    "yalniz calisma",
+    "lone work",
+    "gece calisma",
+    "night work",
+    "catisma",
+    "conflict",
+)
+_ERGONOMIC_TERMS = (
+    "ergonom",
+    "ergonomic",
+    "manual handling",
+    "elle tasima",
+    "el ile tasima",
+    "kas iskelet",
+    "muskuloskeletal",
+    "postur",
+    "duruş",
+    "durus",
+    "tekrarl",
+    "repetitive",
+    "ekranli arac",
+    "display screen",
+    "agir kaldirma",
+    "monoton",
+    "bedensel zorlanma",
+)
 _PHYSICAL_TERMS = (
     "fiziksel",
     "mekanik",
@@ -83,7 +136,6 @@ _PHYSICAL_TERMS = (
     "gurult",
     "titreşim",
     "titresim",
-    "ergonom",
     "termal",
     "sıcak",
     "sicak",
@@ -120,7 +172,6 @@ _PHYSICAL_TERMS = (
     "explosion",
     "traffic",
     "lifting",
-    "manual handling",
 )
 
 
@@ -138,6 +189,10 @@ def classify_hazard_type(*values: object) -> str:
         return "biological"
     if any(term in text for term in _CHEMICAL_TERMS):
         return "chemical"
+    if any(term in text for term in _PSYCHOSOCIAL_TERMS):
+        return "psychosocial"
+    if any(term in text for term in _ERGONOMIC_TERMS):
+        return "ergonomic"
     if any(term in text for term in _PHYSICAL_TERMS):
         return "physical"
     return "other"
@@ -300,8 +355,8 @@ def build_risk_analytics(
         item = type_buckets[key]
         item["dominance_score"] = round(float(item["dominance_score"]), 2)
         item["percentage"] = _percentage(float(item["dominance_score"]), total_dominance)
-        # Üç ana tür her zaman döner; “Diğer” yalnızca gerçek kaydı varsa
-        # görünür olur ve boş veride arayüz gereksiz bir dördüncü kart göstermez.
+        # Beş ana tür her zaman döner; “Diğer” yalnızca gerçek kaydı varsa
+        # görünür olur ve boş veride arayüz gereksiz bir ek kart göstermez.
         if key != "other" or item["risk_count"] > 0:
             risk_types.append(item)
     # Kartlar, lejant ve donut aynı sırayı kullanır: en yüksek dominant risk
