@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
   isIosDevice,
@@ -29,10 +29,15 @@ export function PwaShortcutPrompt() {
   const [deferred, setDeferred] = useState(null);
   const [mobile, setMobile] = useState(false);
 
+  const [installed, setInstalled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const installing = useRef(false);
+
   useEffect(() => {
     const choice = readShortcutChoice(storage());
     const mobileViewport = isMobileViewport(window);
     setMobile(mobileViewport);
+    setInstalled(isStandaloneDisplay(window));
     const ask = shouldAskShortcutPrompt({
       mobile: mobileViewport,
       standalone: isStandaloneDisplay(window),
@@ -51,6 +56,9 @@ export function PwaShortcutPrompt() {
     };
     const onInstalled = () => {
       writeShortcutChoice('installed', storage());
+      window.__isgDeferredInstallPrompt = null;
+      setDeferred(null);
+      setInstalled(true);
       setOpen(false);
       setHelp('');
     };
@@ -69,25 +77,41 @@ export function PwaShortcutPrompt() {
   }, []);
 
   const accept = useCallback(async () => {
-    writeShortcutChoice('accepted', storage());
-    if (deferred && typeof deferred.prompt === 'function') {
+    if (installing.current) return;
+    const event = deferred || window.__isgDeferredInstallPrompt;
+    if (event && typeof event.prompt === 'function') {
+      installing.current = true;
+      setBusy(true);
+      // Native installation events are single-use, including failed attempts.
+      window.__isgDeferredInstallPrompt = null;
+      setDeferred(null);
       try {
-        deferred.prompt();
-        const result = await deferred.userChoice;
-        setDeferred(null);
+        await event.prompt();
+        const result = await event.userChoice;
         if (result?.outcome === 'accepted') {
-          writeShortcutChoice('installed', storage());
           setOpen(false);
+          setHelp('');
           return;
         }
       } catch (_) {
-        // Native prompt can be unavailable; fall through to manual steps.
+        // Keep manual installation available if the browser rejects the prompt.
+      } finally {
+        installing.current = false;
+        setBusy(false);
       }
     }
     setHelp(shortcutInstructionText(isIosDevice(window), mobile));
   }, [deferred, mobile]);
 
-  if (typeof document === 'undefined' || (!open && !help)) return null;
+  if (typeof document === 'undefined' || installed) return null;
+  if (!open && !help) {
+    return mobile ? createPortal(
+      <button type="button" className="pwa-shortcut-reopen" onClick={() => setOpen(true)}>
+        Ana ekrana ekle
+      </button>,
+      document.body,
+    ) : null;
+  }
 
   return createPortal(
     <div className="pwa-shortcut-overlay" role="dialog" aria-modal="true" aria-labelledby="pwa-shortcut-title">
@@ -98,11 +122,11 @@ export function PwaShortcutPrompt() {
         </p>
         <div className="pwa-shortcut-actions">
           {help ? (
-            <button type="button" className="pwa-yes" onClick={() => close('accepted')} onPointerUp={() => close('accepted')}>Tamam</button>
+            <button type="button" className="pwa-yes" onClick={() => close('dismissed')}>Tamam</button>
           ) : (
             <>
-              <button type="button" className="pwa-no" onClick={() => close('dismissed')} onPointerUp={() => close('dismissed')}>Hayır</button>
-              <button type="button" className="pwa-yes" onClick={() => void accept()}>Evet</button>
+              <button type="button" className="pwa-no" onClick={() => close('dismissed')}>Hayır</button>
+              <button type="button" className="pwa-yes" disabled={busy} onClick={() => void accept()}>Evet</button>
             </>
           )}
         </div>

@@ -46,7 +46,7 @@ export function writeShortcutChoice(value, storage) {
 
 export function shouldAskShortcutPrompt({standalone = false, mobile = false, choice = ''} = {}) {
   if (standalone) return false;
-  return !['dismissed', 'accepted', 'installed'].includes(String(choice || '').trim());
+  return !['dismissed', 'installed'].includes(String(choice || '').trim());
 }
 
 export function shortcutInstructionText(ios, mobile = true) {
