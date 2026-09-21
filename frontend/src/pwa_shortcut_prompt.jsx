@@ -15,7 +15,11 @@ function storage() {
   try {
     return window.localStorage;
   } catch (_) {
-    return null;
+    try {
+      return window.sessionStorage;
+    } catch (_) {
+      return null;
+    }
   }
 }
 
