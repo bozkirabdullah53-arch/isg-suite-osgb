@@ -19,6 +19,33 @@
   box-shadow: 0 18px 42px rgba(8, 70, 80, .18);
 }
 
+/*
+ * The modern theme has a broad `header` rule for the application top bar.
+ * This page header is a component hero, so keep its intended high-contrast
+ * treatment when both stylesheets are active.
+ */
+html[data-ui-theme="modern"] .ra-page > .ra-hero {
+  position: relative;
+  top: auto;
+  margin: 0;
+  padding: 28px 30px;
+  border: 0;
+  border-radius: 24px;
+  background: radial-gradient(circle at 90% 10%, rgba(94, 234, 212, .2), transparent 30%), linear-gradient(125deg, #0b3345 0%, #0f766e 58%, #0e7490 100%);
+  box-shadow: 0 18px 42px rgba(8, 70, 80, .18);
+  backdrop-filter: none;
+  animation: none;
+  color: #effffc;
+}
+
+html[data-ui-theme="modern"] .ra-page > .ra-hero h1 {
+  color: #fff;
+}
+
+html[data-ui-theme="modern"] .ra-page > .ra-hero p {
+  color: #d3edef;
+}
+
 .ra-hero::after {
   content: '';
   position: absolute;
@@ -918,6 +945,7 @@
 
 @media (max-width: 860px) {
   .ra-hero { flex-direction: column; padding: 23px 21px; }
+  html[data-ui-theme="modern"] .ra-page > .ra-hero { padding: 23px 21px; }
   .ra-hero-badge { align-self: flex-start; }
   .ra-toolbar { grid-template-columns: 1fr 1fr; align-items: stretch; }
   .ra-toolbar-actions { grid-column: 1 / -1; justify-content: flex-start; }
