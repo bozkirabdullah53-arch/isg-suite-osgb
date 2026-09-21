@@ -19,6 +19,18 @@ PREFIX = "enc:v1:"
 # At-rest şifrelenebilecek metin alanları (sayısal tetkik değerleri hariç — filtre/rapor)
 SENSITIVE_TEXT_FIELDS: tuple[str, ...] = (
     "confidential_note",
+    "diagnosis",
+    "laboratory_result_summary",
+    "anamnesis_chronic_diseases",
+    "anamnesis_past_medical_history",
+    "anamnesis_family_history",
+    "anamnesis_current_medications",
+    "anamnesis_allergies",
+    "anamnesis_smoking_status",
+    "anamnesis_alcohol_use",
+    "anamnesis_occupational_history",
+    "anamnesis_previous_exposures",
+    "anamnesis_current_complaints",
     "summary",
     "restrictions",
     "audiometry_result",
