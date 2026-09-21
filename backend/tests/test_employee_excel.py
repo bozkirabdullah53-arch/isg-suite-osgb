@@ -43,8 +43,8 @@ def test_template_matches_user_sample_layout():
     assert [ws.cell(1, i).value for i in range(1, len(TEMPLATE_HEADERS) + 1)] == TEMPLATE_HEADERS
     assert ws.cell(TEMPLATE_DATA_START, 1).value == 1
     assert ws.cell(TEMPLATE_DATA_START + TEMPLATE_DATA_ROWS - 1, 1).value == TEMPLATE_DATA_ROWS
-    assert ws.cell(TEMPLATE_DATA_START, 6).number_format == "DD.MM.YYYY"
     assert ws.cell(TEMPLATE_DATA_START, 7).number_format == "DD.MM.YYYY"
+    assert ws.cell(TEMPLATE_DATA_START, 8).number_format == "DD.MM.YYYY"
     assert not list(ws.tables)
     assert not ws.data_validations.dataValidation
     assert ws.freeze_panes == f"A{TEMPLATE_DATA_START}"
@@ -58,12 +58,13 @@ def test_filled_template_roundtrip():
     ws.cell(TEMPLATE_DATA_START, 2, "Ali Veli")
     ws.cell(TEMPLATE_DATA_START, 3, "12345678901")
     ws.cell(TEMPLATE_DATA_START, 4, "Kaynakçı")
-    ws.cell(TEMPLATE_DATA_START, 5, "Yok")
-    ws.cell(TEMPLATE_DATA_START, 6, date(2024, 1, 15))
+    ws.cell(TEMPLATE_DATA_START, 5, "Üretim")
+    ws.cell(TEMPLATE_DATA_START, 7, date(2024, 1, 15))
+    ws.cell(TEMPLATE_DATA_START, 9, "Yok")
     ws.cell(TEMPLATE_DATA_START + 1, 2, "Ayşe Yılmaz")
     ws.cell(TEMPLATE_DATA_START + 1, 4, "Operatör")
-    ws.cell(TEMPLATE_DATA_START + 1, 5, "Engelli")
-    ws.cell(TEMPLATE_DATA_START + 1, 7, date(2024, 6, 30))
+    ws.cell(TEMPLATE_DATA_START + 1, 9, "Engelli")
+    ws.cell(TEMPLATE_DATA_START + 1, 8, date(2024, 6, 30))
     buf = BytesIO()
     wb.save(buf)
     wb.close()

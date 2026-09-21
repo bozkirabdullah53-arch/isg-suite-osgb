@@ -1633,7 +1633,7 @@ function Employees({user}){
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
       {isWorkplaceManager
         ? "Toplu personel eklemek için Örnek Excel'i İndir → PERSONEL LİSTESİ sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Adı Soyadı zorunludur; diğer sütunlar boş bırakılabilir. Boş hücreler mevcut kayıtlardaki bilgileri silmez, dolu gönderilen alanlar birebir güncellenir. Çıkış Tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca kendi işyerinize aktarılır."
-        : "Örnek Excel'i İndir → PERSONEL LİSTESİ sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Sütunlar: Adı Soyadı (zorunlu), TC Kimlik No, Görevi, Engelli/Hükümlü, Giriş Tarihi, Çıkış Tarihi (GG.AA.YYYY). Boş hücreler mevcut kayıtlardaki bilgileri silmez; dolu gönderilen görev ve tarihler birebir işlenir. Çıkış Tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca seçili işyerine aktarılır."}
+        : "Örnek Excel'i İndir → PERSONEL LİSTESİ sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Sütunlar: #, Adı Soyadı (zorunlu), TC Kimlik No, Görevi, Departman, Şube, İşe Giriş, İşten Çıkış (GG.AA.YYYY), Özel Durum. Durum ve işlem sütunları sistem tarafından oluşturulur. Boş hücreler mevcut kayıtlardaki bilgileri silmez; dolu gönderilen alanlar birebir işlenir. Çıkış Tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca seçili işyerine aktarılır."}
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[

@@ -484,6 +484,17 @@ async def import_excel(
     errors: list[str] = []
     for row_no, data in enumerate(rows, start=2):
         national_id = data.get("national_id_masked")
+        row_branch_id = branch_id
+        if row_branch_id is None and data.get("branch_name"):
+            branch_name = str(data["branch_name"]).strip()
+            branch_row = db.scalar(
+                select(Branch).where(
+                    Branch.company_id == company_id,
+                    func.lower(Branch.name) == branch_name.lower(),
+                )
+            )
+            if branch_row is not None:
+                row_branch_id = branch_row.id
         existing = None
         if national_id:
             existing = db.scalar(
@@ -496,8 +507,8 @@ async def import_excel(
         if existing is not None:
             # Boş hücre kuralı: Excel'de boş bırakılan alan mevcut kaydı silmez;
             # yalnızca dolu gönderilen bilgiler birebir güncellenir.
-            if branch_id is not None:
-                existing.branch_id = branch_id
+            if row_branch_id is not None:
+                existing.branch_id = row_branch_id
             existing.full_name = data["full_name"]
             for field in ("job_title", "department", "start_date", "special_status"):
                 value = data.get(field)
@@ -512,7 +523,7 @@ async def import_excel(
 
         obj = Employee(
             company_id=company_id,
-            branch_id=branch_id,
+            branch_id=row_branch_id,
             full_name=data["full_name"],
             national_id_masked=national_id,
             job_title=data.get("job_title"),

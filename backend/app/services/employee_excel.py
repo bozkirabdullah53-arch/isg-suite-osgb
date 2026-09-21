@@ -88,6 +88,7 @@ _HEADER_ALIASES: dict[str, str] = {
     "startdate": "start_date",
     "istencikistarihi": "exit_date",
     "cikistarihi": "exit_date",
+    "istencikis": "exit_date",
     "istenayrilmatarihi": "exit_date",
     "exitdate": "exit_date",
     "engellihukumludurumu": "special_status",
@@ -99,6 +100,10 @@ _HEADER_ALIASES: dict[str, str] = {
     "bolum": "department",
     "bolumu": "department",
     "birim": "department",
+    "sube": "branch_name",
+    "subesi": "branch_name",
+    "branch": "branch_name",
+    "branchname": "branch_name",
 }
 
 
@@ -118,9 +123,9 @@ def map_header(value: Any) -> str:
         return "national_id_masked"
     if "gorev" in n or "unvan" in n or "meslek" in n:
         return "job_title"
-    if "giris" in n and "tarih" in n:
+    if "giris" in n and ("tarih" in n or n == "giris"):
         return "start_date"
-    if ("cikis" in n or "ayrilma" in n) and "tarih" in n:
+    if ("cikis" in n or "ayrilma" in n) and ("tarih" in n or "isten" in n or n == "cikis"):
         return "exit_date"
     if "engelli" in n or "hukumlu" in n or "ozeldurum" in n:
         return "special_status"
@@ -228,6 +233,7 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
             "national_id_masked": None,
             "job_title": None,
             "department": None,
+            "branch_name": None,
             "start_date": None,
             "exit_date": None,
             "special_status": None,
@@ -248,6 +254,8 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
                 item["job_title"] = _cell(raw) or None
             elif key == "department":
                 item["department"] = _cell(raw) or None
+            elif key == "branch_name":
+                item["branch_name"] = _cell(raw) or None
             elif key == "start_date":
                 item["start_date"] = _parse_date(raw)
             elif key == "exit_date":
@@ -269,9 +277,11 @@ TEMPLATE_HEADERS = [
     "Adı Soyadı",
     "TC Kimlik No",
     "Görevi",
-    "Engelli/Hükümlü",
-    "Giriş Tarihi",
-    "Çıkış Tarihi",
+    "Departman",
+    "Şube",
+    "İşe Giriş",
+    "İşten Çıkış",
+    "Özel Durum",
 ]
 
 TEMPLATE_SHEET_NAME = "PERSONEL LİSTESİ"
@@ -297,8 +307,8 @@ def _style_header_cell(cell, *, required: bool = False) -> None:
 def build_import_template_xlsx() -> bytes:
     """Kullanıcı şablonunun birebir kopyası: tek sayfa, 1. satır başlık, 90 numaralı satır.
 
-    Sütun düzeni: # | Adı Soyadı | TC Kimlik No | Görevi | Engelli/Hükümlü |
-    Giriş Tarihi | Çıkış Tarihi. Tarih sütunları GG.AA.YYYY biçimlidir; hiçbir
+    Sütun düzeni: # | Adı Soyadı | TC Kimlik No | Görevi | Departman | Şube |
+    İşe Giriş | İşten Çıkış | Özel Durum. Tarih sütunları GG.AA.YYYY biçimlidir; hiçbir
     hücrede giriş engelleyen doğrulama/dropdown yoktur.
     """
     wb = Workbook()
@@ -321,13 +331,13 @@ def build_import_template_xlsx() -> bytes:
             if col_idx in (1, 3):
                 cell.number_format = "###"
                 cell.alignment = Alignment(horizontal="right", vertical="center")
-            elif col_idx in (6, 7):
+            elif col_idx in (7, 8):
                 cell.number_format = "DD.MM.YYYY"
                 cell.alignment = Alignment(horizontal="center", vertical="center")
             else:
                 cell.alignment = Alignment(vertical="center")
 
-    widths = {1: 3.11, 2: 25.55, 3: 13.0, 4: 14.78, 6: 11.44, 7: 11.22}
+    widths = {1: 3.11, 2: 25.55, 3: 13.0, 4: 14.78, 5: 18.0, 6: 16.0, 7: 11.44, 8: 11.22, 9: 18.0}
     for col_idx, width in widths.items():
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 
