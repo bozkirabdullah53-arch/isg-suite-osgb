@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from app.services.risk_nace_roadmap import TAG_LABELS
 from app.services.risk_analytics import build_risk_analytics, classify_hazard_type
 
 
@@ -21,6 +22,31 @@ def test_hazard_type_classifier_handles_turkish_terms():
     assert classify_hazard_type("Biyolojik Riskler", "Enfeksiyon") == "biological"
     assert classify_hazard_type("Kimyasal Riskler", "Solvent") == "chemical"
     assert classify_hazard_type("Fiziksel Riskler", "Gürültü") == "physical"
+
+
+def test_battery_nace_candidate_labels_are_turkish():
+    assert {
+        key: TAG_LABELS[key]
+        for key in (
+            "lead_exposure",
+            "sulfuric_acid",
+            "hydrogen_gas",
+            "chemical_spill",
+            "health_surveillance",
+            "lead_poisoning",
+            "acid_burn",
+            "hydrogen_explosion",
+        )
+    } == {
+        "lead_exposure": "Kurşun maruziyeti",
+        "sulfuric_acid": "Sülfürik asit",
+        "hydrogen_gas": "Hidrojen gazı",
+        "chemical_spill": "Kimyasal dökülme",
+        "health_surveillance": "Sağlık gözetimi",
+        "lead_poisoning": "Kurşun zehirlenmesi",
+        "acid_burn": "Asit yanığı",
+        "hydrogen_explosion": "Hidrojen patlaması",
+    }
 
 
 def test_build_risk_analytics_sorts_dominant_types_and_keeps_nace_candidates_separate():
