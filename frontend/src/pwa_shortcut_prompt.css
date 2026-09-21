@@ -54,3 +54,26 @@
   background: #0f766e;
   color: #fff;
 }
+
+.pwa-shortcut-reopen {
+  position: fixed;
+  left: 12px;
+  bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  z-index: 10000;
+  max-width: calc(100vw - 170px);
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid #d8e9eb;
+  border-radius: 12px;
+  background: #0f766e;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pwa-shortcut-actions button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
