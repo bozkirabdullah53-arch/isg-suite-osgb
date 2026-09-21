@@ -23,11 +23,14 @@ export function PwaShortcutPrompt() {
   const [open, setOpen] = useState(false);
   const [help, setHelp] = useState('');
   const [deferred, setDeferred] = useState(null);
+  const [mobile, setMobile] = useState(false);
 
   useEffect(() => {
     const choice = readShortcutChoice(storage());
+    const mobileViewport = isMobileViewport(window);
+    setMobile(mobileViewport);
     const ask = shouldAskShortcutPrompt({
-      mobile: isMobileViewport(window),
+      mobile: mobileViewport,
       standalone: isStandaloneDisplay(window),
       choice,
     });
@@ -37,7 +40,7 @@ export function PwaShortcutPrompt() {
     }
 
     const onPrompt = (event) => {
-      if (!isMobileViewport(window) || isStandaloneDisplay(window)) return;
+      if (isStandaloneDisplay(window)) return;
       event.preventDefault();
       window.__isgDeferredInstallPrompt = event;
       setDeferred(event);
@@ -57,6 +60,7 @@ export function PwaShortcutPrompt() {
 
   const close = useCallback((value) => {
     writeShortcutChoice(value, storage());
+    setHelp('');
     setOpen(false);
   }, []);
 
@@ -76,8 +80,8 @@ export function PwaShortcutPrompt() {
         // Native prompt can be unavailable; fall through to manual steps.
       }
     }
-    setHelp(shortcutInstructionText(isIosDevice(window)));
-  }, [deferred]);
+    setHelp(shortcutInstructionText(isIosDevice(window), mobile));
+  }, [deferred, mobile]);
 
   if (typeof document === 'undefined' || (!open && !help)) return null;
 
@@ -90,11 +94,11 @@ export function PwaShortcutPrompt() {
         </p>
         <div className="pwa-shortcut-actions">
           {help ? (
-            <button type="button" className="pwa-yes" onClick={() => close('accepted')}>Tamam</button>
+            <button type="button" className="pwa-yes" onClick={() => close('accepted')} onPointerUp={() => close('accepted')}>Tamam</button>
           ) : (
             <>
-              <button type="button" className="pwa-no" onClick={() => close('dismissed')}>Hayır</button>
-              <button type="button" className="pwa-yes" onClick={() => void accept()}>Evet</button>
+              <button type="button" className="pwa-no" onClick={() => close('dismissed')} onPointerUp={() => close('dismissed')}>Hayır</button>
+              <button type="button" className="pwa-yes" onClick={() => void accept()} onPointerUp={() => void accept()}>Evet</button>
             </>
           )}
         </div>
