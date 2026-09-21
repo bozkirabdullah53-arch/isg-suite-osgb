@@ -24,6 +24,7 @@ from app.core.database import get_db
 from app.models.entities import (
     Branch,
     Company,
+    Employee,
     Hazard,
     HazardCategory,
     IsgModule,
@@ -88,6 +89,7 @@ from app.services.risk_reports import (
 )
 from app.services.virtual_inspector import inspect_company
 from app.services.risk_nace_roadmap import build_risk_nace_roadmap
+from app.services.risk_analytics import build_risk_analytics
 from app.services.training_nace_classification import resolve_exact_nace
 from app.models.training_nace import TrainingNaceSnapshot
 from app.services.risk_methods import DEFAULT_METHOD, METHOD_CATALOG, resolve_method
@@ -109,6 +111,13 @@ from app.services.upload_security import assert_safe_upload
 router = APIRouter(prefix="/risks", tags=["Risk Değerlendirme"])
 # OSGB company_admin menüde risk yok; yazma da saha uzmanı + global admin.
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
+ANALYTICS_ROLES = (
+    UserRole.GLOBAL_ADMIN,
+    UserRole.COMPANY_ADMIN,
+    UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
+)
 ALLOWED_PHOTO = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 ALLOWED_MEDIA = ALLOWED_PHOTO | {".pdf", ".mp4", ".avi", ".mov", ".bmp", ".doc", ".docx", ".xls", ".xlsx"}
 LEGACY_TAG = "[ISG#"
@@ -1090,6 +1099,66 @@ def risk_nace_roadmap(
         coverage=_roadmap_coverage(db, effective),
         nace_code_override=nace_code,
         nace_source=nace_source,
+    )
+
+
+@router.get("/analytics")
+def risk_analytics(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ANALYTICS_ROLES)),
+):
+    """NACE aday tehlikeleri + işyeri risk değerlendirmesi analitiği.
+
+    Bu uç yalnızca mevcut kayıtları toplar; NACE profili risk kaydı oluşturmaz,
+    sağlık/klinik veri döndürmez ve erişimi seçili işyeri kapsamıyla sınırlar.
+    """
+    effective = effective_company_id(db, user, company_id)
+    company = db.get(Company, effective)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+
+    risks = list(
+        db.scalars(
+            select(RiskAssessment)
+            .where(RiskAssessment.company_id == effective)
+            .order_by(RiskAssessment.risk_score.desc(), RiskAssessment.id.asc())
+        ).all()
+    )
+    hazard_ids = {row.hazard_id for row in risks if row.hazard_id is not None}
+    hazard_map = (
+        {row.id: row for row in db.scalars(select(Hazard).where(Hazard.id.in_(hazard_ids))).all()}
+        if hazard_ids
+        else {}
+    )
+    category_ids = {row.category_id for row in hazard_map.values() if row.category_id is not None}
+    category_map = (
+        {row.id: row for row in db.scalars(select(HazardCategory).where(HazardCategory.id.in_(category_ids))).all()}
+        if category_ids
+        else {}
+    )
+    active_employee_count = int(
+        db.scalar(
+            select(func.count())
+            .select_from(Employee)
+            .where(Employee.company_id == effective, Employee.is_active.is_(True))
+        )
+        or 0
+    )
+    nace_code, nace_source = _resolve_company_nace(db, company)
+    roadmap = build_risk_nace_roadmap(
+        company,
+        coverage=_roadmap_coverage(db, effective, risks=risks),
+        nace_code_override=nace_code,
+        nace_source=nace_source,
+    )
+    return build_risk_analytics(
+        company,
+        risks=risks,
+        hazard_map=hazard_map,
+        category_map=category_map,
+        nace_roadmap=roadmap,
+        active_employee_count=active_employee_count,
     )
 
 

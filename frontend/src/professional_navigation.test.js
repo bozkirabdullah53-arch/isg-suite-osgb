@@ -19,10 +19,13 @@ describe('professional navigation', () => {
       const modules = PROFESSIONAL_MENU_MODULES[role];
       expect(modules).toContain('visit_notebook');
       expect(modules).toContain('visit_qr');
+      expect(modules).toContain('risk_analytics');
       expect(modules.indexOf('visit_notebook')).not.toBe(modules.indexOf('visit_qr'));
     }
     expect(professionalMenuSection('safety_specialist', 'visit_notebook')).toBe('Günlük İş Akışı');
     expect(professionalMenuSection('workplace_physician', 'visit_qr')).toBe('Günlük İş Akışı');
+    expect(professionalMenuSection('safety_specialist', 'risk_analytics')).toBe('Günlük İş Akışı');
+    expect(professionalMenuSection('workplace_physician', 'risk_analytics')).toBe('Günlük İş Akışı');
   });
 
   it('does not expose QR scan to an individual specialist', () => {

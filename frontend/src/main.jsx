@@ -48,7 +48,7 @@ import {EyasDigitalApprovalPage} from './eyas_digital_approval_v2';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page, WorkplaceStatusPage} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
-import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {FieldInspectionPage} from './field_inspection';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
+import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {RiskAnalyticsPage} from './risk_analytics';import {FieldInspectionPage} from './field_inspection';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {PrescriptionPage} from './prescriptions';
 import {WorkPermitsPage} from './work_permits';
 import {ContractorsPage} from './contractors';
@@ -190,9 +190,9 @@ function modulesForUser(user){
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
-  workplace_manager:['workplace_home','employees','remote_training','ppe','health'],
-  safety_specialist:['visit_notebook','visit_qr','field_inspection'],
-  workplace_physician:['health','prescriptions','visit_notebook'],
+  workplace_manager:['workplace_home','risk_analytics','employees','remote_training','ppe','health'],
+  safety_specialist:['visit_notebook','visit_qr','field_inspection','risk_analytics'],
+  workplace_physician:['health','risk_analytics','prescriptions','visit_notebook'],
   other_health_personnel:['field_pwa','visits','health','employees'],
   read_only:['employee_self_service','employee_training','security'],
 };
@@ -215,6 +215,7 @@ const mobileMenuLabels={
   field_inspection:'Saha',
   dashboard:'Ana Sayfa',
   risk:'Risk',
+  risk_analytics:'Risk Analitiği',
   health:'Sağlık',
   prescriptions:'Reçete',
   employees:'Personel',
@@ -282,6 +283,7 @@ const menuCatalog={
   employees:['Personel',Users],
   remote_training:['Uzaktan Eğitim Atama',GraduationCap],
   risk:['Risk Analizi',ShieldAlert],
+  risk_analytics:['Tehlike ve Risk Analitiği',BarChart3],
   near_miss:['Ramak Kala',AlertTriangle],
   accident:['İş Kazaları',ShieldAlert],
   capa:['DÖF',ClipboardCheck],
@@ -322,6 +324,7 @@ const menuHints={
   visit_qr:'İşyeri giriş ve çıkış QR işlemleri',
   field_inspection:'Fotoğraflı saha denetimi',
   risk:'Risk değerlendirmesi ve risk kayıtları',
+  risk_analytics:'NACE, tehlike türleri ve maruz kişi analitiği',
   capa:'Düzeltici ve önleyici faaliyetler',
   health:'İşyeri hekimliği sağlık kayıtları',
   prescriptions:'e-Reçete kayıtları',
@@ -3019,6 +3022,7 @@ function App(){
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user}/>,
+    risk_analytics:<RiskAnalyticsPage user={user} onNavigate={goModule}/>,
     near_miss:<IncidentsPage user={user} menuKey="near_miss"/>,
     accident:<IncidentsPage user={user} menuKey="accident"/>,
     capa:<CapaPage user={user}/>,
