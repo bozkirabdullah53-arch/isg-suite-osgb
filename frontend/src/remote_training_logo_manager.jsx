@@ -17,11 +17,14 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
 
   const workplaceAccount = isWorkplaceAccountUser(user);
   const canManage = LOGO_MANAGER_ROLES.has(user?.role) && !workplaceAccount;
+  const canManageCompanyLogo = workplaceAccount || user?.role === 'safety_specialist';
   const workplaceCompanyId = workplaceAccount ? String(user.company_id) : '';
   const parsedCompanyId = Number(workplaceAccount ? workplaceCompanyId : companyId);
   const scopedCompanyId = Number.isSafeInteger(parsedCompanyId) && parsedCompanyId > 0
     ? String(parsedCompanyId)
     : '';
+  const companyLogoCompanyId = workplaceAccount ? workplaceCompanyId : scopedCompanyId;
+  const companyLogoUrlSuffix = companyLogoCompanyId ? `?company_id=${encodeURIComponent(companyLogoCompanyId)}` : '';
   const programsReady = Boolean(scopedCompanyId) && loadedCompanyId === scopedCompanyId;
   const visiblePrograms = programsReady ? programs : [];
   const programListLoading = Boolean(scopedCompanyId) && (!programsReady || loading);
@@ -60,16 +63,16 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
   }
 
   useEffect(() => {
-    if (!workplaceAccount) {
+    if (!canManageCompanyLogo || !companyLogoCompanyId) {
       setCompanyLogo(null);
       return;
     }
     setError('');
     setMessage('');
-    api('/trainings/remote/company-logo')
+    api(`/trainings/remote/company-logo${companyLogoUrlSuffix}`)
       .then((data) => setCompanyLogo(data || null))
       .catch((err) => setError(err.message || 'Firma logosu bilgisi alınamadı.'));
-  }, [workplaceAccount, workplaceCompanyId]);
+  }, [canManageCompanyLogo, workplaceAccount, workplaceCompanyId, companyLogoCompanyId, companyLogoUrlSuffix]);
 
   useEffect(() => {
     setError('');
@@ -86,16 +89,16 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
   }, [canManage, scopedCompanyId]);
 
   async function refreshCompanyLogo() {
-    const data = await api('/trainings/remote/company-logo');
+    const data = await api(`/trainings/remote/company-logo${companyLogoUrlSuffix}`);
     setCompanyLogo(data || null);
     return data;
   }
 
   async function uploadCompanyLogo(file) {
-    if (!file || !workplaceAccount) return;
+    if (!file || !canManageCompanyLogo || !companyLogoCompanyId) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      await uploadFile('/trainings/remote/company-logo', file);
+      await uploadFile(`/trainings/remote/company-logo${companyLogoUrlSuffix}`, file);
       await refreshCompanyLogo();
       setMessage('Firma logosu kaydedildi. Bundan sonra uzaktan eğitim PDF belgeleri ve rapor çıktıları bu logo ile hazırlanacak.');
     } catch (err) {
@@ -109,7 +112,7 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
     if (!companyLogo?.has_logo || busy) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      await api('/trainings/remote/company-logo', {method: 'DELETE'});
+      await api(`/trainings/remote/company-logo${companyLogoUrlSuffix}`, {method: 'DELETE'});
       await refreshCompanyLogo();
       setMessage('Firma logosu kaldırıldı. PDF belgeleri program logosu varsa onu, yoksa logosuz şablonu kullanacak.');
     } catch (err) {
@@ -151,7 +154,7 @@ export function RemoteTrainingLogoManager({user, companyId = ''}) {
     }
   }
 
-  if (workplaceAccount) {
+  if (canManageCompanyLogo) {
     return (
       <section style={{
         marginBottom: 16,
