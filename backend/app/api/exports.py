@@ -149,7 +149,7 @@ def export_employees_pdf(
     header_style = ParagraphStyle("EmployeeHeader", parent=body_style, fontName=bold_font, textColor=colors.white, alignment=1)
     data = [[Paragraph(safe(value), body_style) for value in row] for row in raw_rows]
     data.insert(0, [Paragraph(safe(value), header_style) for value in raw_header])
-    table = Table(data, repeatRows=1, colWidths=[7 * mm, 31 * mm, 25 * mm, 23 * mm, 23 * mm, 23 * mm, 19 * mm, 23 * mm, 23 * mm, 25 * mm, 17 * mm])
+    table = Table(data, repeatRows=1, colWidths=[12 * mm, 30 * mm, 25 * mm, 23 * mm, 23 * mm, 23 * mm, 19 * mm, 23 * mm, 23 * mm, 25 * mm, 17 * mm])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F4C5C")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
