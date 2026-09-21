@@ -26,6 +26,7 @@ from app.models.entities import (
     Branch,
     Company,
     Employee,
+    IsgProfessional,
     TrainingParticipant,
     TrainingSession,
     TrainingStatus,
@@ -35,6 +36,7 @@ from app.models.entities import (
 from app.models.remote_training import RemoteTrainingCertificate
 from app.models.training_presentation_approval import TrainingPresentationApproval
 from app.schemas.training import (
+    InstructorIdentityUpsert,
     TrainingArchiveRequest,
     TrainingCreate,
     TrainingResponse,
@@ -42,6 +44,11 @@ from app.schemas.training import (
     TrainingVerifyResponse,
 )
 from app.services.assigned_team import assigned_team, training_defaults
+from app.services.regulatory_identity_vault import (
+    RegulatoryIdentityError,
+    public_professional_identity_status,
+    upsert_professional_identity,
+)
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
@@ -144,6 +151,13 @@ EXCEL_EXT = (".xlsx", ".xlsm", ".csv")
 
 def ensure_access(db: Session, user: User, company_id: int):
     ensure_company_access(db, user, company_id)
+
+
+def _ensure_professional_osgb_scope(user: User, professional: IsgProfessional) -> None:
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    if not user.osgb_id or int(professional.osgb_id) != int(user.osgb_id):
+        raise HTTPException(403, "Bu profesyonelin kimlik kaydını yönetme yetkiniz yok.")
 
 
 def _ensure_hygiene_instructor_is_authorized(
@@ -694,6 +708,50 @@ def export_trainings_xlsx(
     )
 
 
+@router.get("/instructors/{professional_id}/identity-status")
+def instructor_identity_status(
+    professional_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_training_package_manager),
+):
+    professional = db.get(IsgProfessional, professional_id)
+    if not professional or not professional.is_active:
+        raise HTTPException(404, "Aktif eğitici/profesyonel bulunamadı.")
+    _ensure_professional_osgb_scope(user, professional)
+    return public_professional_identity_status(
+        db, osgb_id=professional.osgb_id, professional_id=professional.id
+    )
+
+
+@router.put("/instructors/{professional_id}/regulatory-identity")
+def save_instructor_regulatory_identity(
+    professional_id: int,
+    payload: InstructorIdentityUpsert,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_training_package_manager),
+):
+    professional = db.get(IsgProfessional, professional_id)
+    if not professional or not professional.is_active:
+        raise HTTPException(404, "Aktif eğitici/profesyonel bulunamadı.")
+    _ensure_professional_osgb_scope(user, professional)
+    try:
+        upsert_professional_identity(
+            db,
+            osgb_id=professional.osgb_id,
+            professional_id=professional.id,
+            identity_type=payload.identity_type,
+            raw_value=payload.raw_value,
+            verified_by_id=user.id,
+        )
+        db.commit()
+    except RegulatoryIdentityError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    return public_professional_identity_status(
+        db, osgb_id=professional.osgb_id, professional_id=professional.id
+    )
+
+
 @router.post("", response_model=TrainingResponse)
 def create_training(
     payload: TrainingCreate,
@@ -705,6 +763,13 @@ def create_training(
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
+    instructor_professional = None
+    if payload.instructor_professional_id is not None:
+        instructor_professional = db.get(IsgProfessional, payload.instructor_professional_id)
+        if not instructor_professional or not instructor_professional.is_active:
+            raise HTTPException(422, "Seçilen eğitici/profesyonel aktif değil veya bulunamadı.")
+        if company.osgb_id is None or int(instructor_professional.osgb_id) != int(company.osgb_id):
+            raise HTTPException(422, "Seçilen eğitici bu işyerinin bağlı olduğu OSGB kapsamında değil.")
     _ensure_hygiene_instructor_is_authorized(
         db,
         company_id=payload.company_id,
@@ -763,6 +828,10 @@ def create_training(
     values = payload.model_dump(exclude={"participant_ids"})
     values["sector"] = kod
     values["hazard_class"] = etkin_tehlike_sinifi
+    if instructor_professional is not None:
+        # Eğitmen adı profesyonel ana kaydından kanonik alınır; TCKN eğitim
+        # satırına kopyalanmaz, yalnız şifreli regulatory vault'ta tutulur.
+        values["instructor_name"] = instructor_professional.full_name
     if not (values.get("stamp_text") or "").strip():
         values["stamp_text"] = (
             "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve "
