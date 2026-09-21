@@ -36,6 +36,8 @@ describe('professional navigation', () => {
       expect(modules).not.toContain('eyas_inbox');
       expect(modules).toContain('visit_notebook');
     }
+    expect(PROFESSIONAL_MENU_MODULES.safety_specialist).not.toContain('customer_portal');
+    expect(professionalModulesForUser('safety_specialist')).not.toContain('customer_portal');
     expect(professionalModulesForUser('safety_specialist', {isIndividual: true})).not.toContain('customer_portal');
   });
 });

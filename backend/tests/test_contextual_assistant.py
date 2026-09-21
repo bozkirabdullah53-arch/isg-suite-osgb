@@ -57,7 +57,6 @@ def test_verified_answer_has_no_provider_dependency(monkeypatch):
         ("Yıllık plan", "annual_plans"),
         ("Belge onay", "belge_onay"),
         ("Alt işverenler", "contractors"),
-        ("Müşteri portalı", "customer_portal"),
         ("Tesis özeti", "facility_summary"),
         ("Saha PWA", "field_pwa"),
         ("İSG Kurulu", "isg_kurulu"),
@@ -83,7 +82,7 @@ def test_navigation_questions_return_allowed_module_actions(monkeypatch, questio
         "user": {"accessibleModules": [
             "training", "employees", "visits", "documents", "risk", "near_miss", "ppe",
             "dashboard", "acil_ekipler", "acil_plan", "annual_eval_report", "annual_plans",
-            "belge_onay", "contractors", "customer_portal", "facility_summary", "field_pwa",
+            "belge_onay", "contractors", "facility_summary", "field_pwa",
             "isg_kurulu", "mevzuat", "ortam_olcum", "periyodik_kontrol", "sds",
             "specialist_reports", "tatbikat", "visit_notebook", "visit_qr", "workplace_status",
             "security",
@@ -102,6 +101,21 @@ def test_navigation_questions_return_allowed_module_actions(monkeypatch, questio
     ]
     assert result["spoken"].startswith("Anladım.")
     assert "açıyorum" in result["spoken"]
+
+
+def test_safety_specialist_cannot_navigate_to_customer_portal(monkeypatch):
+    monkeypatch.setattr(settings, "contextual_assistant_enabled", True)
+    monkeypatch.setattr(settings, "contextual_assistant_force_off", False)
+    monkeypatch.setattr(assistant, "SessionLocal", lambda: DummySession())
+    monkeypatch.setattr(assistant, "managed_config", lambda db: None)
+
+    result = answer(
+        question="Müşteri portalı",
+        raw_context={"user": {"accessibleModules": ["customer_portal"]}},
+        user=user("safety_specialist"),
+    )
+
+    assert result["actions"] == []
 
 
 def test_navigation_does_not_expose_unauthorized_module(monkeypatch):

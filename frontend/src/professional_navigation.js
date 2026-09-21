@@ -52,7 +52,6 @@ export const PROFESSIONAL_MENU_SECTIONS = {
         'work_permits',
         'contractors',
         'visitors',
-        'customer_portal',
       ],
     },
     {
@@ -102,7 +101,6 @@ export function professionalModulesForUser(role, {isIndividual = false} = {}) {
   return modules.filter((moduleId) => {
     if (moduleId === 'visit_qr') return false;
     if (moduleId === 'belge_onay' || moduleId === 'eyas_inbox') return false;
-    if (role === 'safety_specialist' && moduleId === 'customer_portal') return false;
     return true;
   });
 }
