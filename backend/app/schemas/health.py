@@ -15,6 +15,19 @@ class HealthRecordCreate(BaseModel):
     fitness_status: HealthFitnessStatus = HealthFitnessStatus.PENDING
     physician_professional_id: int | None = None
     physician_name: str | None = Field(default=None, max_length=160)
+    diagnosis: str | None = Field(default=None, max_length=3000)
+    laboratory_result_summary: str | None = Field(default=None, max_length=3000)
+    anamnesis_chronic_diseases: str | None = Field(default=None, max_length=3000)
+    anamnesis_past_medical_history: str | None = Field(default=None, max_length=3000)
+    anamnesis_family_history: str | None = Field(default=None, max_length=3000)
+    anamnesis_current_medications: str | None = Field(default=None, max_length=2000)
+    anamnesis_allergies: str | None = Field(default=None, max_length=2000)
+    anamnesis_smoking_status: str | None = Field(default=None, max_length=40)
+    anamnesis_smoking_pack_years: float | None = Field(default=None, ge=0, le=300)
+    anamnesis_alcohol_use: str | None = Field(default=None, max_length=80)
+    anamnesis_occupational_history: str | None = Field(default=None, max_length=5000)
+    anamnesis_previous_exposures: str | None = Field(default=None, max_length=3000)
+    anamnesis_current_complaints: str | None = Field(default=None, max_length=3000)
     summary: str | None = Field(default=None, max_length=2000)
     confidential_note: str | None = Field(default=None, max_length=3000)
     informed_consent: bool = False
@@ -66,6 +79,19 @@ class HealthRecordUpdate(BaseModel):
     fitness_status: HealthFitnessStatus | None = None
     physician_professional_id: int | None = None
     physician_name: str | None = Field(default=None, max_length=160)
+    diagnosis: str | None = Field(default=None, max_length=3000)
+    laboratory_result_summary: str | None = Field(default=None, max_length=3000)
+    anamnesis_chronic_diseases: str | None = Field(default=None, max_length=3000)
+    anamnesis_past_medical_history: str | None = Field(default=None, max_length=3000)
+    anamnesis_family_history: str | None = Field(default=None, max_length=3000)
+    anamnesis_current_medications: str | None = Field(default=None, max_length=2000)
+    anamnesis_allergies: str | None = Field(default=None, max_length=2000)
+    anamnesis_smoking_status: str | None = Field(default=None, max_length=40)
+    anamnesis_smoking_pack_years: float | None = Field(default=None, ge=0, le=300)
+    anamnesis_alcohol_use: str | None = Field(default=None, max_length=80)
+    anamnesis_occupational_history: str | None = Field(default=None, max_length=5000)
+    anamnesis_previous_exposures: str | None = Field(default=None, max_length=3000)
+    anamnesis_current_complaints: str | None = Field(default=None, max_length=3000)
     summary: str | None = Field(default=None, max_length=2000)
     confidential_note: str | None = Field(default=None, max_length=3000)
     informed_consent: bool | None = None
@@ -121,6 +147,19 @@ class HealthRecordResponse(BaseModel):
     fitness_status: HealthFitnessStatus | None = None
     physician_professional_id: int | None = None
     physician_name: str | None
+    diagnosis: str | None = None
+    laboratory_result_summary: str | None = None
+    anamnesis_chronic_diseases: str | None = None
+    anamnesis_past_medical_history: str | None = None
+    anamnesis_family_history: str | None = None
+    anamnesis_current_medications: str | None = None
+    anamnesis_allergies: str | None = None
+    anamnesis_smoking_status: str | None = None
+    anamnesis_smoking_pack_years: float | None = None
+    anamnesis_alcohol_use: str | None = None
+    anamnesis_occupational_history: str | None = None
+    anamnesis_previous_exposures: str | None = None
+    anamnesis_current_complaints: str | None = None
     summary: str | None
     confidential_note: str | None = None
     informed_consent: bool = False
