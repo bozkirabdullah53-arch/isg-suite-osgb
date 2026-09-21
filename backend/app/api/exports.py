@@ -149,7 +149,7 @@ def export_employees_pdf(
         [Paragraph("Firma Unvanı", label_style), Paragraph(safe(company_text), body_style), Paragraph("SGK Sicil No", label_style), Paragraph(safe(company.sgk_registry_no if company else None) or "—", body_style)],
         [Paragraph("NACE Kodu", label_style), Paragraph(safe(company.nace_code if company else None) or "—", body_style), Paragraph("Tehlike Sınıfı", label_style), Paragraph(safe(company.hazard_class if company else None) or "—", body_style)],
         [Paragraph("Adres", label_style), Paragraph(safe(company.address if company else None) or "—", body_style), Paragraph("Telefon", label_style), Paragraph(safe(company.phone if company else None) or "—", body_style)],
-    ], colWidths=[27 * mm, 72 * mm, 31 * mm, 55 * mm))
+    ], colWidths=[27 * mm, 72 * mm, 31 * mm, 55 * mm])
     meta.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
