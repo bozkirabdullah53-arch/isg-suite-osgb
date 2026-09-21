@@ -63,13 +63,15 @@ entegrasyon bilinçli fail-closed (`authority_integration_gate`, REVIEW_FIX_REPO
 | Tarih/süre | `TrainingSession` tarih + süre alanları; geçerlilik hesapları (`test_training_validity`) | ✅ |
 | Yöntem (yüz yüze/uzaktan) | classroom + `remote_training` modülü (video, ilerleme, sınav, politika gate'leri) | ✅ |
 | Eğitici/eğitilen + sertifika | katılımcı kayıtları, eğitmen modu, sertifika PDF + QR `trainings/verify/{code}` | ✅ |
-| Eğitici TCKN bağlantısı | `TrainingSession.instructor_professional_id` + ayrı şifreli `ProfessionalRegulatoryIdentity`; tam TCKN yalnız authority adapter içinde çözülür | ✅ yeni kayıt / ⚠ eski kayıt backfill |
+| Eğitici TCKN bağlantısı | `TrainingSession.instructor_professional_id` + ayrı şifreli `ProfessionalRegulatoryIdentity`; tam TCKN yalnız authority adapter içinde çözülür | ✅ |
+| Eski eğitim eğitici backfill | Yönetici Eğitim Kayıtları ekranında readiness matrisi; aynı OSGB + birebir ad-soyad eşleşmesi dışında otomatik bağlama yok, belirsiz kayıt manuel inceleme | ✅ |
 | Resmî JSON/XML şeması | Resmî sözleşme bekliyor — `katip-prep/export.csv` + `ibys-export/package` veri hazırlığı mevcut | ⛔ sözleşme |
 
 ### b) Sağlık Gözetimi Veri Seti
 - `HealthRecord`: odyometri (tarih+sonuç), spirometri/SFT, akciğer grafisi, kan kurşunu (değer/birim/ref/eval), diğer biyolojik testler, maruziyetler, önerilen tetkikler, bilgilendirilmiş onay (+tarih), kısıtlamalar, takip notu, hekim bağlantısı (`physician_professional_id`), `fitness_status` (işe elverişlilik kanaat enum'ı) + `form.html`/`fitness.html` çıktıları + rapor dosyası. ✅
 - Anamnez: yapılandırılmış alanlar eklendi: kronik hastalık, geçmiş tıbbi/cerrahi öykü, aile öyküsü, ilaç, alerji, sigara + paket-yıl, alkol, mesleki geçmiş, geçmiş maruziyet ve güncel yakınma. Eski `summary`/`exposures` kayıtları geriye uyum için korunur. ✅
 - Hekim değerlendirmesi: `diagnosis` ve `laboratory_result_summary` ayrı alanlar olarak eklendi. ✅
+- Sağlık Excel çıktısı: tanı, laboratuvar özeti ve yapılandırılmış anamnez alanları sağlık gözetimi dışa aktarımına eklendi; revizyon snapshot'ı model kolonlarını dinamik aldığı için 0125 alanları hash-zincirli geçmişe dahildir. ✅
 - Gizlilik: alan bazlı şifreleme production'da açık (`HEALTH_FIELD_ENCRYPTION_ENABLED=true`), revizyon + erişim logu, hekim rolü scoping (`require_roles_or_workplace_manager`). ✅
 - Laboratuvar/tetkik kaydı: `WorkplaceMeasurement` (limit_value, lab_name, report_ref). ✅
 
