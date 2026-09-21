@@ -1229,3 +1229,91 @@
   border-color: transparent !important;
 }
 /* TRAINING_COLOR_THEME_END */
+
+/* MODERN_TRAINING_FORM_FIELDS_START
+ * Yalnızca görsel katman: mevcut input/select/file davranışı değiştirilmez.
+ */
+.training-pro .field-card {
+  position: relative;
+  border: 1px solid rgba(190, 205, 220, 0.72);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(247,250,252,.94));
+  padding: 1.05rem;
+  box-shadow: 0 8px 24px rgba(15,39,68,.055), inset 0 1px 0 rgba(255,255,255,.9);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.training-pro .field-card:hover {
+  border-color: rgba(15,118,110,.28);
+  box-shadow: 0 12px 30px rgba(15,39,68,.08), inset 0 1px 0 rgba(255,255,255,.95);
+}
+.training-pro label.tp-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .01em;
+  color: #38516b;
+  margin: 0 0 .55rem;
+}
+.training-pro .tp-input,
+.training-pro .tp-select {
+  min-height: 52px;
+  border: 1px solid #d8e2eb;
+  border-radius: 15px;
+  background: rgba(255,255,255,.92);
+  color: #142a42;
+  box-shadow: 0 2px 8px rgba(15,39,68,.035), inset 0 1px 0 rgba(255,255,255,.95);
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.training-pro .tp-input:hover,
+.training-pro .tp-select:hover { border-color: #b9cbd9; background: #fff; }
+.training-pro .tp-input:focus,
+.training-pro .tp-select:focus {
+  border-color: #0f766e;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(15,118,110,.10), 0 8px 20px rgba(15,39,68,.06);
+}
+.training-pro .tp-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 42px;
+  background-image: linear-gradient(45deg, transparent 50%, #60758b 50%), linear-gradient(135deg, #60758b 50%, transparent 50%);
+  background-position: calc(100% - 19px) 22px, calc(100% - 13px) 22px;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+.training-pro input[type="file"].tp-input {
+  min-height: 56px;
+  padding: 7px;
+  cursor: pointer;
+  color: #50657a;
+  border-style: dashed;
+  border-color: #c9d7e2;
+  background: linear-gradient(135deg, #fbfdfe 0%, #f4f8fa 100%);
+}
+.training-pro input[type="file"].tp-input:hover {
+  border-color: #0f766e;
+  background: linear-gradient(135deg, #f7fcfb 0%, #eef8f5 100%);
+}
+.training-pro input[type="file"].tp-input:disabled { cursor: not-allowed; opacity: .65; }
+.training-pro input[type="file"].tp-input::file-selector-button {
+  margin-right: 10px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #0b2e4f 0%, #0f766e 100%);
+  color: #fff;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(11,46,79,.16);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.training-pro input[type="file"].tp-input::file-selector-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(11,46,79,.21);
+}
+.training-pro .tp-help { color: #71869a; font-size: .72rem; line-height: 1.45; margin-top: .5rem; }
+/* MODERN_TRAINING_FORM_FIELDS_END */
