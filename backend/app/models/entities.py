@@ -314,6 +314,21 @@ class HealthRecord(Base):
         ForeignKey("isg_professionals.id"), nullable=True, index=True
     )
     physician_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    # İBYS sağlık gözetimi: hekim değerlendirmesi ve laboratuvar özeti
+    diagnosis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    laboratory_result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Yapılandırılmış anamnez — mevcut serbest metin özet/maruziyet alanları korunur.
+    anamnesis_chronic_diseases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anamnesis_past_medical_history: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anamnesis_family_history: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anamnesis_current_medications: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anamnesis_allergies: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anamnesis_smoking_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    anamnesis_smoking_pack_years: Mapped[float | None] = mapped_column(nullable=True)
+    anamnesis_alcohol_use: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    anamnesis_occupational_history: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anamnesis_previous_exposures: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anamnesis_current_complaints: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidential_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Pro parity: bilgilendirme onayı + kısıtlamalar (hekim notundan ayrı)
@@ -1000,6 +1015,9 @@ class TrainingSession(Base):
     renewal_years: Mapped[int] = mapped_column(default=0)
     hazard_class: Mapped[str] = mapped_column(String(40))
     sector: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    instructor_professional_id: Mapped[int | None] = mapped_column(
+        ForeignKey("isg_professionals.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     instructor_name: Mapped[str] = mapped_column(String(160))
     instructor_qualification: Mapped[str | None] = mapped_column(String(220), nullable=True)
     workplace_physician: Mapped[str | None] = mapped_column(String(160), nullable=True)
