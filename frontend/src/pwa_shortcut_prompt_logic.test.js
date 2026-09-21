@@ -3,6 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {
   ACCEPTED_REASK_AFTER_MS,
   DISMISSED_REASK_AFTER_MS,
+  isAutomatedSession,
   isIosDevice,
   isMobileViewport,
   isStandaloneDisplay,
@@ -121,5 +122,48 @@ describe('mobile shortcut prompt', () => {
     expect(shortcutInstructionText(true)).toContain('Ana Ekrana Ekle');
     expect(shortcutInstructionText(false, true)).toContain('Ana ekrana ekle');
     expect(shortcutInstructionText(false, false)).toContain('masaüstüne');
+  });
+});
+
+describe('automation guard', () => {
+  it('detects headless/automated sessions from navigator.webdriver', () => {
+    expect(isAutomatedSession({navigator: {webdriver: true}})).toBe(true);
+    expect(isAutomatedSession({navigator: {webdriver: false}})).toBe(false);
+    expect(isAutomatedSession({navigator: {}})).toBe(false);
+    expect(isAutomatedSession({})).toBe(false);
+    // Argüman verilmezse ortam penceresine düşer; değeri ortama bağlıdır
+    // (jsdom ve headless Chromium bunu true raporlar), bu yüzden yalnız
+    // türü doğrulanır.
+    expect(typeof isAutomatedSession()).toBe('boolean');
+  });
+
+  it('never asks in an automated session even with no stored answer', () => {
+    const now = Date.now();
+    // Gerçek kullanıcı: henüz cevap vermediyse sorulur.
+    expect(shouldAskShortcutPrompt({
+      mobile: true, standalone: false, automated: false, choice: '', now,
+    })).toBe(true);
+    // Otomatik oturum: aynı girdiyle sorulmaz (ekranı kaplayan modal tıklamaları yutar).
+    expect(shouldAskShortcutPrompt({
+      mobile: true, standalone: false, automated: true, choice: '', now,
+    })).toBe(false);
+  });
+
+  it('keeps the re-asking policy untouched for real users', () => {
+    const now = Date.now();
+    const dismissed = {
+      mobile: true, standalone: false, choice: 'dismissed', choiceTime: now, now,
+    };
+    expect(shouldAskShortcutPrompt(dismissed)).toBe(false);
+    expect(shouldAskShortcutPrompt({
+      ...dismissed, now: now + DISMISSED_REASK_AFTER_MS,
+    })).toBe(true);
+    const accepted = {
+      mobile: true, standalone: false, choice: 'accepted', choiceTime: now, now,
+    };
+    expect(shouldAskShortcutPrompt(accepted)).toBe(false);
+    expect(shouldAskShortcutPrompt({
+      ...accepted, now: now + ACCEPTED_REASK_AFTER_MS,
+    })).toBe(true);
   });
 });

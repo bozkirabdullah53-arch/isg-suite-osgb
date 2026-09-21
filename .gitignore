@@ -50,3 +50,9 @@ android-twa/app-release-*.apk
 android-twa/app-release-*.aab
 android-twa/app-release-unsigned*.apk
 android-twa/*.idsig
+
+# Playwright E2E artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

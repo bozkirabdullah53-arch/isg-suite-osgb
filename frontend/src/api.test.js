@@ -72,8 +72,7 @@ describe('api güvenli yeniden deneme politikası', () => {
     localStorage.clear();
     sessionStorage.clear();
     clearAccessToken();
-    // Guard'ı aşmak için geçerli (süresi uzak) token: bu blok oturumlu
-    // isteklerin yeniden deneme politikasını test eder.
+    // Oturumlu isteklerin yeniden deneme politikası geçerli tokenla test edilir.
     sessionStorage.setItem('isg_token', tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600));
   });
 
@@ -139,7 +138,7 @@ describe('api güvenli yeniden deneme politikası', () => {
   });
 });
 
-describe('anonim oturum koruması', () => {
+describe('anonim oturum davranışı', () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -150,14 +149,20 @@ describe('anonim oturum koruması', () => {
     vi.restoreAllMocks();
   });
 
-  it('token ve refresh cookie yokken korumalı yolları ağa çıkmadan reddeder', async () => {
+  it('anonimken veri uçlarını ister ama boşuna refresh denemez', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({}, 401));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(api('/auth/me')).rejects.toMatchObject({httpStatus: 401, anonymous: true});
+    // Çerezle doğrulanan oturumlar ve mock'lu akışlar token'sız da meşru yanıt
+    // alabildiği için istek engellenmez; 401 kararını sunucu verir.
     await expect(api('/dashboard/summary', {_retries: 0})).rejects.toMatchObject({httpStatus: 401});
     await expect(api('/trainings/premium-policy', {_retries: 0})).rejects.toMatchObject({httpStatus: 401});
-    expect(fetchMock).not.toHaveBeenCalled();
+
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.endsWith('/dashboard/summary'))).toBe(true);
+    expect(urls.some((url) => url.endsWith('/trainings/premium-policy'))).toBe(true);
+    // Gönderilecek token/çerez işareti yokken refresh her zaman 401 döner.
+    expect(urls.some((url) => url.endsWith('/auth/refresh'))).toBe(false);
   });
 
   it('anonimken genel auth/legal yollarına izin verir', async () => {
@@ -172,18 +177,24 @@ describe('anonim oturum koruması', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('refresh cookie modunda korumalı yol normal akışa geçer', async () => {
+  it('refresh cookie modunda 401 sonrası yenileyip isteği tekrarlar', async () => {
     localStorage.setItem('isg_refresh_cookie', '1');
+    let meCalls = 0;
     const fetchMock = vi.fn(async (url) => {
-      if (String(url).endsWith('/health')) return jsonResponse({status: 'ok'});
-      if (String(url).endsWith('/auth/refresh')) {
+      const requestUrl = String(url);
+      if (requestUrl.endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (requestUrl.endsWith('/auth/refresh')) {
         return jsonResponse({access_token: tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600)});
       }
+      meCalls += 1;
+      if (meCalls === 1) return jsonResponse({}, 401);
       return jsonResponse({id: 9});
     });
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(api('/auth/me', {_retries: 0})).resolves.toEqual({id: 9});
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/auth/me'))).toBe(true);
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.endsWith('/auth/refresh'))).toBe(true);
+    expect(meCalls).toBe(2);
   });
 });

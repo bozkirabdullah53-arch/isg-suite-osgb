@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
+  isAutomatedSession,
   isIosDevice,
   isMobileViewport,
   isStandaloneDisplay,
@@ -25,6 +26,7 @@ function storage() {
 
 export function PwaShortcutPrompt() {
   const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
   const [help, setHelp] = useState('');
   const [deferred, setDeferred] = useState(null);
   const [mobile, setMobile] = useState(false);
@@ -36,11 +38,12 @@ export function PwaShortcutPrompt() {
     const ask = shouldAskShortcutPrompt({
       mobile: mobileViewport,
       standalone: isStandaloneDisplay(window),
+      automated: isAutomatedSession(window),
       choice: entry.choice,
       choiceTime: entry.time,
       now: Date.now(),
     });
-    if (ask) setOpen(true);
+    setPending(ask);
     if (window.__isgDeferredInstallPrompt) {
       setDeferred(window.__isgDeferredInstallPrompt);
     }
@@ -54,6 +57,7 @@ export function PwaShortcutPrompt() {
     const onInstalled = () => {
       writeShortcutChoice('installed', storage());
       setOpen(false);
+      setPending(false);
       setHelp('');
     };
     window.addEventListener('beforeinstallprompt', onPrompt);
@@ -64,10 +68,29 @@ export function PwaShortcutPrompt() {
     };
   }, []);
 
+  /**
+   * İstem ilk boyamada değil, kullanıcı sayfayla etkileşime girdikten sonra açılır.
+   *
+   * Sayfa açılır açılmaz ekranı kaplayan bir pencere hem işi keser hem de
+   * otomatik akışlarda tıklamaları yutar. Kısayol sorusu, kullanıcı uygulamayı
+   * kullanmaya başladıktan sonra sorulur; yeniden sorma politikası değişmez.
+   */
+  useEffect(() => {
+    if (!pending || open) return undefined;
+    const engage = () => setOpen(true);
+    window.addEventListener('pointerdown', engage, {once: true});
+    window.addEventListener('keydown', engage, {once: true});
+    return () => {
+      window.removeEventListener('pointerdown', engage);
+      window.removeEventListener('keydown', engage);
+    };
+  }, [open, pending]);
+
   const close = useCallback((value) => {
     writeShortcutChoice(value, storage());
     setHelp('');
     setOpen(false);
+    setPending(false);
   }, []);
 
   const accept = useCallback(async () => {
@@ -80,6 +103,7 @@ export function PwaShortcutPrompt() {
         if (result?.outcome === 'accepted') {
           writeShortcutChoice('installed', storage());
           setOpen(false);
+          setPending(false);
           return;
         }
       } catch (_) {

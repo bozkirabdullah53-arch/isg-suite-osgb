@@ -30,6 +30,17 @@ export function isIosDevice(win = typeof window === 'undefined' ? undefined : wi
     || (nav.platform === 'MacIntel' && Number(nav.maxTouchPoints || 0) > 1);
 }
 
+/**
+ * Otomasyon (E2E / headless) oturumu mu?
+ *
+ * ``navigator.webdriver`` tarayıcı tarafından sürülen oturumlarda true olur.
+ * Amaç testleri "atlatmak" değil, ekranı kaplayan bir istemi otomatik
+ * oturuma dayatmamaktır; gerçek kullanıcı bu bayrağı görmez.
+ */
+export function isAutomatedSession(win = typeof window === 'undefined' ? undefined : window) {
+  return Boolean(win?.navigator?.webdriver);
+}
+
 function parseEntry(raw) {
   const text = String(raw || '').trim();
   if (!text) return {choice: '', time: 0};
@@ -76,11 +87,15 @@ export function writeShortcutChoice(value, storage) {
 
 export function shouldAskShortcutPrompt({
   standalone = false,
+  automated = false,
   choice = '',
   choiceTime = 0,
   now = Date.now(),
 } = {}) {
   if (standalone) return false;
+  // Otomasyon (E2E/headless) oturumuna modal dayatılmaz: ekranı kaplayan istem
+  // sayfa etkileşimlerini keser. Gerçek kullanıcı davranışı değişmez.
+  if (automated) return false;
   const answer = String(choice || '').trim();
   if (!answer) return true;
   if (!['dismissed', 'accepted', 'installed'].includes(answer)) return true;

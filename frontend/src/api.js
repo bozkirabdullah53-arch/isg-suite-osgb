@@ -58,33 +58,6 @@ function fetchCredentials(path = "") {
 
 let _refreshInFlight = null;
 
-/**
- * Anonim (token + refresh cookie yok) gezinmede köprü script'leri /auth/me gibi
- * korumalı yolları çağırıp gereksiz 401 + refresh denemesi üretmesin. Bu yollar
- * giriş sayfasında ağa hiç çıkmadan reddedilir; sonuç mevcut 401 davranışıyla
- * aynıdır (çağıranlar catch edip sessizce devre dışı kalır).
- */
-const ANONYMOUS_PUBLIC_PREFIXES = [
-  "/auth/login",
-  "/auth/register",
-  "/auth/forgot-password",
-  "/auth/reset-password",
-  "/auth/mfa",
-  "/auth/logout",
-  "/legal",
-  "/eisa/error-reports",
-  "/health",
-];
-
-function isAnonymousSession() {
-  return !getAccessToken() && !refreshCookieMode();
-}
-
-function isAnonymousPublicPath(path) {
-  const p = String(path || "");
-  return ANONYMOUS_PUBLIC_PREFIXES.some((prefix) => p.startsWith(prefix));
-}
-
 function accessTokenExpiresSoon(skewSec = 90) {
   try {
     const token = getAccessToken();
@@ -482,6 +455,23 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
  * options._retries ile deneme sayısı (varsayılan 4 ek deneme; Render cold-start).
  * P1-01: refresh cookie modunda 401 → bir kez /auth/refresh.
  */
+/**
+ * Oturum artefaktı hiç yok mu? (erişim token'ı yok VE refresh cookie bayrağı yok)
+ *
+ * Bu durumda `/auth/refresh` çağrısı kanıtlanabilir şekilde boşunadır: sunucuya
+ * gönderilecek ne bir token ne de bir refresh çerezi işareti vardır. Giriş
+ * sayfasındaki köprü script'lerinin 401 → refresh → 401 zincirini kesmek için
+ * yalnız bu gereksiz çağrı atlanır.
+ *
+ * Veri uçları bilinçli olarak engellenmez: çerezle doğrulanan oturumlar ve
+ * sunucu taraflı mock'larla çalışan akışlar token'sız da meşru yanıt alır.
+ * Korumalı yolu sunucunun 401'ine bırakmak, istemcideki eksik bir işarete
+ * bakıp isteği hiç göndermemekten daha güvenlidir.
+ */
+function isAnonymousSession() {
+  return !getAccessToken() && !refreshCookieMode();
+}
+
 export async function api(path, options = {}) {
   // API yakın zamanda uyandıysa gereksiz 4× retry yapma (sayfa “dakikalarca” bekler)
   const warm = Date.now() - _lastWakeOkAt < 60_000;
@@ -497,16 +487,6 @@ export async function api(path, options = {}) {
   const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
   const method = (fetchOpts.method || "GET").toUpperCase();
   const retries = isSafeReadMethod(method) ? (options._retries ?? (warm ? 1 : 3)) : 0;
-
-  // Anonim oturumda korumalı yolları ağa çıkmadan reddet (401/refresh spam'i yok).
-  if (isAnonymousSession() && !isAnonymousPublicPath(path)) {
-    const anonErr = new Error("Oturum gerekli — lütfen giriş yapın.");
-    anonErr.httpStatus = 401;
-    anonErr.httpPath = path;
-    anonErr.httpMethod = method;
-    anonErr.anonymous = true;
-    throw anonErr;
-  }
 
   // Access JWT süresi dolmak üzereyse önce refresh dene (bayrak yoksa da)
   if (!_didProactiveRefresh && !_didRefresh && accessTokenExpiresSoon() && getAccessToken()) {
@@ -552,7 +532,10 @@ export async function api(path, options = {}) {
       if (!response.ok) {
         lastStatus = response.status;
         if (isTransientGatewayStatus(response.status) && attempt < retries) continue;
-        if (!_didRefresh && canAttemptTokenRefresh(path, response.status)) {
+        // Anonim oturumda refresh denemesi atlanır: gönderilecek token/çerez
+        // işareti olmadığı için yanıt her zaman 401 olur. Bu, giriş sayfasındaki
+        // gereksiz 401 → refresh → 401 zincirini keser.
+        if (!_didRefresh && canAttemptTokenRefresh(path, response.status) && !isAnonymousSession()) {
           const ok = await tryRefreshAccessToken();
           if (ok) {
             return api(path, {...options, _didRefresh: true, _retries: 0});
