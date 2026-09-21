@@ -298,7 +298,7 @@ def _assert_workplace_company_logo_manager(
     if remote_service.is_workplace_account(user):
         company_id = int(user.company_id or 0)
     else:
-        if getattr(user, "role", None) != getattr(remote_api.UserRole, "SAFETY_SPECIALIST", None):
+        if getattr(getattr(user, "role", None), "value", getattr(user, "role", None)) != "safety_specialist":
             raise HTTPException(403, "Firma logosunu bu hesap yönetemez.")
         company_id = int(requested_company_id or 0)
     if company_id <= 0:
