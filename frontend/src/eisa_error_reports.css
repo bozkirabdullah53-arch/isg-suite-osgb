@@ -1,0 +1,88 @@
+/* Keep report layout changes local to this module in both themes. */
+.workspace:has(.eisa-error-reports-page) > header {
+  position: relative;
+  top: 0;
+}
+
+.content:has(.eisa-error-reports-page) {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.eisa-error-reports-page,
+.eisa-error-reports-page > .panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.eisa-error-reports-table table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.eisa-error-reports-table th,
+.eisa-error-reports-table td {
+  padding: 12px 8px;
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.eisa-error-reports-table th:nth-child(1) { width: 11%; }
+.eisa-error-reports-table th:nth-child(2) { width: 8%; }
+.eisa-error-reports-table th:nth-child(3) { width: 18%; }
+.eisa-error-reports-table th:nth-child(4) { width: 8%; }
+.eisa-error-reports-table th:nth-child(5) { width: 13%; }
+.eisa-error-reports-table th:nth-child(6) { width: 20%; }
+.eisa-error-reports-table th:nth-child(7) { width: 5%; }
+.eisa-error-reports-table th:nth-child(8) { width: 8%; }
+.eisa-error-reports-table th:nth-child(9) { width: 9%; }
+
+.eisa-error-reports-table td button {
+  max-width: 100%;
+  padding: 8px 10px;
+  white-space: normal;
+}
+
+@media (max-width: 1100px) {
+  .eisa-error-reports-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .eisa-error-reports-table table,
+  .eisa-error-reports-table tbody,
+  .eisa-error-reports-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .eisa-error-reports-table tr + tr {
+    border-top: 2px solid #cbdde1;
+  }
+
+  .eisa-error-reports-table td {
+    display: grid;
+    grid-template-columns: minmax(70px, 24%) minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
+  }
+
+  .eisa-error-reports-table td::before {
+    content: attr(data-label);
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    font-weight: 700;
+    color: #4e6670;
+  }
+
+  .eisa-error-reports-table td > * { grid-column: 2; }
+  .eisa-error-reports-table td[colspan] { display: block; }
+  .eisa-error-reports-table td[colspan]::before { content: none; }
+  .eisa-error-reports-table td button { justify-self: start; }
+}
