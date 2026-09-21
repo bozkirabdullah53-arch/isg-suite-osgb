@@ -2393,6 +2393,16 @@ def test_manager_can_delete_assignment_and_training_history(remote_client):
             company_id=company.id,
             is_active=True,
         )
+        # Kalıcı silme OSGB tarafına ayrılmıştır; işyeri hesabı 403 alır.
+        osgb_manager = User(
+            email="osgb-training-manager@remote-test.com",
+            full_name="OSGB Eğitim Yöneticisi",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=None,
+            is_active=True,
+        )
         program = RemoteTrainingProgram(
             osgb_id=osgb.id,
             company_id=company.id,
@@ -2400,7 +2410,7 @@ def test_manager_can_delete_assignment_and_training_history(remote_client):
             status="published",
             requires_final_exam=False,
         )
-        db.add_all([manager, program])
+        db.add_all([manager, osgb_manager, program])
         db.flush()
         db.add(
             RemoteTrainingEmployeeAccess(
@@ -2438,9 +2448,24 @@ def test_manager_can_delete_assignment_and_training_history(remote_client):
     employee_headers = {"Authorization": f"Bearer {employee_login.json()['access_token']}"}
     assert len(remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json()) == 1
 
-    deleted = remote_client.delete(
+    # Politika (#431): işyeri hesabı uzaktan eğitim ilerleme/belge kayıtlarını
+    # kalıcı olarak silemez; yetki OSGB tarafındaki yöneticidedir.
+    blocked = remote_client.delete(
         f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
         headers=manager_headers,
+    )
+    assert blocked.status_code == 403, blocked.text
+
+    osgb_manager_login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "osgb-training-manager@remote-test.com", "password": "TestPass123!"},
+    )
+    assert osgb_manager_login.status_code == 200, osgb_manager_login.text
+    osgb_manager_headers = {"Authorization": f"Bearer {osgb_manager_login.json()['access_token']}"}
+
+    deleted = remote_client.delete(
+        f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
+        headers=osgb_manager_headers,
     )
     assert deleted.status_code == 200, deleted.text
     assert deleted.json()["deleted"] is True
@@ -2464,7 +2489,7 @@ def test_manager_can_delete_assignment_and_training_history(remote_client):
 
     assert remote_client.delete(
         f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
-        headers=manager_headers,
+        headers=osgb_manager_headers,
     ).status_code == 404
 
 
@@ -2729,6 +2754,16 @@ def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(r
             company_id=company.id,
             is_active=True,
         )
+        # Kalıcı toplu silme politika gereği (#431) yalnız OSGB tarafına açıktır.
+        osgb_manager = User(
+            email="osgb-certificate-hub-manager@remote-test.com",
+            full_name="OSGB Belge Rapor Yöneticisi",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=None,
+            is_active=True,
+        )
         program = RemoteTrainingProgram(
             osgb_id=osgb.id,
             company_id=company.id,
@@ -2736,7 +2771,7 @@ def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(r
             status="published",
             requires_final_exam=True,
         )
-        db.add_all([manager, program])
+        db.add_all([manager, osgb_manager, program])
         db.flush()
         db.add(
             RemoteTrainingEmployeeAccess(
@@ -2805,10 +2840,26 @@ def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(r
     assert pdf.status_code == 200, pdf.text
     assert pdf.content.startswith(b"%PDF")
 
-    deleted = remote_client.request(
+    # İşyeri hesabı kalıcı toplu silme yapamaz (403); yetki OSGB yöneticisinde.
+    blocked = remote_client.request(
         "DELETE",
         "/api/v1/trainings/remote/certificates/records",
         headers=manager_headers,
+        json={"assignment_ids": [assignment_id]},
+    )
+    assert blocked.status_code == 403, blocked.text
+
+    osgb_manager_login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "osgb-certificate-hub-manager@remote-test.com", "password": "TestPass123!"},
+    )
+    assert osgb_manager_login.status_code == 200, osgb_manager_login.text
+    osgb_manager_headers = {"Authorization": f"Bearer {osgb_manager_login.json()['access_token']}"}
+
+    deleted = remote_client.request(
+        "DELETE",
+        "/api/v1/trainings/remote/certificates/records",
+        headers=osgb_manager_headers,
         json={"assignment_ids": [assignment_id]},
     )
     assert deleted.status_code == 200, deleted.text
