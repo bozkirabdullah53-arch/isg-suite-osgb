@@ -214,7 +214,6 @@ export function RiskAnalyticsPage({user, onNavigate}) {
     <div className="ra-page">
       <header className="ra-hero">
         <div>
-          <span className="ra-eyebrow">İBYS · NACE + RİSK DEĞERLENDİRMESİ</span>
           <h1><BarChart3 size={27} aria-hidden="true" /> Tehlike ve Risk Analitiği</h1>
           <p>NACE kodundan gelen aday tehlike kaynaklarını, işyerinin gerçek risk değerlendirmesi kayıtlarıyla birlikte izleyin; baskın riski ve maruz kalan kişi sayısını tek bakışta görün.</p>
         </div>
