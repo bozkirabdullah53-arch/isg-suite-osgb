@@ -98,7 +98,7 @@ export function PwaShortcutPrompt() {
           ) : (
             <>
               <button type="button" className="pwa-no" onClick={() => close('dismissed')} onPointerUp={() => close('dismissed')}>Hayır</button>
-              <button type="button" className="pwa-yes" onClick={() => void accept()} onPointerUp={() => void accept()}>Evet</button>
+              <button type="button" className="pwa-yes" onClick={() => void accept()}>Evet</button>
             </>
           )}
         </div>
