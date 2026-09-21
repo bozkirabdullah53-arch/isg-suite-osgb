@@ -161,8 +161,15 @@ html[data-ui-theme="modern"] .login-brand {
   filter: drop-shadow(0 6px 16px rgba(0, 0, 0, .28));
 }
 html[data-ui-theme="modern"] .login-eisa-logo {
-  max-height: 42px;
-  width: min(200px, 70vw);
+  max-height: 56px;
+  width: min(280px, 82vw);
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .18));
+}
+html[data-ui-theme="modern"] .login-brand:not(.login-brand--card) .login-eisa-logo {
+  content: url("/eisa-logo-horizontal-inverse.svg");
+}
+html[data-ui-theme="modern"] .login-brand--card .login-eisa-logo {
+  filter: none;
 }
 html[data-ui-theme="modern"] .login-card {
   position: relative;
@@ -250,15 +257,16 @@ html[data-ui-theme="modern"] .app-shell > aside {
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06), 12px 0 40px rgba(5, 22, 28, .18);
 }
 html[data-ui-theme="modern"] .sidebar-logo.eisa-logo-icon {
-  background: rgba(255, 255, 255, .96);
-  border-radius: 18px;
-  padding: 9px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, .34), 0 0 0 1px rgba(255, 255, 255, .12);
-  transition: transform .25s ease, box-shadow .25s ease;
+  content: url("/eisa-logo-icon-inverse.svg");
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .28));
+  transition: transform .25s ease, filter .25s ease;
 }
 html[data-ui-theme="modern"] .logo:hover .sidebar-logo.eisa-logo-icon {
   transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, .4), 0 0 26px rgba(45, 212, 191, .25);
+  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, .34)) drop-shadow(0 0 18px rgba(45, 212, 191, .22));
 }
 html[data-ui-theme="modern"] .logo:hover { opacity: 1; }
 html[data-ui-theme="modern"] .logo:focus-visible { outline-color: #5eead4; }

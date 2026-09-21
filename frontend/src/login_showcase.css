@@ -318,8 +318,9 @@
     flex-direction: column;
   }
   .login-showcase + .login-wrap .login-brand--card {
-    margin-top: auto;
-    padding-top: 18px;
+    margin-top: 0;
+    margin-bottom: 18px;
+    padding-top: 0;
   }
 }
 

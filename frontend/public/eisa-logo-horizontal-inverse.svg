@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 128" role="img" aria-labelledby="title desc">
+  <title id="title">EİSA Programlama</title>
+  <desc id="desc">EİSA Programlama için koyu zeminlerde kullanılan şeffaf kurumsal logo</desc>
+  <defs>
+    <linearGradient id="check" x1="15" y1="92" x2="94" y2="35" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#19a58f"/>
+      <stop offset="0.52" stop-color="#35d4b2"/>
+      <stop offset="1" stop-color="#8cf5d8"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(7 7)">
+    <path d="M47 5 88 27v30c0 26-16 46-41 58C22 103 6 83 6 57V27Z" fill="none" stroke="#effffc" stroke-width="7" stroke-linejoin="round"/>
+    <path d="m11 59 36 31 44-50" fill="none" stroke="url(#check)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <path d="M125 18v92" stroke="#effffc" stroke-opacity=".34" stroke-width="2"/>
+  <circle cx="125" cy="18" r="3" fill="#35d4b2"/>
+  <circle cx="125" cy="110" r="3" fill="#35d4b2"/>
+
+  <text x="151" y="74" fill="#f3fffd" font-family="Outfit, Manrope, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="1.5">
+    <tspan fill="#f3fffd">EİS</tspan><tspan fill="#35d4b2">A</tspan>
+  </text>
+  <text x="154" y="103" fill="#8cf5d8" font-family="Manrope, Arial, sans-serif" font-size="12" font-weight="800" letter-spacing="4.8">PROGRAMLAMA</text>
+</svg>

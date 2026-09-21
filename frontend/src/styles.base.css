@@ -40,21 +40,18 @@ button, input { font: inherit; }
   align-items: center;
   width: 100%;
   flex-shrink: 0;
-  padding: 5px 14px;
-  border: 1px solid rgba(203, 229, 225, .72);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, .96);
-  box-shadow: 0 10px 26px rgba(9, 64, 75, .10);
 }
 
 .login-eisa-logo {
-  width: min(220px, 72vw);
-  max-height: 44px;
+  width: min(280px, 82vw);
+  max-height: 56px;
   height: auto;
   display: block;
   object-fit: contain;
   background: transparent;
 }
+
+.login-brand--card { margin: 0 0 18px; }
 
 .login-card {
   width: 100%;
@@ -105,10 +102,10 @@ button, input { font: inherit; }
   gap: 4px;
   margin: 0;
 }
-.login-brand--apply { margin: 0; }
+.login-brand--apply { margin: 0 0 4px; }
 .login-brand--apply .login-eisa-logo {
-  max-height: 28px;
-  width: min(150px, 48vw);
+  max-height: 40px;
+  width: min(230px, 68vw);
 }
 .login-card--apply {
   padding: 12px 14px 10px;

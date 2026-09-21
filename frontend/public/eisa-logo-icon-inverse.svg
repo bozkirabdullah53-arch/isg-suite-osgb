@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 120" role="img" aria-labelledby="title desc">
   <title id="title">EİSA güvenlik simgesi</title>
-  <desc id="desc">EİSA için kalkan ve onay işaretinden oluşan şeffaf simge</desc>
+  <desc id="desc">EİSA için koyu zeminlerde kullanılan kalkan ve onay işareti</desc>
   <defs>
     <linearGradient id="check" x1="15" y1="88" x2="95" y2="34" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0b7d78"/>
-      <stop offset="0.52" stop-color="#16b89b"/>
-      <stop offset="1" stop-color="#69e7c8"/>
+      <stop offset="0" stop-color="#19a58f"/>
+      <stop offset="0.52" stop-color="#35d4b2"/>
+      <stop offset="1" stop-color="#8cf5d8"/>
     </linearGradient>
   </defs>
-  <path d="M55 5 96 27v30c0 26-16 46-41 58C30 103 14 83 14 57V27Z" fill="none" stroke="#0b2854" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M55 5 96 27v30c0 26-16 46-41 58C30 103 14 83 14 57V27Z" fill="none" stroke="#effffc" stroke-width="7" stroke-linejoin="round"/>
   <path d="m19 59 36 31 44-50" fill="none" stroke="url(#check)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

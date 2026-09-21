@@ -1,39 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 220" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 128" role="img" aria-labelledby="title desc">
   <title id="title">EİSA Programlama</title>
-  <desc id="desc">Kalkan ve onay işaretiyle oluşturulmuş modern EİSA Programlama logosu</desc>
+  <desc id="desc">EİSA Programlama için şeffaf zeminli, kalkan ve onay işaretli kurumsal logo</desc>
   <defs>
-    <linearGradient id="shield" x1="28" y1="30" x2="155" y2="184" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#69e7c8"/>
-      <stop offset="0.46" stop-color="#16b89b"/>
-      <stop offset="1" stop-color="#0b6d73"/>
+    <linearGradient id="check" x1="15" y1="92" x2="94" y2="35" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b7d78"/>
+      <stop offset="0.52" stop-color="#16b89b"/>
+      <stop offset="1" stop-color="#69e7c8"/>
     </linearGradient>
-    <linearGradient id="word" x1="232" y1="54" x2="517" y2="120" gradientUnits="userSpaceOnUse">
+    <linearGradient id="word" x1="150" y1="42" x2="350" y2="88" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#0b2854"/>
       <stop offset="0.7" stop-color="#0b4960"/>
       <stop offset="1" stop-color="#0f8d7e"/>
     </linearGradient>
-    <filter id="markShadow" x="-30%" y="-30%" width="160%" height="170%">
-      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#082f49" flood-opacity="0.18"/>
-    </filter>
   </defs>
 
-  <g transform="translate(18 11)" filter="url(#markShadow)">
-    <path d="M88 8 158 45v62c0 45-28 78-70 96-42-18-70-51-70-96V45Z" fill="#0b2854"/>
-    <path d="M88 25 143 54v51c0 35-20 61-55 78-35-17-55-43-55-78V54Z" fill="url(#shield)"/>
-    <path d="m48 105 29 29 57-67" fill="none" stroke="#f4fffc" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M88 25v-9" fill="none" stroke="#69e7c8" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="88" cy="10" r="5" fill="#69e7c8"/>
+  <g transform="translate(7 7)">
+    <path d="M47 5 88 27v30c0 26-16 46-41 58C22 103 6 83 6 57V27Z" fill="none" stroke="#0b2854" stroke-width="7" stroke-linejoin="round"/>
+    <path d="m11 59 36 31 44-50" fill="none" stroke="url(#check)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
-  <path d="M199 38v139" stroke="#c8dedc" stroke-width="2"/>
-  <circle cx="199" cy="38" r="3" fill="#16b89b"/>
-  <circle cx="199" cy="177" r="3" fill="#16b89b"/>
+  <path d="M125 18v92" stroke="#bdd6d4" stroke-width="2"/>
+  <circle cx="125" cy="18" r="3" fill="#16b89b"/>
+  <circle cx="125" cy="110" r="3" fill="#16b89b"/>
 
-  <text x="228" y="111" fill="url(#word)" font-family="Outfit, Manrope, Arial, sans-serif" font-size="82" font-weight="800" letter-spacing="3">EİS</text>
-  <text x="430" y="111" fill="#12a88f" font-family="Outfit, Manrope, Arial, sans-serif" font-size="82" font-weight="800" letter-spacing="3">A</text>
-  <path d="m466 72 13 31h-26Z" fill="#69e7c8"/>
-
-  <text x="232" y="147" fill="#0f8d7e" font-family="Manrope, Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="7">PROGRAMLAMA</text>
-  <path d="M232 166h282" stroke="#d4e7e3" stroke-width="2"/>
-  <text x="232" y="188" fill="#607781" font-family="Manrope, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="2.6">GÜVENLİK  •  DİJİTAL DÖNÜŞÜM  •  AKILLI SİSTEMLER</text>
+  <text x="151" y="74" font-family="Outfit, Manrope, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="1.5">
+    <tspan fill="url(#word)">EİS</tspan><tspan fill="#12a88f">A</tspan>
+  </text>
+  <text x="154" y="103" fill="#0f8d7e" font-family="Manrope, Arial, sans-serif" font-size="12" font-weight="800" letter-spacing="4.8">PROGRAMLAMA</text>
 </svg>

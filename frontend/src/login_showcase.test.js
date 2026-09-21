@@ -70,7 +70,8 @@ describe('LoginShowcase', () => {
     expect(css).toMatch(/\.login-showcase \+ \.login-wrap \{ width:\s*392px; \}/);
     expect(css).toMatch(/\.login-showcase \{ top:\s*50%; \}/);
     expect(css).toMatch(/\.login-showcase \+ \.login-wrap \.login-card \{[\s\S]*min-height:\s*478px;/);
-    expect(css).toMatch(/\.login-showcase \+ \.login-wrap \.login-brand--card \{[\s\S]*margin-top:\s*auto;/);
+    expect(css).toMatch(/\.login-showcase \+ \.login-wrap \.login-brand--card \{[\s\S]*margin-top:\s*0;/);
+    expect(css).toMatch(/\.login-showcase \+ \.login-wrap \.login-brand--card \{[\s\S]*margin-bottom:\s*18px;/);
     expect(css).not.toMatch(/\.login-shell/);
   });
 });

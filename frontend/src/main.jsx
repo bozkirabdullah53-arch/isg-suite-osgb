@@ -490,6 +490,9 @@ function Login({done,onApply,onSpecialistApply}){
       <div className={mode==='mfa_setup'||mode==='recovery'||mode==='forced_password'?'login-wrap login-wrap--form':'login-wrap'}>
         {mode!=='login'&&<div className="login-brand"><img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>}
         <section className="login-card">
+          {mode==='login'&&(
+            <div className="login-brand login-brand--card"><img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
+          )}
           <h1>İSG Suite</h1>
           <p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p>
           {mode==='login'&&(
@@ -648,9 +651,6 @@ function Login({done,onApply,onSpecialistApply}){
                 OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>OSGB başvurusu</button>
               </p>
             </div>
-          )}
-          {mode==='login'&&(
-            <div className="login-brand login-brand--card"><img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
           )}
         </section>
       </div>
