@@ -11,6 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -1062,7 +1063,11 @@ def export_health_xlsx(
     if employer_view:
         headers = [
             "Personel", "Görev", "Bölüm", "Muayene Türü", "Muayene Tarihi", "Sonraki Muayene",
-            "Uygunluk", "Hekim", "Özet", "Gizli Hekim Notu", "Bilgilendirme Onayı",
+            "Uygunluk", "Hekim", "Tanı / Klinik Değerlendirme", "Laboratuvar Sonuç Özeti",
+            "Kronik Hastalıklar", "Geçmiş Hastalık / Ameliyat", "Aile Öyküsü", "Kullanılan İlaçlar",
+            "Alerjiler", "Sigara", "Sigara Paket-Yıl", "Alkol", "Mesleki Geçmiş",
+            "Geçmiş Mesleki Maruziyetler", "Güncel Yakınmalar",
+            "Özet", "Gizli Hekim Notu", "Bilgilendirme Onayı",
             "Odyometri", "SFT", "Akciğer Grafisi", "Kan Kurşun", "Kurşun Değerlendirme",
             "Önerilen Tetkikler", "Maruziyetler", "Takip Notu", "Diğer Biyolojik Tetkik",
             "Çalışma Kısıtları", "Akıllı Özet", "Tetkik Özeti", "Rapor Dosyası",
@@ -1087,6 +1092,19 @@ def export_health_xlsx(
                 row.next_examination_date.isoformat() if row.next_examination_date else "",
                 excel_safe(FITNESS_LABELS.get(row.fitness_status, row.fitness_status.value)),
                 excel_safe(row.physician_name or ""),
+                excel_safe(view.diagnosis or ""),
+                excel_safe(view.laboratory_result_summary or ""),
+                excel_safe(view.anamnesis_chronic_diseases or ""),
+                excel_safe(view.anamnesis_past_medical_history or ""),
+                excel_safe(view.anamnesis_family_history or ""),
+                excel_safe(view.anamnesis_current_medications or ""),
+                excel_safe(view.anamnesis_allergies or ""),
+                excel_safe(view.anamnesis_smoking_status or ""),
+                row.anamnesis_smoking_pack_years if row.anamnesis_smoking_pack_years is not None else "",
+                excel_safe(view.anamnesis_alcohol_use or ""),
+                excel_safe(view.anamnesis_occupational_history or ""),
+                excel_safe(view.anamnesis_previous_exposures or ""),
+                excel_safe(view.anamnesis_current_complaints or ""),
                 excel_safe(view.summary or ""),
                 excel_safe(view.confidential_note or ""),
                 "Evet" if row.informed_consent else "Hayır",
@@ -1106,11 +1124,13 @@ def export_health_xlsx(
             ])
         ws.freeze_panes = "A2"
         ws.auto_filter.ref = ws.dimensions
-        for idx, width in enumerate(
-            (28, 22, 22, 24, 18, 18, 20, 24, 36, 36, 18, 30, 30, 30, 24, 22, 36, 36, 36, 36, 40, 40, 40, 30),
-            start=1,
-        ):
-            ws.column_dimensions[chr(64 + idx) if idx <= 26 else "X"].width = width
+        widths = [
+            28, 22, 22, 24, 18, 18, 20, 24,
+            38, 38, 34, 34, 34, 34, 30, 18, 16, 24, 38, 38, 38,
+            36, 36, 18, 30, 30, 30, 24, 22, 36, 36, 36, 36, 40, 40, 40, 30,
+        ]
+        for idx, width in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = width
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -1141,7 +1161,11 @@ def export_health_xlsx(
 
     headers = [
         "Personel", "Görev", "Bölüm", "Muayene Türü", "Muayene Tarihi", "Sonraki Muayene",
-        "Durum", "Hekim", "Odyometri", "SFT", "Akciğer", "Kan Kurşun", "Kurşun Değerlendirme",
+        "Durum", "Hekim", "Tanı / Klinik Değerlendirme", "Laboratuvar Sonuç Özeti",
+        "Kronik Hastalıklar", "Geçmiş Hastalık / Ameliyat", "Aile Öyküsü", "Kullanılan İlaçlar",
+        "Alerjiler", "Sigara", "Sigara Paket-Yıl", "Alkol", "Mesleki Geçmiş",
+        "Geçmiş Mesleki Maruziyetler", "Güncel Yakınmalar",
+        "Odyometri", "SFT", "Akciğer", "Kan Kurşun", "Kurşun Değerlendirme",
         "Önerilen Tetkikler", "Maruziyetler", "Diğer Biyolojik", "Akıllı Özet", "Rapor Dosyası",
     ]
     ws.append(headers)
@@ -1157,6 +1181,19 @@ def export_health_xlsx(
             r.next_examination_date.isoformat() if r.next_examination_date else "",
             FITNESS_LABELS.get(r.fitness_status, r.fitness_status.value),
             r.physician_name or "",
+            view.diagnosis or "",
+            view.laboratory_result_summary or "",
+            view.anamnesis_chronic_diseases or "",
+            view.anamnesis_past_medical_history or "",
+            view.anamnesis_family_history or "",
+            view.anamnesis_current_medications or "",
+            view.anamnesis_allergies or "",
+            view.anamnesis_smoking_status or "",
+            r.anamnesis_smoking_pack_years if r.anamnesis_smoking_pack_years is not None else "",
+            view.anamnesis_alcohol_use or "",
+            view.anamnesis_occupational_history or "",
+            view.anamnesis_previous_exposures or "",
+            view.anamnesis_current_complaints or "",
             f"{r.audiometry_date or ''} / {view.audiometry_result or ''}".strip(" /"),
             f"{r.spirometry_date or ''} / {view.spirometry_result or ''}".strip(" /"),
             f"{r.chest_xray_date or ''} / {view.chest_xray_result or ''}".strip(" /"),
