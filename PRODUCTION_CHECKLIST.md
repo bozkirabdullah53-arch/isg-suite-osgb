@@ -11,7 +11,9 @@
 - [ ] `/.well-known/security.txt` ve `/robots.txt` yayınlanmalıdır.
 - [ ] SMTP, PostgreSQL, sağlık şifreleme ve yedek şifreleme sırları kaynak koduna yazılmamalıdır.
 - [ ] Render'da `HEALTH_FIELD_ENCRYPTION_ENABLED=true` ve güçlü `HEALTH_FIELD_ENCRYPTION_KEY` tanımlı olmalıdır.
-- [ ] Render'da `BACKUP_RESTORE_ENABLED=true`, `BACKUP_ENCRYPTION_KEY` tanımlı ve geri yükleme dry-run/staging testi tamamlanmış olmalıdır.
+- [ ] Render'da `BACKUP_RESTORE_ENABLED` varsayılan **false** olmalıdır (F-04); gerçek geri yükleme yalnızca bakım penceresinde, dry-run + staging testi tamamlandıktan sonra geçici açılır.
+- [ ] **F-01 (bloke):** mevcut posta sağlayıcısı hiçbir şifreli portu desteklemiyor (587 STARTTLS yok, 465/993/995 kapalı, POP3 STLS yok — 2026-09-21 probe). Sağlayıcıda TLS etkinleştirilene veya SMTP relay + IMAPS posta kutusuna geçilene kadar e-posta trafiği düz metindir; parola sıfırlama token TTL'ini kısa tutun ve geçişi planlayın.
+- [ ] Access/MFA token üçüncü taraf QR servisine (qrserver vb.) gönderilmemeli; QR yalnızca backend üretimi data URL ile gösterilmelidir (F-08).
 - [ ] Docker imajı `appuser` (UID 1000) ile çalışmalıdır.
 - [ ] Dosyalar kalıcı nesne depolamada saklanmalı ve zararlı yazılım taraması etkin olmalıdır.
 - [ ] Günlük otomatik yedekleme, geri yükleme ve geri dönüş prosedürü test edilmelidir.

@@ -39,6 +39,12 @@ services:
         sync: false
       - key: SMTP_FROM_EMAIL
         value: info@isgsuite.tr
+      # F-01 ENGELLENDİ (2026-09-21 probe): mail.isgsuite.tr:587 EHLO'da STARTTLS
+      # YOK; 465/993/995 timeout; pop3.isgsuite.tr CAPA'da STLS YOK (isimtescil
+      # "Mail Server 2"). TLS'i şimdi açmak parola sıfırlama mailini ve inbox
+      # senkronunu KIRARDI. Mevcut çalışan değerler korunuyor; kalıcı çözüm:
+      # sağlayıcıda SSL/STARTTLS etkinleştirme veya SMTP relay (SendGrid/Brevo/
+      # Workspace) + IMAPS destekli posta kutusuna geçiş. Detay: güvenlik raporu F-01.
       - key: SMTP_USE_TLS
         value: "false"
       - key: SMTP_USE_SSL
@@ -116,14 +122,23 @@ services:
       # The job is idempotent and never deletes persistent-disk videos.
       - key: OBJECT_STORAGE_VIDEO_BACKFILL_ON_STARTUP
         value: "false"
+      # F-04 (2026-09-21): canlı geri yükleme yazımı kapalı. Restore yalnızca
+      # bakım penceresinde geçici açılır; dry-run/restore-plan her zaman çalışır.
       - key: BACKUP_RESTORE_ENABLED
-        value: "true"
+        value: "false"
       - key: BACKUP_ENCRYPTION_KEY
         sync: false
       - key: BACKUP_ENCRYPTION_FORCE_OFF
         value: "false"
+      # F-05 (2026-09-21): ClamAV altyapı kararı bekliyor. Render'da bir clamd
+      # servisi kurulup CLAMAV_HOST (sync:false secret slot) doldurulduktan
+      # sonra CLAMAV_REQUIRED="true" yapılmalı — fail-closed: host'sız prod
+      # başlamaz (config.py validate_runtime_settings). Şu an magic-byte +
+      # uzantı filtresi geçerli; bu yüzden REQUIRED temkinli false bırakıldı.
       - key: CLAMAV_HOST
         sync: false
+      - key: CLAMAV_REQUIRED
+        value: "false"
       # Controlled compliance cutover: existing and pre-cutover verified
       # trainings keep the established certificate flow; only new verified
       # NACE snapshot trainings after the timestamp use completion preflight.

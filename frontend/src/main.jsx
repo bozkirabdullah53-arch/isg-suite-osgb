@@ -559,16 +559,17 @@ function Login({done,onApply,onSpecialistApply}){
                   </ol>
                   {setupInfo.otpauth_uri&&(
                     <div style={{textAlign:'center',marginBottom:12}}>
-                      <img
-                        alt="MFA kurulum QR"
-                        width={200}
-                        height={200}
-                        style={{borderRadius:12,background:'#fff',padding:8,border:'1px solid #e2e8f0'}}
-                        src={
-                          setupInfo.qr_data_url
-                          || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupInfo.otpauth_uri)}`
-                        }
-                      />
+                      {/* F-08: otpauth_uri asla üçüncü taraf QR servisine gönderilmez
+                          (TOTP sırrı sızıntısı). Yalnızca backend'in ürettiği data URL kullanılır. */}
+                      {setupInfo.qr_data_url&&(
+                        <img
+                          alt="MFA kurulum QR"
+                          width={200}
+                          height={200}
+                          style={{borderRadius:12,background:'#fff',padding:8,border:'1px solid #e2e8f0'}}
+                          src={setupInfo.qr_data_url}
+                        />
+                      )}
                       <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarı kullanın</p>
                     </div>
                   )}
@@ -615,10 +616,10 @@ function Login({done,onApply,onSpecialistApply}){
                 onClick={async()=>{
                   setErr('');setBusy(true);
                   try{
-                    const tok=mfaToken||localStorage.getItem('isg_mfa_setup_token');
+                    const tok=mfaToken||getMfaSetupToken();
                     const body=await apiWithBearer(tok,'/auth/mfa/skip-setup',{method:'POST'});
                     if(!body.access_token){setErr('Erteleme şu an kullanılamıyor. MFA kurulumunu tamamlayın.');return}
-                    localStorage.setItem('isg_token',body.access_token);
+                    setAccessToken(body.access_token);
                     setRefreshCookieMode(!!body.refresh_cookie);
                     done();
                   }catch(x){setErr(x.message||'MFA erteleme kullanılamıyor.')}
@@ -2041,17 +2042,15 @@ function SecurityPage({user}){
               <li><strong>+</strong> → QR kod tara</li>
               <li>Aşağıdaki QR’ı okutun; uygulamadaki 6 haneli kodu girin</li>
             </ol>
-            {(mfaSetup.qr_data_url||mfaSetup.otpauth_uri)&&(
+            {/* F-08: TOTP sırrı üçüncü tarafa gitmesin — yalnız backend data URL. */}
+            {mfaSetup.qr_data_url&&(
               <div style={{textAlign:'center',marginBottom:8,gridColumn:'1 / -1'}}>
                 <img
                   alt="MFA kurulum QR"
                   width={200}
                   height={200}
                   style={{borderRadius:12,background:'#fff',padding:8,border:'1px solid #e2e8f0'}}
-                  src={
-                    mfaSetup.qr_data_url
-                    || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaSetup.otpauth_uri)}`
-                  }
+                  src={mfaSetup.qr_data_url}
                 />
                 <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarı elle girin</p>
               </div>
