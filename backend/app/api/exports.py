@@ -69,7 +69,7 @@ def export_employees_excel(
     } if rows else {}
     ws.append(["#", "Adı Soyadı", "TC Kimlik No", "Görevi", "Departman", "Şube", "Cinsiyet", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"])
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = "A1:J1"
+    ws.auto_filter.ref = "A1:K1"
     for cell in ws[1]:
         cell.font = cell.font.copy(bold=True)
     for index, r in enumerate(rows, start=1):
