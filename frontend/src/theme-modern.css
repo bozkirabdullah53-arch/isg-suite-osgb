@@ -332,6 +332,17 @@ html[data-ui-theme="modern"] .global-nace-context {
 }
 html[data-ui-theme="modern"] .global-nace-context-kicker { color: #5eead4; }
 html[data-ui-theme="modern"] .global-nace-context-company { color: #effcfb; }
+html[data-ui-theme="modern"] .global-nace-context-selector > span { color: #8fd8cf; }
+html[data-ui-theme="modern"] .global-nace-context-selector select {
+  border-color: rgba(94,234,212,.30);
+  background: rgba(245,255,253,.96);
+  color: #11363d;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
+}
+html[data-ui-theme="modern"] .global-nace-context-selector select:focus {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 3px rgba(45,212,191,.18);
+}
 html[data-ui-theme="modern"] .global-nace-context-code { border-bottom-color: rgba(94, 234, 212, .18); }
 html[data-ui-theme="modern"] .global-nace-context-code span,
 html[data-ui-theme="modern"] .global-nace-context-row > span { color: #94bdbc; }
