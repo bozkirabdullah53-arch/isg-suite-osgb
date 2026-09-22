@@ -2152,7 +2152,9 @@ function NotificationsPage({onNavigate, user}){
   // Bildirim ekranında boş seçim kesinlikle "tüm işyerleri" anlamına gelmez.
   // OSGB hesabı önce gerçek işyerini seçer; böylece eski veya başka işyerine
   // ait kişi bildirimleri ekrana düşemez.
-  const[companyId,setCompanyId]=useState(()=>String(user?.company_id||''));
+  const[companyId,setCompanyId]=useState(()=>
+    String(user?.company_id||readPersistedCompanyId()||'')
+  );
   const[companiesReady,setCompaniesReady]=useState(!canSelectCompany);
   const selectedCompany=companies.find(c=>String(c.id)===String(companyId))||null;
 
