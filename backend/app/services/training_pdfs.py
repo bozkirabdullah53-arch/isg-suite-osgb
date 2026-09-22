@@ -1,6 +1,7 @@
 """Eğitim katılım belgesi + imza formu PDF — İSG PRO 2026 layout parity (reportlab)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -15,6 +16,7 @@ from reportlab.pdfgen import canvas
 
 from app.core.config import settings
 from app.services.training_document_qr import draw_training_qr
+from app.services.object_store import get_object_store
 from app.services.special_training_profiles import (
     resolve_training_curriculum,
     resolve_training_document_titles,
@@ -32,6 +34,7 @@ from app.services.training_nace_classification import resolve_exact_nace
 _FONT = "Helvetica"
 _FONT_B = "Helvetica-Bold"
 _ASSETS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+logger = logging.getLogger(__name__)
 
 # PRO dayanak / dipnot (ürün adı yok)
 _DEFAULT_STAMP = (
@@ -282,14 +285,38 @@ def _fmt_date_range(training) -> str:
 
 
 def _resolve_logo(training) -> Path | None:
-    rel = getattr(training, "logo_path", None) or ""
+    # Logo paths are stored as tenant-scoped relative object-store keys.  The
+    # classic training upload endpoint can write through the upload gateway,
+    # while the PDF renderer historically looked only on the local disk.  On
+    # an S3/R2 backend that made a successfully uploaded logo disappear from
+    # every certificate even though ``training.logo_path`` was populated.
+    rel = str(getattr(training, "logo_path", None) or "").replace("\\", "/").strip("/")
     if not rel:
         return None
     root = Path(settings.upload_dir).resolve()
     path = (root / rel).resolve()
     if root not in path.parents and path != root:
         return None
-    return path if path.is_file() else None
+    if path.is_file():
+        return path
+
+    # Keep the renderer's existing path-jail contract.  If the configured
+    # object store is remote (or a dual store's local copy is unavailable),
+    # materialize only this already-known logo key into the upload cache so
+    # ReportLab/ImageReader can consume it synchronously.
+    try:
+        store = get_object_store()
+        if not store.exists(rel):
+            return None
+        content = store.get_bytes(rel)
+        if not content:
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        return path if path.is_file() else None
+    except Exception:
+        logger.warning("Eğitim logosu PDF için depodan okunamadı: %s", rel, exc_info=True)
+        return None
 
 
 def _draw_logo(c: canvas.Canvas, training, *, x: float, y: float, max_w: float, max_h: float) -> bool:
