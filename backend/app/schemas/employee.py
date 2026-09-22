@@ -1,4 +1,5 @@
 from datetime import date
+from unicodedata import combining, normalize as unicode_normalize
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -6,15 +7,26 @@ from app.core.input_rules import assert_date_order, assert_event_date, assert_me
 
 
 def normalize_gender(value: str | None) -> str | None:
-    """Store/report gender values consistently without guessing from names."""
+    """Canonicalize explicit gender labels without guessing from names.
+
+    Older personnel spreadsheets commonly use ``K/E`` or ``Bayan/Bay``
+    instead of the current ``Kadın/Erkek`` select values.  Those are explicit
+    gender labels and must not be counted as missing in reports.
+    """
     if value is None:
         return None
-    key = str(value).strip().casefold().replace("ı", "i")
-    if key in {"kadin", "female", "f"}:
+    text = str(value).strip()
+    if not text:
+        return None
+    # NFKD + combining-mark removal also handles values such as ``KADİN``
+    # (capital dotted İ) from external Excel files.
+    key = unicode_normalize("NFKD", text.casefold())
+    key = "".join(char for char in key if not combining(char)).replace("ı", "i")
+    if key in {"kadin", "k", "female", "f", "bayan", "woman", "women"}:
         return "Kadın"
-    if key in {"erkek", "male", "m"}:
+    if key in {"erkek", "e", "male", "m", "bay", "man", "men"}:
         return "Erkek"
-    return str(value).strip() or None
+    return text
 
 
 class EmployeeCreate(BaseModel):

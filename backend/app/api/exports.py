@@ -35,6 +35,15 @@ EMPLOYEE_EXPORT = (
 )
 
 
+def _gender_summary(rows: list[Employee]) -> tuple[int, int, int]:
+    """Return women, men and genuinely unspecified counts for a report."""
+    values = [normalize_gender(row.gender) for row in rows]
+    women = values.count("Kadın")
+    men = values.count("Erkek")
+    unknown = len(values) - women - men
+    return women, men, unknown
+
+
 def _scoped_company_ids(user: User, requested: int | None, db: Session) -> list[int] | None:
     """None = global tüm firmalar. Boş = erişim yok."""
     if user.role == UserRole.GLOBAL_ADMIN:
@@ -84,7 +93,7 @@ def export_employees_excel(
             r.job_title or "",
             r.department or "",
             branch_names.get(r.branch_id, ""),
-            r.gender or "",
+            normalize_gender(r.gender) or "",
             r.start_date.isoformat() if r.start_date else "",
             r.exit_date.isoformat() if r.exit_date else "",
             r.special_status or "",
@@ -127,10 +136,8 @@ def export_employees_pdf(
     bold_font = "EmployeeReportSans-Bold" if bold_path.exists() else "Helvetica-Bold"
     company = db.get(Company, company_id) if company_id else None
     safe = lambda value: escape(str(value or ""))
-    women = sum(1 for row in rows if normalize_gender(row.gender) == "Kadın")
-    men = sum(1 for row in rows if normalize_gender(row.gender) == "Erkek")
+    women, men, unknown_gender = _gender_summary(rows)
     disabled = sum(1 for row in rows if row.special_status and "engelli" in row.special_status.lower())
-    unknown_gender = len(rows) - women - men
     stream = BytesIO()
     doc = SimpleDocTemplate(stream, pagesize=landscape(A4), rightMargin=8 * mm, leftMargin=8 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
     title_style = ParagraphStyle("EmployeeTitle", parent=styles["Title"], fontName=bold_font, fontSize=16, leading=20, spaceAfter=0)
@@ -162,7 +169,7 @@ def export_employees_pdf(
         f"<b>Personel Özeti</b> &nbsp; Toplam: {len(rows)} &nbsp; | &nbsp; Kadın: {women} &nbsp; | &nbsp; Erkek: {men} &nbsp; | &nbsp; Cinsiyet belirtilmemiş: {unknown_gender} &nbsp; | &nbsp; Engelli: {disabled}", body_style)
     data = [["#", "Ad Soyad", "TC Kimlik No", "Görev", "Departman", "Şube", "Cinsiyet", "İşe Giriş", "İşten Çıkış", "Özel Durum", "Durum"]]
     data.extend([
-        [str(index), r.full_name, r.national_id_masked or "", r.job_title or "", r.department or "", branch_names.get(r.branch_id, ""), r.gender or "",
+        [str(index), r.full_name, r.national_id_masked or "", r.job_title or "", r.department or "", branch_names.get(r.branch_id, ""), normalize_gender(r.gender) or "",
          r.start_date.isoformat() if r.start_date else "", r.exit_date.isoformat() if r.exit_date else "", r.special_status or "", "Aktif" if r.is_active else "Pasif"]
         for index, r in enumerate(rows, start=1)
     ])
