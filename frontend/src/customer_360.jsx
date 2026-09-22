@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import {api, downloadFile} from './api';
+import {persistSelectedCompanyId, readPersistedCompanyId} from './nace_context';
 import {workplaceModulesForUser} from './workplace_user_policy';
 import {WorkplaceObligationCenter} from './workplace_obligation_center';
 
@@ -578,7 +579,9 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
 
 export function WorkplaceStatusPage({user, onNavigate}) {
   const [companies, setCompanies] = useState([]);
-  const [companyId, setCompanyId] = useState(user?.company_id ? String(user.company_id) : '');
+  const [companyId, setCompanyId] = useState(
+    user?.company_id ? String(user.company_id) : (readPersistedCompanyId() || '')
+  );
   const [err, setErr] = useState('');
   const fixedCompanyId = Number(user?.company_id) > 0 ? Number(user.company_id) : null;
 
@@ -595,7 +598,11 @@ export function WorkplaceStatusPage({user, onNavigate}) {
         if (cancelled) return;
         const list = Array.isArray(rows) ? rows : [];
         setCompanies(list);
-        setCompanyId((current) => current || (list[0]?.id ? String(list[0].id) : ''));
+        setCompanyId((current) => (
+          current && list.some((row) => String(row.id) === String(current))
+            ? String(current)
+            : ''
+        ));
       })
       .catch((e) => { if (!cancelled) setErr(e.message || 'İşyerleri yüklenemedi.'); });
     return () => { cancelled = true; };
@@ -606,9 +613,26 @@ export function WorkplaceStatusPage({user, onNavigate}) {
       {!fixedCompanyId && (
         <section className="panel" style={{marginBottom: 16}}>
           <label style={{display: 'grid', gap: 6, maxWidth: 520}}>
-            <strong>İşyeri seçin</strong>
-            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-              <option value="">Erişilebilir işyeri yok</option>
+            <strong>Firma / işyeri seçiniz</strong>
+            <select
+              value={companyId}
+              onChange={(e) => {
+                const next = String(e.target.value || '');
+                const company = companies.find((row) => String(row.id) === next);
+                setCompanyId(next);
+                persistSelectedCompanyId(next);
+                if (company) {
+                  window.dispatchEvent(new CustomEvent('isg:company-selected', {
+                    detail: {companyId: next, company, source: 'workplace-status'},
+                  }));
+                } else {
+                  window.dispatchEvent(new CustomEvent('isg:nace-context-reset', {
+                    detail: {source: 'workplace-status'},
+                  }));
+                }
+              }}
+            >
+              <option value="">Firma / işyeri seçiniz</option>
               {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
             </select>
           </label>
@@ -618,7 +642,13 @@ export function WorkplaceStatusPage({user, onNavigate}) {
       {companyId ? (
         <Customer360Page companyId={Number(companyId)} onNavigate={onNavigate} user={user} />
       ) : (
-        <section className="panel"><p className="empty">Rolünüze atanmış aktif işyeri bulunamadı.</p></section>
+        <section className="panel">
+          <p className="empty">
+            {companies.length
+              ? 'İşyeri durumunu görüntülemek için önce firma / işyeri seçiniz.'
+              : 'Rolünüze atanmış aktif işyeri bulunamadı.'}
+          </p>
+        </section>
       )}
     </div>
   );
