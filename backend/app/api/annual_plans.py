@@ -5,7 +5,7 @@ import logging
 from datetime import date, datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
@@ -26,6 +26,7 @@ from app.schemas.annual_plan import (
 from app.services.annual_plan_pdf import build_annual_plan_pdf
 from app.services.annual_plan_template import template_for_hazard
 from app.services.assigned_team import team_names
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.tr_calendar import is_non_working_day, plan_target_date
 
 logger = logging.getLogger(__name__)
@@ -186,6 +187,7 @@ def list_plan_items(
 @router.post("", response_model=AnnualPlanResponse)
 def create_plan_item(
     payload: AnnualPlanCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -197,6 +199,33 @@ def create_plan_item(
         data["target_date"] = plan_target_date(payload.year, payload.month, 15)
     item = AnnualPlanItem(**data, created_by_id=user.id)
     db.add(item)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="annual_plan_item_created",
+        module="annual_plan",
+        entity_type="annual_plan_item",
+        entity_id=str(item.id),
+        company_id=item.company_id,
+        description=f"Yıllık plan maddesi oluşturuldu: {item.activity} ({item.year}/{item.month})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": item.id,
+                "company_id": item.company_id,
+                "year": item.year,
+                "month": item.month,
+                "category": item.category,
+                "activity": item.activity,
+                "target_date": item.target_date,
+                "status": item.status,
+                "responsible_name": item.responsible_name,
+                "completion_date": item.completion_date,
+            }
+        ),
+    )
     db.commit()
     db.refresh(item)
     return item
@@ -205,6 +234,7 @@ def create_plan_item(
 @router.post("/generate")
 def generate_template(
     payload: AnnualPlanGenerate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -278,6 +308,30 @@ def generate_template(
             )
             targets.append(target.isoformat())
             created += 1
+        add_audit_log(
+            db,
+            user=user,
+            action="annual_plan_generated",
+            module="annual_plan",
+            entity_type="annual_plan",
+            entity_id=f"{payload.company_id}:{payload.year}",
+            company_id=payload.company_id,
+            description=(
+                f"Yıllık plan şablonu üretildi: firma #{payload.company_id} / {payload.year} / {created} madde"
+            ),
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            new_value=serialize_audit_value(
+                {
+                    "company_id": payload.company_id,
+                    "year": payload.year,
+                    "hazard_class": company.hazard_class,
+                    "created": created,
+                    "skipped_existing": len(template) - created,
+                    "target_dates": targets,
+                }
+            ),
+        )
         db.commit()
     except HTTPException:
         db.rollback()
@@ -496,6 +550,7 @@ def export_plan_txt(
 def update_plan_item(
     item_id: int,
     payload: AnnualPlanUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -522,8 +577,23 @@ def update_plan_item(
             updates["target_date"] = actual_target_date
         if "completion_date" in date_fields:
             updates["completion_date"] = actual_completion_date
+    old_value = {k: getattr(item, k, None) for k in updates}
     for k, v in updates.items():
         setattr(item, k, v)
+    add_audit_log(
+        db,
+        user=user,
+        action="annual_plan_item_updated",
+        module="annual_plan",
+        entity_type="annual_plan_item",
+        entity_id=str(item.id),
+        company_id=item.company_id,
+        description=f"Yıllık plan maddesi güncellendi: {item.activity} ({item.year}/{item.month})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": item.id, **old_value}),
+        new_value=serialize_audit_value({"id": item.id, **{k: getattr(item, k, None) for k in updates}}),
+    )
     db.commit()
     db.refresh(item)
     return item
@@ -532,6 +602,7 @@ def update_plan_item(
 @router.delete("/{item_id}")
 def delete_plan_item(
     item_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -539,6 +610,29 @@ def delete_plan_item(
     if not item or item.deleted_at:
         raise HTTPException(404, "Plan maddesi bulunamadı.")
     ensure_access(db, user, item.company_id)
+    old_value = {
+        "id": item.id,
+        "company_id": item.company_id,
+        "year": item.year,
+        "month": item.month,
+        "activity": item.activity,
+        "status": item.status,
+        "deleted_at": None,
+    }
     item.deleted_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="annual_plan_item_deleted",
+        module="annual_plan",
+        entity_type="annual_plan_item",
+        entity_id=str(item.id),
+        company_id=item.company_id,
+        description=f"Yıllık plan maddesi silindi: {item.activity} ({item.year}/{item.month})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value({"id": item.id, "deleted_at": item.deleted_at}),
+    )
     db.commit()
     return {"ok": True, "id": item_id}

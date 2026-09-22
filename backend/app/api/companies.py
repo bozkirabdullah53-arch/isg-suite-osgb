@@ -46,7 +46,9 @@ from app.models.entities import (
     EmergencyTeamType,
     Employee,
     FinanceTransaction,
+    HealthAccessLog,
     HealthRecord,
+    HealthRecordRevision,
     IncidentDof,
     IncidentEvent,
     IncidentRootCause,
@@ -178,8 +180,69 @@ def _ids(db: Session, model, company_id: int) -> list[int]:
     return list(db.scalars(select(model.id).where(model.company_id == company_id)).all())
 
 
+# Purge sırasında silinen denetim izleri. Kanıt kaybını önlemek için silmeden
+# önce JSON arşivine yazılır; arşiv başarısızsa purge durdurulur (fail-closed).
+_AUDIT_CHAIN_MODELS: tuple[tuple[str, str], ...] = (
+    ("eyas_event", "EyasEvent"),
+    ("eyas_step", "EyasStep"),
+    ("esignature_audit_event", "ESignatureAuditEvent"),
+    ("health_record_revision", "HealthRecordRevision"),
+    ("health_access_log", "HealthAccessLog"),
+)
+
+
+def _archive_audit_chain_before_purge(db: Session, company_id: int) -> dict[str, int]:
+    """Firma purge'ünden önce denetim izlerini arşivler.
+
+    Dönen sözlük: entity_type → arşivlenen kayıt sayısı.
+    Arşiv yazılamazsa ``RuntimeError`` yükselir ve purge durdurulur.
+    """
+    from app.services.change_guard import archive_records_before_delete
+
+    archived: dict[str, int] = {}
+    for entity_type, model_name in _AUDIT_CHAIN_MODELS:
+        model = globals().get(model_name)
+        if model is None or not hasattr(model, "company_id"):
+            continue
+        rows = list(db.scalars(select(model).where(model.company_id == company_id)).all())
+        if not rows:
+            continue
+        archive_records_before_delete(
+            db,
+            rows=rows,
+            entity_type=f"purge_{entity_type}",
+            entity_id=str(company_id),
+            company_id=company_id,
+            reason="Firma kalıcı silme (purge) öncesi denetim izi arşivi",
+            original_name=f"purge-{entity_type}-company-{company_id}.json",
+        )
+        archived[entity_type] = len(rows)
+    return archived
+
+
 def _purge_company_data(db: Session, company_id: int) -> None:
     """Firma ve bağlı tüm operasyonel kayıtları kalıcı siler (kullanıcıları ayırır)."""
+    # Denetim izleri (EYAS zinciri, e-imza olayları, sağlık revizyon/erişim logları)
+    # silinmeden önce arşivlenir; aksi halde "kanıtı da yok ediyoruz" durumu oluşur.
+    archived = _archive_audit_chain_before_purge(db, company_id)
+    if archived:
+        from app.services.audit import add_audit_log, serialize_audit_value
+
+        add_audit_log(
+            db,
+            user=None,
+            action="audit_chain_archived_before_purge",
+            entity_type="company",
+            entity_id=str(company_id),
+            company_id=company_id,
+            module="security",
+            description=(
+                "Firma kalıcı silinmeden önce denetim izleri arşivlendi: "
+                + ", ".join(f"{key}={value}" for key, value in sorted(archived.items()))
+            ),
+            new_value=serialize_audit_value(archived),
+        )
+        db.flush()
     # Görsel saha denetimi bounded context'i: şirket silinirse yeni tabloların
     # çocukları da FK sırasıyla temizlenir. Bu blok mevcut /risks kayıtlarına
     # dokunmaz; migration henüz uygulanmamış eski kurulumlarda da mevcut

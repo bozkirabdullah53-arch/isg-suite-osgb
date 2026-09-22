@@ -7,7 +7,7 @@ from pathlib import Path
 import uuid
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
 from reportlab.lib import colors
@@ -51,6 +51,7 @@ from app.schemas.ppe import (
     PpePhotoResponse,
 )
 from app.services.ppe_catalog import catalog_payload, status_label
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 
 router = APIRouter(prefix="/ppe", tags=["KKD Takip"])
 logger = logging.getLogger(__name__)
@@ -319,6 +320,7 @@ def list_inventory(
 @router.post("/inventory", response_model=PpeInventoryResponse)
 def create_inventory(
     payload: PpeInventoryCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -343,6 +345,32 @@ def create_inventory(
             movement_date=date.today(),
             reason="İlk stok girişi",
         )
+    add_audit_log(
+        db,
+        user=user,
+        action="ppe_inventory_created",
+        module="ppe",
+        entity_type="ppe_inventory_item",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"KKD stok kartı oluşturuldu: {row.category} / {row.item_type}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "branch_id": row.branch_id,
+                "category": row.category,
+                "item_type": row.item_type,
+                "brand": row.brand,
+                "model": row.model,
+                "min_stock": row.min_stock,
+                "initial_quantity": payload.initial_quantity,
+                "is_active": row.is_active,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return _stock_response(row, _movement_totals(db, row.id))
@@ -372,6 +400,7 @@ def list_inventory_movements(
 def create_inventory_movement(
     inventory_item_id: int,
     payload: PpeInventoryMovementCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -387,6 +416,30 @@ def create_inventory_movement(
         user=user,
         movement_date=payload.movement_date,
         reason=payload.reason,
+    )
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="ppe_inventory_movement_created",
+        module="ppe",
+        entity_type="ppe_inventory_movement",
+        entity_id=str(movement.id),
+        company_id=item.company_id,
+        description=f"KKD stok hareketi: {payload.movement_type} / {payload.quantity} adet ({item.item_type})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": movement.id,
+                "company_id": item.company_id,
+                "inventory_item_id": item.id,
+                "movement_type": payload.movement_type,
+                "quantity": payload.quantity,
+                "movement_date": payload.movement_date,
+                "reason": payload.reason,
+            }
+        ),
     )
     db.commit()
     db.refresh(movement)
@@ -451,6 +504,7 @@ def list_assignments(
 @router.post("/assignments", response_model=PpeAssignmentResponse)
 def create_assignment(
     payload: PpeAssignmentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -490,6 +544,35 @@ def create_assignment(
                 reason="Çalışana KKD zimmeti",
                 assignment_id=row.id,
             )
+        add_audit_log(
+            db,
+            user=user,
+            action="ppe_assignment_created",
+            module="ppe",
+            entity_type="ppe_assignment",
+            entity_id=str(row.id),
+            company_id=row.company_id,
+            description=f"KKD zimmeti oluşturuldu: {row.category} / {row.item_type} / çalışan #{row.employee_id}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            new_value=serialize_audit_value(
+                {
+                    "id": row.id,
+                    "company_id": row.company_id,
+                    "branch_id": row.branch_id,
+                    "employee_id": row.employee_id,
+                    "inventory_item_id": row.inventory_item_id,
+                    "delivery_date": row.delivery_date,
+                    "category": row.category,
+                    "item_type": row.item_type,
+                    "quantity": row.quantity,
+                    "serial_no": row.serial_no,
+                    "status": row.status,
+                    "expiry_date": row.expiry_date,
+                    "renewal_date": row.renewal_date,
+                }
+            ),
+        )
         db.commit()
     except Exception:
         db.rollback()
@@ -515,6 +598,7 @@ def get_assignment(
 def update_assignment(
     assignment_id: int,
     payload: PpeAssignmentUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -529,8 +613,23 @@ def update_assignment(
             raise HTTPException(422, "Adet, iade veya fireye ayrılmış miktarın altına indirilemez.")
         if row.inventory_item_id and int(data["quantity"]) != int(row.quantity):
             raise HTTPException(422, "Stok bağlantılı zimmetin adedi zimmet hareketiyle değiştirilmelidir.")
+    old_value = {k: getattr(row, k, None) for k in data}
     for k, v in data.items():
         setattr(row, k, v)
+    add_audit_log(
+        db,
+        user=user,
+        action="ppe_assignment_updated",
+        module="ppe",
+        entity_type="ppe_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"KKD zimmeti güncellendi: {row.category} / {row.item_type} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, **old_value}),
+        new_value=serialize_audit_value({"id": row.id, **{k: getattr(row, k, None) for k in data}}),
+    )
     db.commit()
     row = _load(db, assignment_id)
     emp = db.get(Employee, row.employee_id)
@@ -544,6 +643,7 @@ def _close_assignment_quantity(
     action: str,
     db: Session,
     user: User,
+    request: Request,
 ) -> PpeAssignmentResponse:
     row = _load(db, assignment_id)
     ensure_access(db, user, row.company_id)
@@ -551,6 +651,12 @@ def _close_assignment_quantity(
     quantity = payload.quantity or remaining
     if quantity < 1 or quantity > remaining:
         raise HTTPException(422, "İşlem adedi kalan zimmet adedini aşamaz.")
+    old_value = {
+        "id": row.id,
+        "status": row.status,
+        "returned_quantity": int(row.returned_quantity or 0),
+        "scrapped_quantity": int(row.scrapped_quantity or 0),
+    }
 
     if action == "return":
         row.returned_quantity = int(row.returned_quantity or 0) + quantity
@@ -573,6 +679,33 @@ def _close_assignment_quantity(
 
     next_remaining = remaining - quantity
     row.status = next_status if next_remaining == 0 else "teslim"
+    add_audit_log(
+        db,
+        user=user,
+        action="ppe_assignment_returned" if action == "return" else "ppe_assignment_scrapped",
+        module="ppe",
+        entity_type="ppe_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=(
+            f"KKD zimmeti {'iade alındı' if action == 'return' else 'fireye ayrıldı'}: "
+            f"{quantity} adet / çalışan #{row.employee_id}"
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "status": row.status,
+                "returned_quantity": int(row.returned_quantity or 0),
+                "scrapped_quantity": int(row.scrapped_quantity or 0),
+                "quantity": quantity,
+                "movement_date": payload.movement_date,
+                "reason": payload.reason,
+            }
+        ),
+    )
     db.commit()
     row = _load(db, assignment_id)
     return _to_response(row, db.get(Employee, row.employee_id))
@@ -582,25 +715,28 @@ def _close_assignment_quantity(
 def return_assignment(
     assignment_id: int,
     payload: PpeAssignmentAction,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    return _close_assignment_quantity(assignment_id, payload, action="return", db=db, user=user)
+    return _close_assignment_quantity(assignment_id, payload, action="return", db=db, user=user, request=request)
 
 
 @router.post("/assignments/{assignment_id}/scrap", response_model=PpeAssignmentResponse)
 def scrap_assignment(
     assignment_id: int,
     payload: PpeAssignmentAction,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    return _close_assignment_quantity(assignment_id, payload, action="scrap", db=db, user=user)
+    return _close_assignment_quantity(assignment_id, payload, action="scrap", db=db, user=user, request=request)
 
 
 @router.delete("/assignments/{assignment_id}")
 def delete_assignment(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -611,6 +747,30 @@ def delete_assignment(
         if remaining > 0:
             raise HTTPException(409, "Stok bağlantılı açık zimmet silinemez; önce iade veya fire işlemi yapın.")
     row.deleted_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="ppe_assignment_deleted",
+        module="ppe",
+        entity_type="ppe_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"KKD zimmeti silindi: {row.category} / {row.item_type} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "employee_id": row.employee_id,
+                "category": row.category,
+                "item_type": row.item_type,
+                "quantity": row.quantity,
+                "status": row.status,
+            }
+        ),
+        new_value=serialize_audit_value({"id": row.id, "deleted_at": row.deleted_at}),
+    )
     db.commit()
     return {"ok": True, "id": assignment_id}
 
@@ -618,6 +778,7 @@ def delete_assignment(
 @router.post("/assignments/{assignment_id}/photos", response_model=PpePhotoResponse)
 async def upload_photo(
     assignment_id: int,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
@@ -646,6 +807,22 @@ async def upload_photo(
         content_type=file.content_type or "application/octet-stream",
     )
     db.add(photo)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="ppe_assignment_photo_uploaded",
+        module="ppe",
+        entity_type="ppe_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"KKD zimmet fotoğrafı yüklendi: {name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"assignment_id": row.id, "photo_id": photo.id, "original_name": photo.original_name}
+        ),
+    )
     db.commit()
     db.refresh(photo)
     return PpePhotoResponse.model_validate(photo)

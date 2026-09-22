@@ -5,7 +5,7 @@ import json
 import time
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -14,6 +14,7 @@ from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.core.config import training_question_bank_exam_active
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.models.entities import (
     TrainingExamSnapshot,
     TrainingQuestion,
@@ -288,12 +289,35 @@ def coverage_report(
 @router.post("/questions", response_model=QuestionResponse, status_code=201)
 def create_question(
     payload: QuestionCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*MANAGE)),
 ):
     row = _new_question_row(payload, created_by_id=user.id)
     db.add(row)
     try:
+        db.flush()
+        add_audit_log(
+            db,
+            user=user,
+            action="training_question_created",
+            module="training_question_bank",
+            entity_type="training_question",
+            entity_id=str(row.id),
+            description=f"Soru bankası taslağı oluşturuldu: {row.question_code} v{row.version}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            new_value=serialize_audit_value(
+                {
+                    "id": row.id,
+                    "question_code": row.question_code,
+                    "version": row.version,
+                    "status": row.status,
+                    "topic_code": row.topic_code,
+                    "correct_option": row.correct_option,
+                }
+            ),
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -304,6 +328,7 @@ def create_question(
 @router.post("/imports/questions", response_model=QuestionBulkImportResponse, status_code=201)
 def import_question_drafts(
     payload: QuestionBulkImportRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*MANAGE)),
 ):
@@ -329,6 +354,24 @@ def import_question_drafts(
     rows = [_new_question_row(item, created_by_id=user.id) for item in payload.items]
     db.add_all(rows)
     try:
+        db.flush()
+        add_audit_log(
+            db,
+            user=user,
+            action="training_questions_imported",
+            module="training_question_bank",
+            entity_type="training_question",
+            description=f"Soru bankasına {len(rows)} taslak soru içe aktarıldı.",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            new_value=serialize_audit_value(
+                {
+                    "created": len(rows),
+                    "question_ids": [row.id for row in rows],
+                    "question_codes": [row.question_code for row in rows],
+                }
+            ),
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -340,12 +383,21 @@ def import_question_drafts(
 def update_question(
     question_id: int,
     payload: QuestionUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(*MANAGE)),
+    user: User = Depends(require_roles(*MANAGE)),
 ):
     row = _get_question(db, question_id)
     if row.status not in {"draft", "in_review"}:
         raise HTTPException(409, "Yayımlanmış soru değiştirilemez; yeni bir sürüm oluşturulmalıdır.")
+    old_value = {
+        "id": row.id,
+        "status": row.status,
+        "topic_code": row.topic_code,
+        "topic_label": row.topic_label,
+        "question_text": row.question_text,
+        "correct_option": row.correct_option,
+    }
     values = payload.model_dump(exclude_unset=True, exclude={"options", "scopes", "sources"})
     for key, value in values.items():
         setattr(row, key, value.strip() if isinstance(value, str) else value)
@@ -356,6 +408,29 @@ def update_question(
     if payload.sources is not None:
         _set_sources(row, payload.sources)
     row.status = "draft"
+    add_audit_log(
+        db,
+        user=user,
+        action="training_question_updated",
+        module="training_question_bank",
+        entity_type="training_question",
+        entity_id=str(row.id),
+        description=f"Soru bankası kaydı güncellendi: {row.question_code} v{row.version}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "status": row.status,
+                "topic_code": row.topic_code,
+                "topic_label": row.topic_label,
+                "question_text": row.question_text,
+                "correct_option": row.correct_option,
+                "updated_fields": sorted(set(values) | ({"options"} if payload.options is not None else set())),
+            }
+        ),
+    )
     db.commit()
     return _question_out(_get_question(db, question_id))
 
@@ -363,8 +438,9 @@ def update_question(
 @router.post("/questions/{question_id}/submit", response_model=QuestionResponse)
 def submit_question(
     question_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(*MANAGE)),
+    user: User = Depends(require_roles(*MANAGE)),
 ):
     row = _get_question(db, question_id)
     if row.status != "draft":
@@ -374,6 +450,19 @@ def submit_question(
     except QuestionBankError as exc:
         raise HTTPException(422, str(exc)) from exc
     row.status = "in_review"
+    add_audit_log(
+        db,
+        user=user,
+        action="training_question_submitted",
+        module="training_question_bank",
+        entity_type="training_question",
+        entity_id=str(row.id),
+        description=f"Soru incelemeye gönderildi: {row.question_code} v{row.version}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "status": "draft"}),
+        new_value=serialize_audit_value({"id": row.id, "status": "in_review"}),
+    )
     db.commit()
     return _question_out(_get_question(db, question_id))
 
@@ -381,6 +470,7 @@ def submit_question(
 @router.post("/questions/{question_id}/publish", response_model=QuestionResponse)
 def publish_question(
     question_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*MANAGE)),
 ):
@@ -409,6 +499,28 @@ def publish_question(
     row.reviewed_by_id = user.id
     row.reviewed_at = now
     row.published_at = now
+    add_audit_log(
+        db,
+        user=user,
+        action="training_question_published",
+        module="training_question_bank",
+        entity_type="training_question",
+        entity_id=str(row.id),
+        description=f"Soru yayımlandı: {row.question_code} v{row.version}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "status": "in_review"}),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "status": "published",
+                "question_code": row.question_code,
+                "version": row.version,
+                "reviewed_by_id": row.reviewed_by_id,
+                "retired_previous_ids": [p.id for p in previous_versions],
+            }
+        ),
+    )
     db.commit()
     _invalidate_coverage_cache()
     return _question_out(_get_question(db, question_id))
@@ -417,14 +529,29 @@ def publish_question(
 @router.post("/questions/{question_id}/retire", response_model=QuestionResponse)
 def retire_published_question(
     question_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*MANAGE)),
 ):
     row = _get_question(db, question_id)
+    old_status = row.status
     try:
         retire_question(row, reviewer_id=user.id)
     except QuestionBankError as exc:
         raise HTTPException(409, str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="training_question_retired",
+        module="training_question_bank",
+        entity_type="training_question",
+        entity_id=str(row.id),
+        description=f"Soru kullanımdan kaldırıldı: {row.question_code} v{row.version}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "status": old_status}),
+        new_value=serialize_audit_value({"id": row.id, "status": "retired", "reviewed_by_id": user.id}),
+    )
     db.commit()
     _invalidate_coverage_cache()
     return _question_out(_get_question(db, question_id))
@@ -433,14 +560,34 @@ def retire_published_question(
 @router.delete("/questions/{question_id}")
 def delete_draft_question(
     question_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(*MANAGE)),
+    user: User = Depends(require_roles(*MANAGE)),
 ):
     """Yalnız taslak veya incelemedeki soruyu siler. Yayımlanmış kayıt korunur."""
     row = _get_question(db, question_id)
     if row.status not in {"draft", "in_review"}:
         raise HTTPException(409, "Yayımlanmış veya kaldırılmış soru silinemez. Kullanımdan kaldırın.")
+    snapshot = {
+        "id": row.id,
+        "question_code": row.question_code,
+        "version": row.version,
+        "status": row.status,
+        "topic_code": row.topic_code,
+    }
     db.delete(row)
+    add_audit_log(
+        db,
+        user=user,
+        action="training_question_deleted",
+        module="training_question_bank",
+        entity_type="training_question",
+        entity_id=str(question_id),
+        description=f"Soru taslağı silindi: {snapshot.get('question_code')} v{snapshot.get('version')}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(snapshot),
+    )
     db.commit()
     return {"ok": True, "id": question_id}
 
@@ -492,6 +639,7 @@ def _exam_out(row: TrainingExamSnapshot) -> ExamSnapshotResponse:
 @exam_router.post("/{training_id}/exam-snapshots", response_model=ExamSnapshotResponse, status_code=201)
 def generate_exam_snapshot(
     training_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*GENERATE)),
 ):
@@ -517,6 +665,28 @@ def generate_exam_snapshot(
         db.rollback()
         raise HTTPException(422, {"message": str(exc), "available": exc.counts}) from exc
     payload = _exam_out(row)
+    add_audit_log(
+        db,
+        user=user,
+        action="training_exam_snapshot_created",
+        module="training_question_bank",
+        entity_type="training_exam_snapshot",
+        entity_id=str(row.id),
+        company_id=training.company_id,
+        description=f"Onaylı soru bankasından sınav üretildi: eğitim #{training_id} / {row.question_count} soru",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "training_id": row.training_id,
+                "version": row.version,
+                "question_count": row.question_count,
+                "content_hash": row.content_hash,
+                "selection_policy": row.selection_policy,
+            }
+        ),
+    )
     db.commit()
     return payload
 

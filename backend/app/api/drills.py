@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -17,6 +17,7 @@ from app.api.deps import require_roles, require_roles_or_workplace_manager
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Company, DrillPhoto, DrillRecord, Employee, User, UserRole
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.schemas.drills import (
@@ -155,6 +156,7 @@ def list_drills(
 @router.post("", response_model=DrillResponse)
 def create_drill(
     payload: DrillCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -204,6 +206,34 @@ def create_drill(
         created_by_id=user.id,
     )
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="drill_created",
+        module="drill",
+        entity_type="drill",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Tatbikat kaydı oluşturuldu: {row.drill_type} ({row.drill_date})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "drill_type": row.drill_type,
+                "drill_date": row.drill_date,
+                "start_time": row.start_time,
+                "end_time": row.end_time,
+                "responsible": row.responsible,
+                "participant_count": row.participant_count,
+                "assembly_area": row.assembly_area,
+                "status": row.status,
+                "is_active": row.is_active,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return _to_response(_load(db, row.id))
@@ -212,13 +242,29 @@ def create_drill(
 @router.delete("/{drill_id}")
 def deactivate_drill(
     drill_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, drill_id)
     ensure_company_access(db, user, row.company_id)
+    old_value = {"id": row.id, "drill_type": row.drill_type, "drill_date": row.drill_date, "status": row.status, "is_active": True}
     row.is_active = False
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="drill_deactivated",
+        module="drill",
+        entity_type="drill",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Tatbikat kaydı pasife alındı: {row.drill_type} ({row.drill_date})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value({**old_value, "is_active": False}),
+    )
     db.commit()
     return {"ok": True, "id": drill_id}
 
@@ -226,6 +272,7 @@ def deactivate_drill(
 @router.post("/{drill_id}/photos", response_model=DrillPhotoResponse)
 async def upload_photo(
     drill_id: int,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
@@ -254,6 +301,22 @@ async def upload_photo(
         content_type=file.content_type or "application/octet-stream",
     )
     db.add(photo)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="drill_photo_uploaded",
+        module="drill",
+        entity_type="drill",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Tatbikat fotoğrafı yüklendi: {name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"drill_id": row.id, "photo_id": photo.id, "original_name": photo.original_name}
+        ),
+    )
     db.commit()
     db.refresh(photo)
     return DrillPhotoResponse.model_validate(photo)

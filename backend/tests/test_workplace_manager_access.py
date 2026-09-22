@@ -555,6 +555,7 @@ def test_employee_purge_explains_archived_health_link_not_visible_in_active_list
         json={
             "employee_ids": [seed["own_employee_id"]],
             "company_id": seed["own_company_id"],
+            "reason": "Personel kaydı mükerrer açılmış; resmî bildirim bulunmuyor.",
         },
     )
     assert purge.status_code == 200, purge.text

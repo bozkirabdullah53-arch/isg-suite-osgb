@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -14,6 +14,7 @@ from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Company, DocumentRecord, User, UserRole
 from app.schemas.document import DocumentCreate, DocumentResponse
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Dokümanlar"])
@@ -135,12 +136,40 @@ def list_documents(
 @router.post("", response_model=DocumentResponse)
 def create_document(
     payload: DocumentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     ensure_access(db, user, payload.company_id)
     record = DocumentRecord(**payload.model_dump(), created_by_id=user.id)
     db.add(record)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="document_created",
+        module="document",
+        entity_type="document",
+        entity_id=str(record.id),
+        company_id=record.company_id,
+        description=f"Doküman oluşturuldu: {record.title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": record.id,
+                "company_id": record.company_id,
+                "branch_id": record.branch_id,
+                "category": record.category,
+                "title": record.title,
+                "file_name": record.file_name,
+                "valid_from": record.valid_from,
+                "valid_until": record.valid_until,
+                "version": record.version,
+                "is_active": record.is_active,
+            }
+        ),
+    )
     db.commit()
     db.refresh(record)
     return record
@@ -149,6 +178,7 @@ def create_document(
 @router.patch("/{document_id}/deactivate", response_model=DocumentResponse)
 def deactivate_document(
     document_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -186,6 +216,20 @@ def deactivate_document(
                 exc_info=True,
             )
     record.is_active = False
+    add_audit_log(
+        db,
+        user=user,
+        action="document_deactivated",
+        module="document",
+        entity_type="document",
+        entity_id=str(record.id),
+        company_id=record.company_id,
+        description=f"Doküman pasife alındı: {record.title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": record.id, "title": record.title, "is_active": True}),
+        new_value=serialize_audit_value({"id": record.id, "title": record.title, "is_active": False}),
+    )
     db.commit()
     db.refresh(record)
     return record

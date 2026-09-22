@@ -608,6 +608,7 @@ class AuditLog(Base):
     entity_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     description: Mapped[str | None] = mapped_column(String(1200), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     module: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -942,6 +943,102 @@ class EisaArchiveRecord(Base):
     error_summary: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     schedule_key: Mapped[str | None] = mapped_column(String(120), nullable=True, unique=True)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ChangeRequestStatus(str, enum.Enum):
+    """Değişiklik talebi durum makinesi (İBYS §3-§5)."""
+
+    SUBMITTED = "submitted"
+    VERIFIED = "verified"
+    APPROVED = "approved"
+    APPLIED = "applied"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+
+
+class ChangeRequestType(str, enum.Enum):
+    """Talep edilebilen değişiklik tipleri (İBYS §4)."""
+
+    CORRECTION = "correction"
+    DELETION = "deletion"
+    BULK_TRANSFER = "bulk_transfer"
+    SCHEMA = "schema"
+    TENANT_TRANSFER = "tenant_transfer"
+
+
+class ChangeRequestChannel(str, enum.Enum):
+    PLATFORM = "platform"
+    EMAIL = "email"
+    OFFICIAL_LETTER = "official_letter"
+
+
+class ChangeRequest(Base):
+    """Veri sahibinin değişiklik talebi — kimlik doğrulama, onay ve uygulama akışı."""
+
+    __tablename__ = "change_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_no: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    requested_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    requester_type: Mapped[str] = mapped_column(String(20), nullable=False, default="employer")
+    channel: Mapped[str] = mapped_column(String(20), nullable=False, default="platform")
+    # KVKK md.11 veri sahibi başvurusu (access|rectification|erasure|portability)
+    request_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    identity_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    verification_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    target_entity_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    target_entity_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    field_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_value: Mapped[str] = mapped_column(Text, nullable=False)
+    justification: Mapped[str] = mapped_column(Text, nullable=False)
+    attachment_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="submitted", index=True)
+    verified_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    approved_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    applied_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rejected_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class ChangeRequestEvent(Base):
+    """Değişiklik talebi durum geçiş geçmişi (§5.3)."""
+
+    __tablename__ = "change_request_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    change_request_id: Mapped[int] = mapped_column(
+        ForeignKey("change_requests.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    to_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 

@@ -47,6 +47,7 @@ describe('workplace user policy', () => {
       'documents',
       'eyas_inbox',
       'workplace_backups',
+      'change_requests',
       'site_qr_kiosk',
     ]);
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('companies');
@@ -83,6 +84,7 @@ describe('workplace user policy', () => {
     expect(modules).toContain('health');
     expect(modules).toContain('documents');
     expect(modules).toContain('workplace_backups');
+    expect(modules).toContain('change_requests');
     expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'read_only'})).toBe(null);

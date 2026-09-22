@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,6 +25,7 @@ from app.models.entities import (
     UserRole,
     WorkplaceMembership,
 )
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.memberships import active_company_ids_for_user, active_osgb_ids_for_user
 
 router = APIRouter(prefix="/memberships", tags=["Üyelikler"])
@@ -142,6 +143,7 @@ def list_wp_memberships(
 @router.post("/organization", response_model=OrgMembershipOut)
 def create_org_membership(
     payload: CreateOrgMembership,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -162,6 +164,23 @@ def create_org_membership(
     )
     if existing:
         existing.is_active = True
+        add_audit_log(
+            db,
+            user=user,
+            action="organization_membership_reactivated",
+            module="membership",
+            entity_type="organization_membership",
+            entity_id=str(existing.id),
+            description=f"OSGB üyeliği yeniden etkinleştirildi: kullanıcı #{existing.user_id} / OSGB #{existing.osgb_id}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value(
+                {"id": existing.id, "user_id": existing.user_id, "osgb_id": existing.osgb_id, "role": existing.role, "is_active": False}
+            ),
+            new_value=serialize_audit_value(
+                {"id": existing.id, "user_id": existing.user_id, "osgb_id": existing.osgb_id, "role": existing.role, "is_active": True}
+            ),
+        )
         db.commit()
         db.refresh(existing)
         return existing
@@ -173,6 +192,21 @@ def create_org_membership(
         created_at=datetime.utcnow(),
     )
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="organization_membership_created",
+        module="membership",
+        entity_type="organization_membership",
+        entity_id=str(row.id),
+        description=f"OSGB üyeliği verildi: kullanıcı #{row.user_id} / OSGB #{row.osgb_id} / rol {row.role}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"id": row.id, "user_id": row.user_id, "osgb_id": row.osgb_id, "role": row.role, "is_active": True}
+        ),
+    )
     db.commit()
     db.refresh(row)
     return row
@@ -181,6 +215,7 @@ def create_org_membership(
 @router.post("/workplace", response_model=WpMembershipOut)
 def create_wp_membership(
     payload: CreateWpMembership,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -201,6 +236,24 @@ def create_wp_membership(
     )
     if existing:
         existing.is_active = True
+        add_audit_log(
+            db,
+            user=user,
+            action="workplace_membership_reactivated",
+            module="membership",
+            entity_type="workplace_membership",
+            entity_id=str(existing.id),
+            company_id=existing.company_id,
+            description=f"İşyeri üyeliği yeniden etkinleştirildi: kullanıcı #{existing.user_id} / firma #{existing.company_id}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value(
+                {"id": existing.id, "user_id": existing.user_id, "company_id": existing.company_id, "role": existing.role, "is_active": False}
+            ),
+            new_value=serialize_audit_value(
+                {"id": existing.id, "user_id": existing.user_id, "company_id": existing.company_id, "role": existing.role, "is_active": True}
+            ),
+        )
         db.commit()
         db.refresh(existing)
         return existing
@@ -212,6 +265,22 @@ def create_wp_membership(
         created_at=datetime.utcnow(),
     )
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="workplace_membership_created",
+        module="membership",
+        entity_type="workplace_membership",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"İşyeri üyeliği verildi: kullanıcı #{row.user_id} / firma #{row.company_id} / rol {row.role}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"id": row.id, "user_id": row.user_id, "company_id": row.company_id, "role": row.role, "is_active": True}
+        ),
+    )
     db.commit()
     db.refresh(row)
     return row

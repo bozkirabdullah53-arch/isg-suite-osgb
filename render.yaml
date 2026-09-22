@@ -142,6 +142,32 @@ services:
         sync: false
       - key: BACKUP_ENCRYPTION_FORCE_OFF
         value: "false"
+      # İBYS Yedekleme Prosedürü: günlük tam veritabanı yedeği + offsite kopya.
+      #
+      # GÜVENLİ ROLLOUT (kademeli):
+      #   Aşama 1 (şimdi): BACKUP_REMOTE_ENABLED=true, REQUIRED=false.
+      #     Yedek R2/S3'e yüklenir ve boyut+SHA-256 ile doğrulanır. Kimlik bilgisi
+      #     eksik/erişilemezse uygulama YİNE DE AÇILIR (canlı düşmez) ancak
+      #     global yöneticilere kritik alarm gider ve cron exit 1 döner.
+      #   Aşama 2 (offsite yüklemenin çalıştığı doğrulandıktan sonra):
+      #     BACKUP_REMOTE_REQUIRED=true yapın. O andan itibaren kimlik bilgisi
+      #     eksikse production BAŞLAMAZ (fail-closed).
+      - key: DB_BACKUP_ENABLED
+        value: "true"
+      - key: DB_BACKUP_RETENTION_DAYS
+        value: "30"
+      - key: DB_BACKUP_WEEKLY_RETENTION_WEEKS
+        value: "12"
+      - key: DB_BACKUP_MONTHLY_RETENTION_MONTHS
+        value: "12"
+      - key: BACKUP_REMOTE_ENABLED
+        value: "true"
+      - key: BACKUP_REMOTE_PREFIX
+        value: "db-backups"
+      - key: BACKUP_REMOTE_REQUIRED
+        value: "false"
+      - key: BACKUP_MAX_AGE_HOURS
+        value: "36"
       # F-05 (2026-09-21): ClamAV altyapı kararı bekliyor. Render'da bir clamd
       # servisi kurulup CLAMAV_HOST (sync:false secret slot) doldurulduktan
       # sonra CLAMAV_REQUIRED="true" yapılmalı — fail-closed: host'sız prod
@@ -261,7 +287,7 @@ services:
       - key: EMPLOYEE_SELF_SERVICE_FORCE_OFF
         value: "false"
       - key: WORKPLACE_BACKUPS_ENABLED
-        value: "false"
+        value: "true"
       - key: WORKPLACE_BACKUPS_FORCE_OFF
         value: "false"
       - key: WORKPLACE_BACKUP_RETENTION_DAYS
@@ -271,7 +297,7 @@ services:
       - key: WORKPLACE_BACKUP_CRON_TOKEN
         sync: false
       - key: WORKPLACE_BACKUP_REMOTE_ENABLED
-        value: "false"
+        value: "true"
       - key: WORKPLACE_BACKUP_REMOTE_PREFIX
         value: "workplace-backups"
 
@@ -289,10 +315,126 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.11
       - key: WORKPLACE_BACKUPS_ENABLED
-        value: "false"
+        value: "true"
       - key: WORKPLACE_BACKUP_TRIGGER_URL
         value: https://isg-suite-api-1u9t.onrender.com/api/v1/workplace-backups/internal/run-scheduled
       - key: WORKPLACE_BACKUP_CRON_TOKEN
+        sync: false
+
+  # 22:00 UTC = Türkiye saatiyle 01:00. Tam veritabanı yedeği (pg_dump) üretir,
+  # şifreler, R2/S3 offsite kopyasını doğrular ve GFS retention uygular.
+  - type: cron
+    name: isg-suite-db-backup-nightly
+    runtime: python
+    rootDir: backend
+    schedule: "0 22 * * *"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m scripts.backup_database
+    branch: master
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: isg-suite-db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      - key: DB_BACKUP_ENABLED
+        value: "true"
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_ENCRYPTION_FORCE_OFF
+        value: "false"
+      - key: BACKUP_REMOTE_ENABLED
+        value: "true"
+      - key: BACKUP_REMOTE_PREFIX
+        value: "db-backups"
+      # Aşama 2'de "true" yapılır (yukarıdaki rollout notuna bakın).
+      - key: BACKUP_REMOTE_REQUIRED
+        value: "false"
+      - key: OBJECT_STORAGE_BUCKET
+        sync: false
+      - key: OBJECT_STORAGE_ENDPOINT
+        sync: false
+      - key: OBJECT_STORAGE_REGION
+        sync: false
+      - key: OBJECT_STORAGE_ACCESS_KEY
+        sync: false
+      - key: OBJECT_STORAGE_SECRET_KEY
+        sync: false
+
+  # Aylık gerçek yedekle geri yükleme tatbikatı (her ayın 15'i, 21:00 UTC).
+  - type: cron
+    name: isg-suite-backup-restore-drill-monthly
+    runtime: python
+    rootDir: backend
+    schedule: "0 21 15 * *"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m scripts.backup_restore_drill --out docs/qa/logs/backup-restore-drill.json --latest
+    branch: master
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        sync: false
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_RESTORE_ENABLED
+        value: "false"
+
+  # Haftalık yedek bütünlük taraması (Pazar 20:00 UTC). Bozuk yedek bulunursa
+  # global yöneticilere kritik bildirim gönderir.
+  - type: cron
+    name: isg-suite-backup-integrity-weekly
+    runtime: python
+    rootDir: backend
+    schedule: "0 20 * * 0"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m scripts.backup_key_rotation --out docs/qa/logs/backup-integrity.json
+    branch: master
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: isg-suite-db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: BACKUP_DIR
+        value: /var/data/backups
+
+  # Günlük denetim zinciri doğrulaması (21:30 UTC = 00:30 TR). Zincir bozuksa
+  # exit 1 döner ve global yöneticilere kritik bildirim gönderir.
+  - type: cron
+    name: isg-suite-audit-chain-verify-daily
+    runtime: python
+    rootDir: backend
+    schedule: "30 21 * * *"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m scripts.audit_chain_verify --out docs/qa/logs/audit-chain-verify.json
+    branch: master
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: isg-suite-db
+          property: connectionString
+      - key: SECRET_KEY
         sync: false
 
   - type: cron
@@ -376,7 +518,7 @@ services:
       - key: VITE_EMPLOYEE_SELF_SERVICE_V1
         value: "true"
       - key: VITE_WORKPLACE_BACKUPS_ENABLED
-        value: "false"
+        value: "true"
     routes:
       - type: rewrite
         source: /api/*

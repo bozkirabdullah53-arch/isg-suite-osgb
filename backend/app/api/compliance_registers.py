@@ -7,7 +7,7 @@ from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -65,6 +65,7 @@ from app.services.emergency_plan_compliance import (
     support_team_threshold,
 )
 from app.services.emergency_plan_pdf import build_emergency_plan_pdf
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 
@@ -212,6 +213,7 @@ def export_pc(
 @pc_router.post("", response_model=PeriodicControlResponse)
 def create_pc(
     payload: PeriodicControlCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
@@ -220,6 +222,31 @@ def create_pc(
         raise HTTPException(422, "Geçersiz kategori.")
     row = PeriodicControl(**payload.model_dump(), created_by_id=user.id)
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="periodic_control_created",
+        module="compliance",
+        entity_type="periodic_control",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Periyodik kontrol kaydı oluşturuldu: {row.equipment_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "category": row.category,
+                "equipment_name": row.equipment_name,
+                "serial_no": row.serial_no,
+                "last_control_date": row.last_control_date,
+                "next_due_date": row.next_due_date,
+                "result": row.result,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     resp = PeriodicControlResponse.model_validate(row)
@@ -231,6 +258,7 @@ def create_pc(
 def update_pc(
     item_id: int,
     payload: PeriodicControlUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
@@ -238,9 +266,25 @@ def update_pc(
     if not row:
         raise HTTPException(404, "Kayıt bulunamadı.")
     ensure_company_access(db, user, row.company_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    old_value = {k: getattr(row, k, None) for k in data}
+    for k, v in data.items():
         setattr(row, k, v)
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="periodic_control_updated",
+        module="compliance",
+        entity_type="periodic_control",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Periyodik kontrol kaydı güncellendi: {row.equipment_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, **old_value}),
+        new_value=serialize_audit_value({"id": row.id, **{k: getattr(row, k, None) for k in data}}),
+    )
     db.commit()
     db.refresh(row)
     resp = PeriodicControlResponse.model_validate(row)
@@ -511,6 +555,7 @@ def list_ep(
 @ep_router.post("", response_model=EmergencyPlanResponse)
 def create_ep(
     payload: EmergencyPlanCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -534,6 +579,29 @@ def create_ep(
             width=1600,
             height=1000,
         )
+    )
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_created",
+        module="compliance",
+        entity_type="emergency_plan",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum planı oluşturuldu: {row.title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "title": row.title,
+                "revision_no": row.revision_no,
+                "plan_date": row.plan_date,
+                "next_review_date": row.next_review_date,
+                "status": row.status,
+            }
+        ),
     )
     db.commit()
     db.refresh(row)
@@ -573,6 +641,7 @@ def export_ep(
 def update_ep(
     item_id: int,
     payload: EmergencyPlanUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -583,9 +652,24 @@ def update_ep(
     if "details" in data:
         details = normalize_plan_details(data.pop("details"))
         row.plan_details_json = json.dumps(details, ensure_ascii=False, separators=(",", ":"))
+    old_value = {k: getattr(row, k, None) for k in data}
     for k, v in data.items():
         setattr(row, k, v)
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_updated",
+        module="compliance",
+        entity_type="emergency_plan",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum planı güncellendi: {row.title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, **old_value}),
+        new_value=serialize_audit_value({"id": row.id, **{k: getattr(row, k, None) for k in data}}),
+    )
     db.commit()
     db.refresh(row)
     return _ep_enrich(db, row)
@@ -594,13 +678,29 @@ def update_ep(
 @ep_router.delete("/{item_id}")
 def delete_ep(
     item_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
     """Plan kaydını soft-delete (listeden düşer; kat/kroki dosyaları yerinde kalır)."""
     row = _get_plan(db, item_id, user)
+    old_value = {"id": row.id, "company_id": row.company_id, "title": row.title, "is_active": True}
     row.is_active = False
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_deleted",
+        module="compliance",
+        entity_type="emergency_plan",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum planı silindi: {row.title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value({**old_value, "is_active": False}),
+    )
     db.commit()
     return {"ok": True}
 
@@ -608,12 +708,27 @@ def delete_ep(
 @ep_router.post("/{item_id}/lock", response_model=EmergencyPlanResponse)
 def lock_ep(
     item_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
     row = _get_plan(db, item_id, user)
     row.locked_at = datetime.utcnow()
     row.updated_at = row.locked_at
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_locked",
+        module="compliance",
+        entity_type="emergency_plan",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum planı kilitlendi: {row.title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "locked_at": None}),
+        new_value=serialize_audit_value({"id": row.id, "locked_at": row.locked_at}),
+    )
     db.commit()
     db.refresh(row)
     return _ep_enrich(db, row)
@@ -622,12 +737,28 @@ def lock_ep(
 @ep_router.post("/{item_id}/unlock", response_model=EmergencyPlanResponse)
 def unlock_ep(
     item_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
     row = _get_plan(db, item_id, user)
+    old_locked_at = row.locked_at
     row.locked_at = None
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_unlocked",
+        module="compliance",
+        entity_type="emergency_plan",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum planı kilidi açıldı: {row.title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "locked_at": old_locked_at}),
+        new_value=serialize_audit_value({"id": row.id, "locked_at": None}),
+    )
     db.commit()
     db.refresh(row)
     return _ep_enrich(db, row)
@@ -636,6 +767,7 @@ def unlock_ep(
 @ep_router.post("/{item_id}/kroki", response_model=EmergencyPlanResponse)
 async def upload_kroki(
     item_id: int,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
@@ -654,9 +786,24 @@ async def upload_kroki(
         target = Path(settings.upload_dir) / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
+    old_name = row.kroki_file_name
     row.kroki_file_name = name
     row.kroki_storage_path = rel.replace("\\", "/")
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_kroki_uploaded",
+        module="compliance",
+        entity_type="emergency_plan",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum planı krokisi yüklendi: {name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "kroki_file_name": old_name}),
+        new_value=serialize_audit_value({"id": row.id, "kroki_file_name": row.kroki_file_name}),
+    )
     db.commit()
     db.refresh(row)
     return _ep_enrich(db, row)
@@ -683,6 +830,7 @@ def list_floors(
 def create_floor(
     item_id: int,
     payload: EmergencyFloorCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -704,6 +852,22 @@ def create_floor(
     )
     db.add(fl)
     plan.updated_at = datetime.utcnow()
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_floor_created",
+        module="compliance",
+        entity_type="emergency_plan_floor",
+        entity_id=str(fl.id),
+        company_id=fl.company_id,
+        description=f"Acil durum planı katı eklendi: {fl.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"id": fl.id, "plan_id": fl.plan_id, "company_id": fl.company_id, "name": fl.name, "sort_order": fl.sort_order}
+        ),
+    )
     db.commit()
     db.refresh(fl)
     return EmergencyFloorResponse.model_validate(fl)
@@ -714,6 +878,7 @@ def update_floor(
     item_id: int,
     floor_id: int,
     payload: EmergencyFloorUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -724,10 +889,25 @@ def update_floor(
     if "scene_json" in data and data["scene_json"] is not None:
         parsed = _parse_scene(data["scene_json"])
         data["scene_json"] = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+    old_value = {k: getattr(fl, k, None) for k in data}
     for k, v in data.items():
         setattr(fl, k, v)
     fl.updated_at = datetime.utcnow()
     plan.updated_at = fl.updated_at
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_floor_updated",
+        module="compliance",
+        entity_type="emergency_plan_floor",
+        entity_id=str(fl.id),
+        company_id=fl.company_id,
+        description=f"Acil durum planı katı güncellendi: {fl.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": fl.id, **old_value}),
+        new_value=serialize_audit_value({"id": fl.id, **{k: getattr(fl, k, None) for k in data}}),
+    )
     db.commit()
     db.refresh(fl)
     return EmergencyFloorResponse.model_validate(fl)
@@ -737,6 +917,7 @@ def update_floor(
 def delete_floor(
     item_id: int,
     floor_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -748,8 +929,22 @@ def delete_floor(
     ) or 0
     if n <= 1:
         raise HTTPException(409, "Son kat silinemez.")
+    snapshot = {"id": fl.id, "plan_id": fl.plan_id, "company_id": fl.company_id, "name": fl.name}
     db.delete(fl)
     plan.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_floor_deleted",
+        module="compliance",
+        entity_type="emergency_plan_floor",
+        entity_id=str(floor_id),
+        company_id=snapshot.get("company_id"),
+        description=f"Acil durum planı katı silindi: {snapshot.get('name')}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(snapshot),
+    )
     db.commit()
     return {"ok": True}
 
@@ -758,6 +953,7 @@ def delete_floor(
 async def upload_floor_background(
     item_id: int,
     floor_id: int,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
@@ -780,10 +976,25 @@ async def upload_floor_background(
         target = Path(settings.upload_dir) / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
+    old_name = fl.background_file_name
     fl.background_file_name = name
     fl.background_storage_path = rel.replace("\\", "/")
     fl.updated_at = datetime.utcnow()
     plan.updated_at = fl.updated_at
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_plan_floor_background_uploaded",
+        module="compliance",
+        entity_type="emergency_plan_floor",
+        entity_id=str(fl.id),
+        company_id=fl.company_id,
+        description=f"Acil durum planı kat arka planı yüklendi: {name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": fl.id, "background_file_name": old_name}),
+        new_value=serialize_audit_value({"id": fl.id, "background_file_name": fl.background_file_name}),
+    )
     db.commit()
     db.refresh(fl)
     return EmergencyFloorResponse.model_validate(fl)
@@ -812,12 +1023,13 @@ def get_floor_background(
 @ep_router.post("/{item_id}/export-poster", response_model=EmergencyPlanResponse)
 async def export_poster(
     item_id: int,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
     """Editörden üretilen PNG/PDF posteri — kroki_* alanına yazar."""
-    return await upload_kroki(item_id=item_id, file=file, db=db, user=user)
+    return await upload_kroki(item_id=item_id, request=request, file=file, db=db, user=user)
 
 
 @ep_router.get("/{item_id}/export.pdf")
@@ -1071,6 +1283,7 @@ def list_wm(
 @wm_router.post("", response_model=MeasurementResponse)
 def create_wm(
     payload: MeasurementCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
@@ -1079,6 +1292,31 @@ def create_wm(
         raise HTTPException(422, "Geçersiz ölçüm türü.")
     row = WorkplaceMeasurement(**payload.model_dump(), created_by_id=user.id)
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="workplace_measurement_created",
+        module="compliance",
+        entity_type="workplace_measurement",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Ortam ölçümü oluşturuldu: {row.measurement_type} ({row.measured_at})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "measurement_type": row.measurement_type,
+                "location": row.location,
+                "measured_at": row.measured_at,
+                "value": row.value,
+                "unit": row.unit,
+                "next_due_date": row.next_due_date,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     resp = MeasurementResponse.model_validate(row)
@@ -1090,6 +1328,7 @@ def create_wm(
 def update_wm(
     item_id: int,
     payload: MeasurementUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
@@ -1097,9 +1336,25 @@ def update_wm(
     if not row:
         raise HTTPException(404, "Ölçüm bulunamadı.")
     ensure_company_access(db, user, row.company_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    old_value = {k: getattr(row, k, None) for k in data}
+    for k, v in data.items():
         setattr(row, k, v)
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="workplace_measurement_updated",
+        module="compliance",
+        entity_type="workplace_measurement",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Ortam ölçümü güncellendi: {row.measurement_type} ({row.measured_at})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, **old_value}),
+        new_value=serialize_audit_value({"id": row.id, **{k: getattr(row, k, None) for k in data}}),
+    )
     db.commit()
     db.refresh(row)
     resp = MeasurementResponse.model_validate(row)
@@ -1160,6 +1415,7 @@ def list_members(
 @oc_router.post("/members", response_model=CommitteeMemberResponse)
 def create_member(
     payload: CommitteeMemberCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -1168,6 +1424,29 @@ def create_member(
         raise HTTPException(422, "Geçersiz kurul rolü.")
     row = OhsCommitteeMember(**payload.model_dump(), created_by_id=user.id)
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="ohs_committee_member_created",
+        module="compliance",
+        entity_type="ohs_committee_member",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"İSG kurulu üyesi eklendi: {row.full_name} ({row.role_code})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "role_code": row.role_code,
+                "full_name": row.full_name,
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return row
@@ -1176,6 +1455,7 @@ def create_member(
 @oc_router.delete("/members/{item_id}")
 def deactivate_member(
     item_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -1183,7 +1463,22 @@ def deactivate_member(
     if not row:
         raise HTTPException(404, "Üye bulunamadı.")
     ensure_company_access(db, user, row.company_id)
+    old_value = {"id": row.id, "company_id": row.company_id, "full_name": row.full_name, "role_code": row.role_code, "is_active": True}
     row.is_active = False
+    add_audit_log(
+        db,
+        user=user,
+        action="ohs_committee_member_deactivated",
+        module="compliance",
+        entity_type="ohs_committee_member",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"İSG kurulu üyesi pasife alındı: {row.full_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value({**old_value, "is_active": False}),
+    )
     db.commit()
     return {"ok": True}
 
@@ -1210,12 +1505,35 @@ def list_meetings(
 @oc_router.post("/meetings", response_model=CommitteeMeetingResponse)
 def create_meeting(
     payload: CommitteeMeetingCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
     ensure_company_access(db, user, payload.company_id)
     row = OhsCommitteeMeeting(**payload.model_dump(), created_by_id=user.id)
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="ohs_committee_meeting_created",
+        module="compliance",
+        entity_type="ohs_committee_meeting",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"İSG kurulu toplantısı eklendi: {row.meeting_date}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "meeting_date": row.meeting_date,
+                "next_meeting_date": row.next_meeting_date,
+                "attendees": row.attendees,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return row
@@ -1285,12 +1603,36 @@ def list_approvals(
 @da_router.post("", response_model=DocumentApprovalResponse)
 def create_approval(
     payload: DocumentApprovalCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
     ensure_company_access(db, user, payload.company_id)
     row = DocumentApproval(**payload.model_dump(), created_by_id=user.id)
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="document_approval_created",
+        module="compliance",
+        entity_type="document_approval",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Belge onay kaydı oluşturuldu: {row.document_title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "document_title": row.document_title,
+                "document_kind": row.document_kind,
+                "approver_name": row.approver_name,
+                "status": row.status,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return row
@@ -1299,6 +1641,7 @@ def create_approval(
 @da_router.post("/{item_id}/approve", response_model=DocumentApprovalResponse)
 def mark_approved(
     item_id: int,
+    request: Request,
     signature_note: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
@@ -1307,12 +1650,28 @@ def mark_approved(
     if not row:
         raise HTTPException(404, "Onay kaydı bulunamadı.")
     ensure_company_access(db, user, row.company_id)
+    old_status = row.status
+    old_approved_at = row.approved_at
     row.status = "Onaylandı"
     row.approved_at = date.today()
     if signature_note:
         row.signature_note = signature_note
     elif not row.signature_note:
         row.signature_note = f"Uygulama içi onay — {user.full_name} ({datetime.utcnow():%d.%m.%Y})"
+    add_audit_log(
+        db,
+        user=user,
+        action="document_approval_approved",
+        module="compliance",
+        entity_type="document_approval",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Belge onaylandı: {row.document_title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "status": old_status, "approved_at": old_approved_at}),
+        new_value=serialize_audit_value({"id": row.id, "status": row.status, "approved_at": row.approved_at}),
+    )
     db.commit()
     db.refresh(row)
     return row
@@ -1322,6 +1681,7 @@ def mark_approved(
 def record_local_sign(
     item_id: int,
     payload: dict,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -1330,6 +1690,7 @@ def record_local_sign(
     if not row:
         raise HTTPException(404, "Onay kaydı bulunamadı.")
     ensure_company_access(db, user, row.company_id)
+    old_status = row.status
     sha = str(payload.get("sha256") or "").strip()[:64]
     signer_cn = str((payload.get("signer") or {}).get("common_name") or payload.get("signer_cn") or "").strip()[:160]
     mode = str(payload.get("mode") or "").strip()[:40]
@@ -1343,6 +1704,29 @@ def record_local_sign(
     if payload.get("mark_approved", True):
         row.status = "Onaylandı"
         row.approved_at = date.today()
+    add_audit_log(
+        db,
+        user=user,
+        action="document_approval_locally_signed",
+        module="compliance",
+        entity_type="document_approval",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Belge yerel e-imza sonucu işlendi: {row.document_title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "status": old_status}),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "status": row.status,
+                "approved_at": row.approved_at,
+                "sha256": sha,
+                "signer_cn": signer_cn,
+                "mode": mode,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return row
@@ -1351,6 +1735,7 @@ def record_local_sign(
 @da_router.delete("/{item_id}")
 def deactivate_approval(
     item_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
@@ -1359,6 +1744,21 @@ def deactivate_approval(
     if not row or not row.is_active:
         raise HTTPException(404, "Onay kaydı bulunamadı.")
     ensure_company_access(db, user, row.company_id)
+    old_value = {"id": row.id, "company_id": row.company_id, "document_title": row.document_title, "status": row.status, "is_active": True}
     row.is_active = False
+    add_audit_log(
+        db,
+        user=user,
+        action="document_approval_deactivated",
+        module="compliance",
+        entity_type="document_approval",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Belge onay kaydı pasife alındı: {row.document_title}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value({**old_value, "is_active": False}),
+    )
     db.commit()
     return {"ok": True}

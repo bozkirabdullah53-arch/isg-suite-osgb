@@ -2,7 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +22,7 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
                               ProfessionalCreate, ProfessionalCreateResponse, ProfessionalLoginAccount,
                               ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_admin import provision_professional_login
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.services.osgb_oversight import (
@@ -151,11 +152,26 @@ def list_osgb(db: Session = Depends(get_db), user: User = Depends(get_current_us
     return [_osgb_to_response(x) for x in db.scalars(stmt).all()]
 
 @router.post("", response_model=OsgbResponse)
-def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN))):
+def create_osgb(payload: OsgbCreate, request: Request, db: Session = Depends(get_db), _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN))):
     if db.scalar(select(OsgbOrganization).where(OsgbOrganization.name == payload.name)):
         raise HTTPException(409, "Bu OSGB zaten kayıtlı.")
     obj = OsgbOrganization(**payload.model_dump())
-    db.add(obj); db.commit(); db.refresh(obj)
+    db.add(obj); db.flush()
+    add_audit_log(
+        db,
+        user=_,
+        action="osgb_created",
+        module="osgb",
+        entity_type="osgb",
+        entity_id=str(obj.id),
+        description=f"OSGB oluşturuldu: {obj.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"id": obj.id, "name": obj.name, "authorization_number": obj.authorization_number, "tax_number": obj.tax_number}
+        ),
+    )
+    db.commit(); db.refresh(obj)
     return _osgb_to_response(obj)
 
 
@@ -163,6 +179,7 @@ def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = De
 def update_osgb(
     osgb_id: int,
     payload: OsgbUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -175,10 +192,25 @@ def update_osgb(
     if "name" in data and data["name"] != obj.name:
         if db.scalar(select(OsgbOrganization).where(OsgbOrganization.name == data["name"], OsgbOrganization.id != osgb_id)):
             raise HTTPException(409, "Bu OSGB adı zaten kayıtlı.")
+    old_value = {k: getattr(obj, k, None) for k in data}
     for k, v in data.items():
         if isinstance(v, str):
             v = v.strip() or None
         setattr(obj, k, v)
+    new_value = {k: getattr(obj, k, None) for k in data}
+    add_audit_log(
+        db,
+        user=user,
+        action="osgb_updated",
+        module="osgb",
+        entity_type="osgb",
+        entity_id=str(obj.id),
+        description=f"OSGB güncellendi: {obj.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, **old_value}),
+        new_value=serialize_audit_value({"id": obj.id, **new_value}),
+    )
     db.commit()
     db.refresh(obj)
     return obj
@@ -220,6 +252,7 @@ def osgb_capacity(
 @router.post("/assignments/{assignment_id}/sync-required")
 def sync_assignment_required_minutes(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -229,6 +262,7 @@ def sync_assignment_required_minutes(
         raise HTTPException(404, "Görevlendirme bulunamadı.")
     if user.role == UserRole.COMPANY_ADMIN and user.osgb_id != obj.osgb_id:
         raise HTTPException(403, "Bu görevlendirmeyi güncelleyemezsiniz.")
+    old_required = obj.required_minutes_monthly
     try:
         legal = sync_assignment_required(db, obj, commit=False)
         if obj.status == AssignmentStatus.ACTIVE:
@@ -238,6 +272,20 @@ def sync_assignment_required_minutes(
                 planned_minutes=obj.planned_minutes_monthly,
                 exclude_assignment_id=obj.id,
             )
+        add_audit_log(
+            db,
+            user=user,
+            action="assignment_required_minutes_synced",
+            module="assignment",
+            entity_type="workplace_assignment",
+            entity_id=str(obj.id),
+            company_id=obj.company_id,
+            description=f"Görevlendirme zorunlu aylık süresi mevzuata göre güncellendi: {legal} dk",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value({"id": obj.id, "required_minutes_monthly": old_required}),
+            new_value=serialize_audit_value({"id": obj.id, "required_minutes_monthly": legal}),
+        )
         db.commit()
         db.refresh(obj)
     except HTTPException:
@@ -252,6 +300,7 @@ def sync_assignment_required_minutes(
 
 @router.post("/capacity/sync-all-required")
 def sync_all_required_minutes(
+    request: Request,
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
@@ -271,6 +320,7 @@ def sync_all_required_minutes(
         a = db.get(WorkplaceAssignment, assignment_id)
         if not a:
             continue
+        old_required = a.required_minutes_monthly
         try:
             sync_assignment_required(db, a, commit=False)
             _enforce_assignment_capacity(
@@ -278,6 +328,20 @@ def sync_all_required_minutes(
                 professional_id=a.professional_id,
                 planned_minutes=a.planned_minutes_monthly,
                 exclude_assignment_id=a.id,
+            )
+            add_audit_log(
+                db,
+                user=user,
+                action="assignment_required_minutes_synced",
+                module="assignment",
+                entity_type="workplace_assignment",
+                entity_id=str(a.id),
+                company_id=a.company_id,
+                description="Toplu görevlendirme zorunlu aylık süre güncellemesi (mevzuat tablosu).",
+                ip_address=request_ip(request),
+                user_agent=request_user_agent(request),
+                old_value=serialize_audit_value({"id": a.id, "required_minutes_monthly": old_required}),
+                new_value=serialize_audit_value({"id": a.id, "required_minutes_monthly": a.required_minutes_monthly}),
             )
             db.commit()
             updated += 1
@@ -298,22 +362,36 @@ def sync_all_required_minutes(
 
 @router.post("/oversight/seed-demo")
 def osgb_oversight_seed_demo(
+    request: Request,
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
     """Test uzman / hekim / DSP + kasıtlı eksiklikler oluşturur."""
-    _ = user
     try:
         seeded = seed_oversight_demo(db, osgb_id=osgb_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="osgb_oversight_demo_seeded",
+        module="osgb",
+        entity_type="osgb",
+        entity_id=str(seeded.get("osgb_id")),
+        description="OSGB denetim paneli demo verisi oluşturuldu.",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(seeded),
+    )
+    db.commit()
     overview = build_oversight(db, osgb_id=seeded["osgb_id"])
     return {"seeded": seeded, "oversight_summary": overview.get("summary"), "gap_count": overview.get("gap_count")}
 
 
 @router.post("/sync-field-roles")
 def sync_field_roles(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -324,10 +402,25 @@ def sync_field_roles(
     from app.api.company_access import sync_all_assigned_field_roles
 
     if user.role == UserRole.GLOBAL_ADMIN:
-        return {"ok": True, **sync_all_assigned_field_roles(db)}
-    if not user.osgb_id:
-        raise HTTPException(400, "OSGB bağlantısı bulunamadı.")
-    return {"ok": True, **sync_all_assigned_field_roles(db, osgb_id=user.osgb_id)}
+        result = sync_all_assigned_field_roles(db)
+    else:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB bağlantısı bulunamadı.")
+        result = sync_all_assigned_field_roles(db, osgb_id=user.osgb_id)
+    add_audit_log(
+        db,
+        user=user,
+        action="field_roles_synced",
+        module="osgb",
+        entity_type="user_role_sync",
+        entity_id=str(user.osgb_id) if user.osgb_id else None,
+        description="Görevlendirmelere göre saha kullanıcı rolleri eşitlendi.",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(result),
+    )
+    db.commit()
+    return {"ok": True, **result}
 
 
 @router.get("/csgb-audit-pack")
@@ -496,6 +589,7 @@ def integrations_status(
 @router.post("/integrations/{adapter}/dry-run")
 def integrations_dry_run(
     adapter: str,
+    request: Request,
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
@@ -511,9 +605,23 @@ def integrations_dry_run(
     elif osgb_id is not None:
         _scope_osgb(user, osgb_id)
     try:
-        return run_dry_export(db, adapter=key, user=user, osgb_id=osgb_id)
+        result = run_dry_export(db, adapter=key, user=user, osgb_id=osgb_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="integration_dry_run",
+        module="integration",
+        entity_type=key,
+        entity_id=str(osgb_id) if osgb_id else None,
+        description=f"{key.upper()} dry-run export çalıştırıldı (harici gönderim yok).",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(result),
+    )
+    db.commit()
+    return result
 
 
 @router.post("/integrations/{adapter}/probe")
@@ -535,6 +643,7 @@ def integrations_probe(
 @router.post("/integrations/{adapter}/live-send")
 def integrations_live_send(
     adapter: str,
+    request: Request,
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
@@ -550,9 +659,23 @@ def integrations_live_send(
     elif osgb_id is not None:
         _scope_osgb(user, osgb_id)
     try:
-        return run_live_send(db, adapter=key, user=user, osgb_id=osgb_id)
+        result = run_live_send(db, adapter=key, user=user, osgb_id=osgb_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="integration_live_send",
+        module="integration",
+        entity_type=key,
+        entity_id=str(osgb_id) if osgb_id else None,
+        description=f"{key.upper()} canlı gönderim çalıştırıldı.",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(result),
+    )
+    db.commit()
+    return result
 
 
 @router.get("/ibys-export")
@@ -675,13 +798,37 @@ def list_professionals(osgb_id: int | None = None, db: Session = Depends(get_db)
     return [_professional_to_response(x) for x in db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == target).order_by(IsgProfessional.full_name)).all()]
 
 @router.post("/professionals", response_model=ProfessionalCreateResponse)
-def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+def create_professional(payload: ProfessionalCreate, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     _scope_osgb(user, payload.osgb_id)
     obj = IsgProfessional(**payload.model_dump())
     db.add(obj)
     db.flush()
     wp_user, temp_password, created = provision_professional_login(db, obj)
     link_user_to_professional(db, obj)
+    add_audit_log(
+        db,
+        user=user,
+        action="professional_created",
+        module="osgb",
+        entity_type="isg_professional",
+        entity_id=str(obj.id),
+        description=f"Profesyonel oluşturuldu: {obj.full_name} ({obj.professional_type})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": obj.id,
+                "osgb_id": obj.osgb_id,
+                "full_name": obj.full_name,
+                "professional_type": obj.professional_type,
+                "certificate_number": obj.certificate_number,
+                "certificate_class": obj.certificate_class,
+                "is_active": obj.is_active,
+                "login_user_id": getattr(wp_user, "id", None),
+                "login_created": created,
+            }
+        ),
+    )
     db.commit()
     db.refresh(obj)
     safe_prof = _professional_to_response(obj)
@@ -703,24 +850,50 @@ def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_d
 
 
 @router.patch("/professionals/{professional_id}/suspend")
-def suspend_professional(professional_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+def suspend_professional(professional_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     obj = db.get(IsgProfessional, professional_id)
     if not obj:
         raise HTTPException(404, "Profesyonel bulunamadı.")
     _scope_osgb(user, obj.osgb_id)
     obj.is_active = False
+    add_audit_log(
+        db,
+        user=user,
+        action="professional_suspended",
+        module="osgb",
+        entity_type="isg_professional",
+        entity_id=str(obj.id),
+        description=f"Profesyonel askıya alındı: {obj.full_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, "full_name": obj.full_name, "is_active": True}),
+        new_value=serialize_audit_value({"id": obj.id, "full_name": obj.full_name, "is_active": False}),
+    )
     db.commit()
     return {"ok": True, "id": professional_id, "is_active": False, "message": "Profesyonel askıya alındı."}
 
 
 @router.patch("/professionals/{professional_id}/activate")
-def activate_professional(professional_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+def activate_professional(professional_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     obj = db.get(IsgProfessional, professional_id)
     if not obj:
         raise HTTPException(404, "Profesyonel bulunamadı.")
     _scope_osgb(user, obj.osgb_id)
     obj.is_active = True
     link_user_to_professional(db, obj)
+    add_audit_log(
+        db,
+        user=user,
+        action="professional_activated",
+        module="osgb",
+        entity_type="isg_professional",
+        entity_id=str(obj.id),
+        description=f"Profesyonel aktifleştirildi: {obj.full_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, "full_name": obj.full_name, "is_active": False}),
+        new_value=serialize_audit_value({"id": obj.id, "full_name": obj.full_name, "is_active": True}),
+    )
     db.commit()
     return {"ok": True, "id": professional_id, "is_active": True, "message": "Profesyonel aktifleştirildi."}
 
@@ -729,6 +902,7 @@ def activate_professional(professional_id: int, db: Session = Depends(get_db), u
 def update_professional(
     professional_id: int,
     payload: ProfessionalUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -736,16 +910,31 @@ def update_professional(
     if not obj:
         raise HTTPException(404, "Profesyonel bulunamadı.")
     _scope_osgb(user, obj.osgb_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    old_value = {k: getattr(obj, k, None) for k in data}
+    for k, v in data.items():
         setattr(obj, k, v)
     link_user_to_professional(db, obj)
+    add_audit_log(
+        db,
+        user=user,
+        action="professional_updated",
+        module="osgb",
+        entity_type="isg_professional",
+        entity_id=str(obj.id),
+        description=f"Profesyonel güncellendi: {obj.full_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, **old_value}),
+        new_value=serialize_audit_value({"id": obj.id, **{k: getattr(obj, k, None) for k in data}}),
+    )
     db.commit()
     db.refresh(obj)
     return _professional_to_response(obj)
 
 
 @router.delete("/professionals/{professional_id}")
-def delete_professional(professional_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+def delete_professional(professional_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     obj = db.get(IsgProfessional, professional_id)
     if not obj:
         raise HTTPException(404, "Profesyonel bulunamadı.")
@@ -761,13 +950,39 @@ def delete_professional(professional_id: int, db: Session = Depends(get_db), use
             400,
             "Aktif görevlendirmesi olan profesyonel silinemez. Önce görevlendirmeleri sonlandırın veya askıya alın.",
         )
+    snapshot = {"id": obj.id, "osgb_id": obj.osgb_id, "full_name": obj.full_name, "professional_type": obj.professional_type, "is_active": obj.is_active}
     try:
         db.delete(obj)
+        add_audit_log(
+            db,
+            user=user,
+            action="professional_deleted",
+            module="osgb",
+            entity_type="isg_professional",
+            entity_id=str(professional_id),
+            description=f"Profesyonel silindi: {snapshot.get('full_name')}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value(snapshot),
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
         # Geçmiş ziyaret/görevlendirme varsa soft-delete
         obj.is_active = False
+        add_audit_log(
+            db,
+            user=user,
+            action="professional_soft_deleted",
+            module="osgb",
+            entity_type="isg_professional",
+            entity_id=str(professional_id),
+            description="Bağlı kayıtlar nedeniyle profesyonel kalıcı silinemedi; askıya alındı.",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value(snapshot),
+            new_value=serialize_audit_value({**snapshot, "is_active": False, "soft_deleted": True}),
+        )
         db.commit()
         return {
             "ok": True,
@@ -825,7 +1040,7 @@ def _get_assignment(db: Session, assignment_id: int, user: User) -> WorkplaceAss
 
 
 @router.post("/assignments", response_model=AssignmentResponse)
-def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+def create_assignment(payload: AssignmentCreate, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     _scope_osgb(user, payload.osgb_id)
     katip = (payload.isg_katip_contract_number or "").strip()
     if not katip:
@@ -882,6 +1097,36 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
                 planned_minutes=existing.planned_minutes_monthly,
                 exclude_assignment_id=existing.id,
             )
+            add_audit_log(
+                db,
+                user=user,
+                action="assignment_reactivated",
+                module="assignment",
+                entity_type="workplace_assignment",
+                entity_id=str(existing.id),
+                company_id=existing.company_id,
+                description=(
+                    f"Görevlendirme yeniden aktifleştirildi: firma #{existing.company_id} / "
+                    f"profesyonel #{existing.professional_id}"
+                ),
+                ip_address=request_ip(request),
+                user_agent=request_user_agent(request),
+                old_value=serialize_audit_value({"id": existing.id, "status": AssignmentStatus.SUSPENDED.value if hasattr(AssignmentStatus.SUSPENDED, "value") else "suspended"}),
+                new_value=serialize_audit_value(
+                    {
+                        "id": existing.id,
+                        "company_id": existing.company_id,
+                        "professional_id": existing.professional_id,
+                        "professional_type": existing.professional_type,
+                        "status": "active",
+                        "start_date": existing.start_date,
+                        "end_date": existing.end_date,
+                        "required_minutes_monthly": existing.required_minutes_monthly,
+                        "planned_minutes_monthly": existing.planned_minutes_monthly,
+                        "isg_katip_contract_number": existing.isg_katip_contract_number,
+                    }
+                ),
+            )
             db.commit()
         except HTTPException:
             raise
@@ -908,6 +1153,36 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
             planned_minutes=obj.planned_minutes_monthly,
             exclude_assignment_id=obj.id,
         )
+        db.flush()
+        add_audit_log(
+            db,
+            user=user,
+            action="assignment_created",
+            module="assignment",
+            entity_type="workplace_assignment",
+            entity_id=str(obj.id),
+            company_id=obj.company_id,
+            description=(
+                f"Görevlendirme oluşturuldu: firma #{obj.company_id} / profesyonel #{obj.professional_id}"
+            ),
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            new_value=serialize_audit_value(
+                {
+                    "id": obj.id,
+                    "osgb_id": obj.osgb_id,
+                    "company_id": obj.company_id,
+                    "professional_id": obj.professional_id,
+                    "professional_type": obj.professional_type,
+                    "status": "active",
+                    "start_date": obj.start_date,
+                    "end_date": obj.end_date,
+                    "required_minutes_monthly": obj.required_minutes_monthly,
+                    "planned_minutes_monthly": obj.planned_minutes_monthly,
+                    "isg_katip_contract_number": obj.isg_katip_contract_number,
+                }
+            ),
+        )
         db.commit()
     except HTTPException:
         raise
@@ -933,6 +1208,7 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
 @router.post("/assignments/{assignment_id}/contract", response_model=AssignmentResponse)
 async def upload_assignment_contract(
     assignment_id: int,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
@@ -983,6 +1259,21 @@ async def upload_assignment_contract(
         ".jpeg": "image/jpeg",
         ".png": "image/png",
     }.get(ext, "application/octet-stream")
+    add_audit_log(
+        db,
+        user=user,
+        action="assignment_contract_uploaded",
+        module="assignment",
+        entity_type="workplace_assignment",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Görevlendirme sözleşmesi yüklendi: {name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"id": obj.id, "contract_file_name": obj.contract_file_name, "contract_content_type": obj.contract_content_type}
+        ),
+    )
     db.commit()
     db.refresh(obj)
     return obj
@@ -1009,13 +1300,29 @@ def download_assignment_contract(
 @router.patch("/assignments/{assignment_id}/suspend", response_model=AssignmentResponse)
 def suspend_assignment(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
     obj = _get_assignment(db, assignment_id, user)
     if obj.status == AssignmentStatus.ENDED:
         raise HTTPException(400, "Sonlandırılmış görevlendirme askıya alınamaz. Yeniden aktifleştirin veya silin.")
+    old_status = obj.status.value if hasattr(obj.status, "value") else str(obj.status)
     obj.status = AssignmentStatus.SUSPENDED
+    add_audit_log(
+        db,
+        user=user,
+        action="assignment_suspended",
+        module="assignment",
+        entity_type="workplace_assignment",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Görevlendirme askıya alındı: firma #{obj.company_id} / profesyonel #{obj.professional_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, "status": old_status}),
+        new_value=serialize_audit_value({"id": obj.id, "status": "suspended"}),
+    )
     db.commit()
     db.refresh(obj)
     return obj
@@ -1024,10 +1331,12 @@ def suspend_assignment(
 @router.patch("/assignments/{assignment_id}/activate", response_model=AssignmentResponse)
 def activate_assignment(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
     obj = _get_assignment(db, assignment_id, user)
+    old_status = obj.status.value if hasattr(obj.status, "value") else str(obj.status)
     obj.status = AssignmentStatus.ACTIVE
     if obj.end_date:
         obj.end_date = None
@@ -1038,6 +1347,28 @@ def activate_assignment(
             professional_id=obj.professional_id,
             planned_minutes=obj.planned_minutes_monthly,
             exclude_assignment_id=obj.id,
+        )
+        add_audit_log(
+            db,
+            user=user,
+            action="assignment_activated",
+            module="assignment",
+            entity_type="workplace_assignment",
+            entity_id=str(obj.id),
+            company_id=obj.company_id,
+            description=f"Görevlendirme aktifleştirildi: firma #{obj.company_id} / profesyonel #{obj.professional_id}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value({"id": obj.id, "status": old_status}),
+            new_value=serialize_audit_value(
+                {
+                    "id": obj.id,
+                    "status": "active",
+                    "start_date": obj.start_date,
+                    "end_date": obj.end_date,
+                    "required_minutes_monthly": obj.required_minutes_monthly,
+                }
+            ),
         )
         db.commit()
     except HTTPException:
@@ -1054,6 +1385,7 @@ def activate_assignment(
 @router.patch("/assignments/{assignment_id}/end", response_model=AssignmentResponse)
 def end_assignment(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -1061,8 +1393,23 @@ def end_assignment(
     from datetime import date as date_cls
 
     obj = _get_assignment(db, assignment_id, user)
+    old_status = obj.status.value if hasattr(obj.status, "value") else str(obj.status)
     obj.status = AssignmentStatus.ENDED
     obj.end_date = date_cls.today()
+    add_audit_log(
+        db,
+        user=user,
+        action="assignment_ended",
+        module="assignment",
+        entity_type="workplace_assignment",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Görevlendirme sonlandırıldı: firma #{obj.company_id} / profesyonel #{obj.professional_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, "status": old_status}),
+        new_value=serialize_audit_value({"id": obj.id, "status": "ended", "end_date": obj.end_date}),
+    )
     db.commit()
     db.refresh(obj)
     return obj
@@ -1071,6 +1418,7 @@ def end_assignment(
 @router.delete("/assignments/{assignment_id}")
 def delete_assignment(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -1079,8 +1427,31 @@ def delete_assignment(
 
     obj = _get_assignment(db, assignment_id, user)
     aid = obj.id
+    snapshot = {
+        "id": obj.id,
+        "company_id": obj.company_id,
+        "professional_id": obj.professional_id,
+        "professional_type": obj.professional_type,
+        "status": obj.status.value if hasattr(obj.status, "value") else str(obj.status),
+        "start_date": obj.start_date,
+        "end_date": obj.end_date,
+        "isg_katip_contract_number": obj.isg_katip_contract_number,
+    }
     try:
         db.delete(obj)
+        add_audit_log(
+            db,
+            user=user,
+            action="assignment_deleted",
+            module="assignment",
+            entity_type="workplace_assignment",
+            entity_id=str(aid),
+            company_id=snapshot.get("company_id"),
+            description=f"Görevlendirme silindi: firma #{snapshot.get('company_id')} / profesyonel #{snapshot.get('professional_id')}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value(snapshot),
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -1089,6 +1460,20 @@ def delete_assignment(
             raise HTTPException(404, "Görevlendirme bulunamadı.") from None
         obj.status = AssignmentStatus.ENDED
         obj.end_date = obj.end_date or date_cls.today()
+        add_audit_log(
+            db,
+            user=user,
+            action="assignment_ended",
+            module="assignment",
+            entity_type="workplace_assignment",
+            entity_id=str(aid),
+            company_id=obj.company_id,
+            description="Bağlı kayıtlar nedeniyle görevlendirme silinemedi; sonlandırıldı.",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value(snapshot),
+            new_value=serialize_audit_value({"id": obj.id, "status": "ended", "end_date": obj.end_date}),
+        )
         db.commit()
         return {
             "ok": True,
@@ -1118,12 +1503,37 @@ def list_contracts(db: Session = Depends(get_db), user: User = Depends(require_r
     return list(db.scalars(stmt.order_by(ServiceContract.start_date.desc())).all())
 
 @router.post("/contracts", response_model=ContractResponse)
-def create_contract(payload: ContractCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+def create_contract(payload: ContractCreate, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     _scope_osgb(user, payload.osgb_id)
     company = db.get(Company, payload.company_id)
     if not company or company.osgb_id != payload.osgb_id: raise HTTPException(400, "İşyeri bu OSGB'ye bağlı değil.")
     obj = ServiceContract(**payload.model_dump())
-    db.add(obj); db.commit(); db.refresh(obj)
+    db.add(obj); db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="contract_created",
+        module="contract",
+        entity_type="service_contract",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Sözleşme oluşturuldu: {obj.contract_number}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": obj.id,
+                "osgb_id": obj.osgb_id,
+                "company_id": obj.company_id,
+                "contract_number": obj.contract_number,
+                "start_date": obj.start_date,
+                "end_date": obj.end_date,
+                "monthly_fee": obj.monthly_fee,
+                "status": obj.status,
+            }
+        ),
+    )
+    db.commit(); db.refresh(obj)
     return obj
 
 
@@ -1131,6 +1541,7 @@ def create_contract(payload: ContractCreate, db: Session = Depends(get_db), user
 def update_contract(
     contract_id: int,
     payload: ContractUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -1144,8 +1555,23 @@ def update_contract(
             raise HTTPException(400, "Sonlandırılmış sözleşme askıya alınamaz. Önce aktifleştirin.")
         if new_status == "ended" and "end_date" not in data:
             data.setdefault("end_date", date_cls.today())
+    old_value = {k: getattr(obj, k, None) for k in data}
     for k, v in data.items():
         setattr(obj, k, v)
+    add_audit_log(
+        db,
+        user=user,
+        action="contract_updated",
+        module="contract",
+        entity_type="service_contract",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Sözleşme güncellendi: {obj.contract_number}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, **old_value}),
+        new_value=serialize_audit_value({"id": obj.id, **{k: getattr(obj, k, None) for k in data}}),
+    )
     db.commit()
     db.refresh(obj)
     return obj
@@ -1154,13 +1580,29 @@ def update_contract(
 @router.patch("/contracts/{contract_id}/suspend", response_model=ContractResponse)
 def suspend_contract(
     contract_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
     obj = _get_contract(db, contract_id, user)
     if obj.status == "ended":
         raise HTTPException(400, "Sonlandırılmış sözleşme askıya alınamaz. Önce aktifleştirin.")
+    old_status = obj.status
     obj.status = "suspended"
+    add_audit_log(
+        db,
+        user=user,
+        action="contract_suspended",
+        module="contract",
+        entity_type="service_contract",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Sözleşme askıya alındı: {obj.contract_number}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, "status": old_status}),
+        new_value=serialize_audit_value({"id": obj.id, "status": "suspended"}),
+    )
     db.commit()
     db.refresh(obj)
     return obj
@@ -1169,13 +1611,29 @@ def suspend_contract(
 @router.patch("/contracts/{contract_id}/activate", response_model=ContractResponse)
 def activate_contract(
     contract_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
     obj = _get_contract(db, contract_id, user)
+    old_status = obj.status
     obj.status = "active"
     if obj.end_date:
         obj.end_date = None
+    add_audit_log(
+        db,
+        user=user,
+        action="contract_activated",
+        module="contract",
+        entity_type="service_contract",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Sözleşme aktifleştirildi: {obj.contract_number}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, "status": old_status}),
+        new_value=serialize_audit_value({"id": obj.id, "status": "active", "end_date": obj.end_date}),
+    )
     db.commit()
     db.refresh(obj)
     return obj
@@ -1184,6 +1642,7 @@ def activate_contract(
 @router.patch("/contracts/{contract_id}/end", response_model=ContractResponse)
 def end_contract(
     contract_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
@@ -1191,8 +1650,23 @@ def end_contract(
     from datetime import date as date_cls
 
     obj = _get_contract(db, contract_id, user)
+    old_status = obj.status
     obj.status = "ended"
     obj.end_date = date_cls.today()
+    add_audit_log(
+        db,
+        user=user,
+        action="contract_ended",
+        module="contract",
+        entity_type="service_contract",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Sözleşme sonlandırıldı: {obj.contract_number}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": obj.id, "status": old_status}),
+        new_value=serialize_audit_value({"id": obj.id, "status": "ended", "end_date": obj.end_date}),
+    )
     db.commit()
     db.refresh(obj)
     return obj

@@ -17,4 +17,5 @@ export const GLOBAL_ADMIN_MODULES = Object.freeze([
   'eisa_audit_logs',
   'eisa_system_settings',
   'security',
+  'change_requests',
 ]);

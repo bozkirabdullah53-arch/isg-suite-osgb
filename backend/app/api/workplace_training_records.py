@@ -108,8 +108,8 @@ def list_personnel_training_records(
             "duration_hours": t.duration_hours,
             "hazard_class": t.hazard_class or "",
             "certificate_number": p.certificate_number or "",
-            "exam_score": p.exam_score,
-            "exam_passed": p.exam_passed,
+            "exam_score": p.score,
+            "exam_passed": p.successful,
             "status": t.status.value if t.status else "",
         })
 

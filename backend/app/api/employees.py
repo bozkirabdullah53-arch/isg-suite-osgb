@@ -5,7 +5,7 @@ from zipfile import BadZipFile
 
 from openpyxl.utils.exceptions import InvalidFileException
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, inspect, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -16,6 +16,13 @@ from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Branch, Employee, User, UserRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate, normalize_gender
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
+from app.services.change_guard import (
+    archive_records_before_delete,
+    require_delete_reason,
+    serialize_row,
+    summarize_rows,
+)
 from app.services.employee_excel import build_import_template_xlsx, parse_employees_workbook
 from app.services.capacity_engine import sync_company_service_requirements
 from app.services.national_id_format import normalize_national_id
@@ -235,6 +242,7 @@ def download_employee_import_template(user: User = Depends(get_current_user)):
 @router.post("", response_model=EmployeeResponse)
 def create_employee(
     payload: EmployeeCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -248,10 +256,33 @@ def create_employee(
     db.add(obj)
     try:
         sync_company_service_requirements(db, payload.company_id, commit=False)
-        db.commit()
+        db.flush()
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Bu personel kaydı zaten mevcut olabilir.")
+    add_audit_log(
+        db,
+        user=user,
+        action="employee_created",
+        module="employee",
+        entity_type="employee",
+        entity_id=str(obj.id),
+        company_id=payload.company_id,
+        description=f"Personel eklendi: {obj.full_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "full_name": obj.full_name,
+                "job_title": obj.job_title,
+                "department": obj.department,
+                "branch_id": obj.branch_id,
+                "start_date": obj.start_date,
+                "is_active": obj.is_active,
+            }
+        ),
+    )
+    db.commit()
     db.refresh(obj)
     return obj
 
@@ -260,6 +291,7 @@ def create_employee(
 def update_employee(
     employee_id: int,
     payload: EmployeeUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -268,6 +300,7 @@ def update_employee(
         raise HTTPException(404, "Personel bulunamadı.")
     check_company(db, user, obj.company_id)
     validate_branch(db, obj.company_id, payload.branch_id)
+    before = serialize_row(obj)
     values = payload.model_dump(exclude_unset=True, exclude={"hire_date"})
     if values.get("exit_date") is not None and values.get("is_active") is not True:
         values["is_active"] = False
@@ -280,7 +313,23 @@ def update_employee(
             v = normalize_national_id(v) or None
         setattr(obj, k, v)
     sync_company_service_requirements(db, obj.company_id, commit=False)
+    after = serialize_row(obj)
+    changed = {key: {"old": before.get(key), "new": after.get(key)} for key in values if before.get(key) != after.get(key)}
     try:
+        add_audit_log(
+            db,
+            user=user,
+            action="employee_updated",
+            module="employee",
+            entity_type="employee",
+            entity_id=str(obj.id),
+            company_id=obj.company_id,
+            description=f"Personel güncellendi: {obj.full_name}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value({key: item["old"] for key, item in changed.items()}),
+            new_value=serialize_audit_value({key: item["new"] for key, item in changed.items()}),
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -292,6 +341,7 @@ def update_employee(
 @router.delete("/{employee_id}")
 def deactivate_employee(
     employee_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -299,17 +349,35 @@ def deactivate_employee(
     if not obj:
         raise HTTPException(404, "Personel bulunamadı.")
     check_company(db, user, obj.company_id)
+    was_active = bool(obj.is_active)
     obj.is_active = False
     sync_company_service_requirements(db, obj.company_id, commit=False)
+    add_audit_log(
+        db,
+        user=user,
+        action="employee_deactivated",
+        module="employee",
+        entity_type="employee",
+        entity_id=str(obj.id),
+        company_id=obj.company_id,
+        description=f"Personel pasife alındı: {obj.full_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"is_active": was_active}),
+        new_value=serialize_audit_value({"is_active": False}),
+    )
     db.commit()
     return {"message": "Personel pasife alındı."}
 
 
 @router.post("/bulk-delete")
 def bulk_deactivate_employees(
+    request: Request,
     employee_ids: list[int] = Body(..., embed=True),
     company_id: int = Body(..., embed=True),
     exit_date: date | None = Body(None, embed=True),
+    reason: str | None = Body(None, embed=True),
+    dry_run: bool = Body(False, embed=True),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -317,6 +385,7 @@ def bulk_deactivate_employees(
 
     Kalıcı veri kaybını önlemek için kayıtlar fiziksel olarak silinmez; aktif
     personel listesinden kaldırılır. Başka işyerine ait kimlikler işleme alınmaz.
+    ``dry_run=true`` yalnızca önizleme döndürür, hiçbir şeyi değiştirmez.
     """
     check_company(db, user, company_id)
     ids = sorted({int(x) for x in employee_ids if int(x) > 0})
@@ -349,6 +418,16 @@ def bulk_deactivate_employees(
                 f"{invalid.full_name} için işten çıkış tarihi işe giriş tarihinden önce olamaz.",
             )
 
+    will_change = [row for row in rows if row.is_active]
+    if dry_run:
+        return {
+            "dry_run": True,
+            "message": f"Önizleme: {len(will_change)} personel pasife alınacak.",
+            "would_change": len(will_change),
+            "requested": len(ids),
+            "sample": summarize_rows(will_change),
+        }
+
     changed = 0
     for row in rows:
         if row.is_active:
@@ -357,8 +436,23 @@ def bulk_deactivate_employees(
                 row.exit_date = exit_date
             changed += 1
     sync_company_service_requirements(db, company_id, commit=False)
+    add_audit_log(
+        db,
+        user=user,
+        action="employees_bulk_deactivated",
+        module="employee",
+        entity_type="employee",
+        entity_id=str(company_id),
+        company_id=company_id,
+        description=f"{changed} personel toplu pasife alındı. Gerekçe: {reason or '—'}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"is_active": True, "employee_ids": [row.id for row in will_change]}),
+        new_value=serialize_audit_value({"is_active": False, "exit_date": exit_date, "reason": reason}),
+    )
     db.commit()
     return {
+        "dry_run": False,
         "message": f"{changed} personel pasife alındı.",
         "deleted": changed,
         "requested": len(ids),
@@ -367,12 +461,19 @@ def bulk_deactivate_employees(
 
 @router.post("/bulk-purge")
 def bulk_purge_inactive_employees(
+    request: Request,
     employee_ids: list[int] = Body(..., embed=True),
     company_id: int = Body(..., embed=True),
+    reason: str | None = Body(None, embed=True),
+    dry_run: bool = Body(False, embed=True),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    """Kalıcı olarak seçili ve bağlantısız personelleri aktif/pasif ayrımı olmadan siler."""
+    """Kalıcı olarak seçili ve bağlantısız personelleri aktif/pasif ayrımı olmadan siler.
+
+    Gerekçe zorunludur; silinecek kayıtlar önce merkezi arşive yazılır ve
+    işlem ``audit_logs``'a kaydedilir. ``dry_run=true`` hiçbir şeyi silmez.
+    """
     check_company(db, user, company_id)
     ids = sorted({int(x) for x in employee_ids if int(x) > 0})
     if not ids:
@@ -392,22 +493,50 @@ def bulk_purge_inactive_employees(
     if len(found_ids) != len(ids):
         raise HTTPException(409, "Seçilen personellerden bazıları bu işyerine ait değil veya bulunamadı.")
 
-    deleted = 0
-    linked_skipped = 0
-    blocked_details: list[dict[str, object]] = []
     links_by_employee = _employee_linked_records(db, set(ids))
-    for row in rows:
-        links = links_by_employee.get(row.id, [])
-        if links:
-            linked_skipped += 1
-            blocked_details.append(
-                {
-                    "employee_id": row.id,
-                    "employee_name": row.full_name,
-                    "links": links,
-                }
-            )
-            continue
+    purgeable = [row for row in rows if not links_by_employee.get(row.id)]
+    blocked_details = [
+        {
+            "employee_id": row.id,
+            "employee_name": row.full_name,
+            "links": links_by_employee[row.id],
+        }
+        for row in rows
+        if links_by_employee.get(row.id)
+    ]
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "message": (
+                f"Önizleme: {len(purgeable)} personel kalıcı silinecek, "
+                f"{len(blocked_details)} personel bağlı kayıtları nedeniyle korunacak."
+            ),
+            "would_delete": len(purgeable),
+            "linked_skipped": len(blocked_details),
+            "requested": len(ids),
+            "sample": summarize_rows(purgeable),
+            "blocked_details": blocked_details,
+        }
+
+    confirmed_reason = require_delete_reason(reason)
+    try:
+        archive_records_before_delete(
+            db,
+            rows=rows,
+            entity_type="employee_bulk_purge",
+            entity_id=str(company_id),
+            company_id=company_id,
+            user=user,
+            reason=confirmed_reason,
+        )
+    except RuntimeError as exc:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    deleted = 0
+    linked_skipped = len(blocked_details)
+    for row in purgeable:
         try:
             with db.begin_nested():
                 db.delete(row)
@@ -419,21 +548,38 @@ def bulk_purge_inactive_employees(
                 {
                     "employee_id": row.id,
                     "employee_name": row.full_name,
-                    "links": [
-                        {
-                            "category": "other",
-                            "label": "bağlı kayıt",
-                            "count": 1,
-                        }
-                    ],
+                    "links": [{"category": "other", "label": "bağlı kayıt", "count": 1}],
                 }
             )
 
+    add_audit_log(
+        db,
+        user=user,
+        action="employees_bulk_purged",
+        module="employee",
+        entity_type="employee",
+        entity_id=str(company_id),
+        company_id=company_id,
+        description=(
+            f"{deleted} personel kalıcı olarak silindi; {linked_skipped} kayıt bağlı "
+            f"veriler nedeniyle korundu. Gerekçe: {confirmed_reason}"
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(
+            {
+                "purged_employee_ids": [row.id for row in purgeable],
+                "requested": len(ids),
+            }
+        ),
+        new_value=serialize_audit_value({"deleted": deleted, "linked_skipped": linked_skipped}),
+    )
     db.commit()
     message = f"{deleted} personel kalıcı olarak silindi."
     if linked_skipped:
         message += " " + _purge_blocker_message(linked_skipped, blocked_details)
     return {
+        "dry_run": False,
         "message": message,
         "deleted": deleted,
         "linked_skipped": linked_skipped,
@@ -444,6 +590,7 @@ def bulk_purge_inactive_employees(
 
 @router.post("/import-excel")
 async def import_excel(
+    request: Request,
     company_id: int,
     branch_id: int | None = None,
     file: UploadFile = File(...),
@@ -569,6 +716,32 @@ async def import_excel(
         db.rollback()
         logger.exception("Personel yüklemesi sonrası hizmet süresi senkronizasyonu başarısız: company_id=%s", company_id)
         warning = "Personeller yüklendi; hizmet süresi hesaplaması daha sonra yenilenecek."
+
+    add_audit_log(
+        db,
+        user=user,
+        action="employees_imported",
+        module="employee",
+        entity_type="employee",
+        entity_id=str(company_id),
+        company_id=company_id,
+        description=(
+            f"Personel Excel aktarımı: {created} yeni, {updated} güncelleme, "
+            f"{len(errors)} hatalı satır ({file.filename or 'dosya'})."
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "created": created,
+                "updated": updated,
+                "error_count": len(errors),
+                "row_count": len(rows),
+                "branch_id": branch_id,
+            }
+        ),
+    )
+    db.commit()
 
     return {
         "created": created,

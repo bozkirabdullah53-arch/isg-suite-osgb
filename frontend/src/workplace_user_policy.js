@@ -40,6 +40,7 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'documents',
   'eyas_inbox',
   'workplace_backups',
+  'change_requests',
   'site_qr_kiosk',
 ]);
 
@@ -66,7 +67,7 @@ export const WORKPLACE_MENU_SECTIONS = Object.freeze([
   },
   {label: 'Sağlık Bilgileri', items: ['health']},
   {label: 'Belgeler ve Onay', items: ['documents', 'eyas_inbox']},
-  {label: 'Veri Güvenliği', items: ['workplace_backups']},
+  {label: 'Veri Güvenliği', items: ['workplace_backups', 'change_requests']},
   {label: 'İşyeri QR İşlemleri', items: ['site_qr_kiosk']},
 ]);
 

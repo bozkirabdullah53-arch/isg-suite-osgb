@@ -29,6 +29,17 @@ def public_health_payload() -> dict:
         and storage.get("credentials_configured")
         and storage.get("probe_state") == "unreachable"
     )
+    # RPO izleme: production'da son başarılı yedek çok eskiyse sağlık degraded olur.
+    # Geliştirme/test ortamlarında yedek beklenmediği için dikkate alınmaz.
+    if not degraded and (settings.environment or "").strip().lower() in ("production", "prod", "live"):
+        try:
+            from app.services.backup_management import database_backup_status
+
+            backup = database_backup_status()
+            if backup.get("enabled") and not backup.get("healthy"):
+                degraded = True
+        except Exception:  # pragma: no cover - sağlık ucu asla hata vermez
+            pass
     return {
         "status": "degraded" if degraded else "ok",
         "service": settings.app_name,
@@ -37,7 +48,9 @@ def public_health_payload() -> dict:
 
 def infra_detail_payload() -> dict:
     """global_admin — tam feature registry + crypto/storage durumu."""
+    from app.services.backup_management import database_backup_status
     from app.services.backup_restore import backup_crypto_ready_label, backup_encryption_key_status
+    from app.services.audit_chain import audit_chain_health
     from app.services.clamav_scan import is_clamav_configured
     from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
     from app.services.object_store import (
@@ -76,6 +89,8 @@ def infra_detail_payload() -> dict:
         "health_field_crypto_ready": health_crypto_ready_label(),
         "backup_encryption_key": backup_encryption_key_status(),
         "backup_crypto_ready": backup_crypto_ready_label(),
+        "database_backup": database_backup_status(),
+        "audit_chain": audit_chain_health(),
         "ai_hazard_hint": "keyword-v2",
         "ai_assistant": "assistant-v1",
         "virtual_inspector": "rule-v1-6331",

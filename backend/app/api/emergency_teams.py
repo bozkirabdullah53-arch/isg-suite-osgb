@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -20,6 +20,7 @@ from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.models.entities import (
@@ -366,6 +367,7 @@ def list_teams(
 @router.post("/teams", response_model=TeamResponse)
 def create_team(
     payload: TeamCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -385,6 +387,22 @@ def create_team(
         created_by_id=user.id,
     )
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_created",
+        module="emergency_team",
+        entity_type="emergency_team",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi oluşturuldu: {row.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"id": row.id, "company_id": row.company_id, "type_id": row.type_id, "name": row.name, "min_members": row.min_members}
+        ),
+    )
     db.commit()
     return _team_response(_load_team(db, row.id))
 
@@ -393,11 +411,20 @@ def create_team(
 def update_team(
     team_id: int,
     payload: TeamUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_team(db, team_id)
     ensure_company_access(db, user, row.company_id)
+    old_value = {
+        "id": row.id,
+        "name": row.name,
+        "type_id": row.type_id,
+        "min_members": row.min_members,
+        "notes": row.notes,
+        "leader_assignment_id": row.leader_assignment_id,
+    }
     if payload.name is not None:
         name = payload.name.strip()
         if len(name) < 2:
@@ -425,6 +452,29 @@ def update_team(
             for a in row.assignments or []:
                 a.is_leader = a.id == leader.id
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_updated",
+        module="emergency_team",
+        entity_type="emergency_team",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi güncellendi: {row.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "name": row.name,
+                "type_id": row.type_id,
+                "min_members": row.min_members,
+                "notes": row.notes,
+                "leader_assignment_id": row.leader_assignment_id,
+            }
+        ),
+    )
     db.commit()
     return _team_response(_load_team(db, row.id))
 
@@ -432,16 +482,32 @@ def update_team(
 @router.delete("/teams/{team_id}")
 def delete_team(
     team_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_team(db, team_id)
     ensure_company_access(db, user, row.company_id)
+    old_value = {"id": row.id, "name": row.name, "is_active": True}
     row.is_active = False
     row.updated_at = datetime.utcnow()
     for a in row.assignments or []:
         a.is_active = False
         a.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_deactivated",
+        module="emergency_team",
+        entity_type="emergency_team",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi pasife alındı: {row.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value({"id": row.id, "name": row.name, "is_active": False}),
+    )
     db.commit()
     return {"ok": True, "id": team_id}
 
@@ -459,6 +525,7 @@ def _reactivate_team(row: EmergencyTeam, *, restore_members: bool) -> None:
 @router.post("/teams/{team_id}/restore", response_model=TeamResponse)
 def restore_team(
     team_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -466,12 +533,27 @@ def restore_team(
     row = _load_team(db, team_id, include_inactive=True)
     ensure_company_access(db, user, row.company_id)
     _reactivate_team(row, restore_members=True)
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_restored",
+        module="emergency_team",
+        entity_type="emergency_team",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi geri alındı: {row.name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "name": row.name, "is_active": False}),
+        new_value=serialize_audit_value({"id": row.id, "name": row.name, "is_active": True, "restore_members": True}),
+    )
     db.commit()
     return _team_response(_load_team(db, team_id))
 
 
 @router.post("/restore-inactive")
 def restore_inactive(
+    request: Request,
     company_id: int = Query(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
@@ -509,6 +591,23 @@ def restore_inactive(
         row.is_active = True
         row.updated_at = now
         restored_members += 1
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_teams_restored_bulk",
+        module="emergency_team",
+        entity_type="emergency_team",
+        entity_id=str(company_id),
+        company_id=company_id,
+        description=(
+            f"Pasif acil durum ekipleri toplu geri alındı: {restored_teams} ekip / {restored_members} üye"
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"company_id": company_id, "restored_teams": restored_teams, "restored_members": restored_members}
+        ),
+    )
     db.commit()
     return {
         "ok": True,
@@ -581,6 +680,7 @@ def list_assignments(
 @router.post("/assignments", response_model=AssignmentResponse)
 def create_assignment(
     payload: AssignmentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -629,6 +729,34 @@ def create_assignment(
             if a.id != row.id:
                 a.is_leader = False
         team.leader_assignment_id = row.id
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_assignment_created",
+        module="emergency_team",
+        entity_type="emergency_team_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=(
+            f"Acil durum ekibi görevlendirmesi oluşturuldu: ekip #{row.team_id} / çalışan #{row.employee_id}"
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "team_id": row.team_id,
+                "employee_id": row.employee_id,
+                "membership": row.membership,
+                "is_leader": row.is_leader,
+                "role_title": row.role_title,
+                "assign_start": row.assign_start,
+                "assign_end": row.assign_end,
+                "is_active": row.is_active,
+            }
+        ),
+    )
     db.commit()
     return _assignment_response(_load_assignment(db, row.id))
 
@@ -637,11 +765,29 @@ def create_assignment(
 def update_assignment(
     assignment_id: int,
     payload: AssignmentUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)
+    old_value = {
+        "id": row.id,
+        "team_id": row.team_id,
+        "membership": row.membership,
+        "is_leader": row.is_leader,
+        "role_title": row.role_title,
+        "shift": row.shift,
+        "phone": row.phone,
+        "email": row.email,
+        "section": row.section,
+        "personnel_no": row.personnel_no,
+        "assign_start": row.assign_start,
+        "assign_end": row.assign_end,
+        "letter_no": row.letter_no,
+        "assigned_by": row.assigned_by,
+        "notes": row.notes,
+    }
 
     if payload.team_id is not None and payload.team_id != row.team_id:
         team = _load_team(db, payload.team_id)
@@ -672,6 +818,38 @@ def update_assignment(
         elif team.leader_assignment_id == row.id:
             team.leader_assignment_id = None
     row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_assignment_updated",
+        module="emergency_team",
+        entity_type="emergency_team_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi görevlendirmesi güncellendi: ekip #{row.team_id} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "team_id": row.team_id,
+                "membership": row.membership,
+                "is_leader": row.is_leader,
+                "role_title": row.role_title,
+                "shift": row.shift,
+                "phone": row.phone,
+                "email": row.email,
+                "section": row.section,
+                "personnel_no": row.personnel_no,
+                "assign_start": row.assign_start,
+                "assign_end": row.assign_end,
+                "letter_no": row.letter_no,
+                "assigned_by": row.assigned_by,
+                "notes": row.notes,
+            }
+        ),
+    )
     db.commit()
     return _assignment_response(_load_assignment(db, row.id))
 
@@ -679,16 +857,39 @@ def update_assignment(
 @router.delete("/assignments/{assignment_id}")
 def delete_assignment(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)
+    old_value = {
+        "id": row.id,
+        "team_id": row.team_id,
+        "employee_id": row.employee_id,
+        "membership": row.membership,
+        "is_leader": row.is_leader,
+        "is_active": True,
+    }
     row.is_active = False
     row.updated_at = datetime.utcnow()
     team = db.get(EmergencyTeam, row.team_id)
     if team and team.leader_assignment_id == row.id:
         team.leader_assignment_id = None
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_assignment_deactivated",
+        module="emergency_team",
+        entity_type="emergency_team_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi görevlendirmesi pasife alındı: ekip #{row.team_id} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value({**old_value, "is_active": False}),
+    )
     db.commit()
     return {"ok": True, "id": assignment_id}
 
@@ -696,6 +897,7 @@ def delete_assignment(
 @router.post("/assignments/{assignment_id}/restore", response_model=AssignmentResponse)
 def restore_assignment(
     assignment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -709,6 +911,22 @@ def restore_assignment(
         team.updated_at = now
     row.is_active = True
     row.updated_at = now
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_assignment_restored",
+        module="emergency_team",
+        entity_type="emergency_team_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi görevlendirmesi geri alındı: ekip #{row.team_id} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "is_active": False}),
+        new_value=serialize_audit_value(
+            {"id": row.id, "team_id": row.team_id, "employee_id": row.employee_id, "is_active": True}
+        ),
+    )
     db.commit()
     return _assignment_response(_load_assignment(db, assignment_id))
 
@@ -734,6 +952,7 @@ def list_trainings(
 def add_training(
     assignment_id: int,
     payload: TrainingCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -756,6 +975,32 @@ def add_training(
         notes=payload.notes,
     )
     db.add(training)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_training_added",
+        module="emergency_team",
+        entity_type="emergency_team_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=(
+            f"Acil durum ekibi eğitimi eklendi: {payload.training_type or 'eğitim'} / çalışan #{row.employee_id}"
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": training.id,
+                "assignment_id": row.id,
+                "training_type": training.training_type,
+                "provider": training.provider,
+                "training_date": training.training_date,
+                "valid_until": training.valid_until,
+                "certificate_no": training.certificate_no,
+            }
+        ),
+    )
     db.commit()
     db.refresh(training)
     return TrainingResponse.model_validate(training)
@@ -764,6 +1009,7 @@ def add_training(
 @router.post("/assignments/{assignment_id}/certificate-file", response_model=TrainingResponse)
 async def upload_certificate(
     assignment_id: int,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
@@ -793,6 +1039,20 @@ async def upload_certificate(
         break
     if latest is not None and not latest.file_path:
         latest.file_path = rel.replace("\\", "/")
+        add_audit_log(
+            db,
+            user=user,
+            action="emergency_team_certificate_uploaded",
+            module="emergency_team",
+            entity_type="emergency_team_assignment",
+            entity_id=str(row.id),
+            company_id=row.company_id,
+            description=f"Acil durum ekibi eğitim belgesi yüklendi: {name} / çalışan #{row.employee_id}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            old_value=serialize_audit_value({"training_id": latest.id, "file_path": None}),
+            new_value=serialize_audit_value({"training_id": latest.id, "file_path": latest.file_path}),
+        )
         db.commit()
         db.refresh(latest)
         return TrainingResponse.model_validate(latest)
@@ -802,6 +1062,22 @@ async def upload_certificate(
         file_path=rel.replace("\\", "/"),
     )
     db.add(training)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="emergency_team_certificate_uploaded",
+        module="emergency_team",
+        entity_type="emergency_team_assignment",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Acil durum ekibi eğitim belgesi yüklendi: {name} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {"training_id": training.id, "assignment_id": row.id, "file_path": training.file_path}
+        ),
+    )
     db.commit()
     db.refresh(training)
     return TrainingResponse.model_validate(training)

@@ -1,0 +1,237 @@
+.change-requests-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+
+.change-requests-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.change-requests-head h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.change-requests-head p {
+  margin: 0;
+  color: #5b6b7c;
+  font-size: 13px;
+}
+
+.cr-policy {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid #cfe3d4;
+  background: #f2faf4;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.cr-policy strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.cr-policy span {
+  display: block;
+  color: #40535f;
+}
+
+.cr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dde5ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.cr-form h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.cr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.cr-form label,
+.cr-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #4a5b68;
+}
+
+.cr-form input,
+.cr-form select,
+.cr-form textarea,
+.cr-toolbar select {
+  padding: 7px 9px;
+  border: 1px solid #cbd6e0;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.cr-full {
+  width: 100%;
+}
+
+.cr-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.cr-state,
+.cr-sla {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cr-state.submitted { background: #eef4fb; color: #1f5f9e; }
+.cr-state.verified { background: #fdf6e3; color: #8a6d1f; }
+.cr-state.approved { background: #eaf5ee; color: #216b3c; }
+.cr-state.applied { background: #e6f4ea; color: #1c6b34; }
+.cr-state.rejected { background: #fdecec; color: #a12b2b; }
+.cr-state.cancelled { background: #f0f1f3; color: #5c6670; }
+
+.cr-sla.ontime { color: #216b3c; }
+.cr-sla.soon { color: #8a6d1f; }
+.cr-sla.overdue { color: #a12b2b; font-weight: 700; }
+.cr-sla.closed,
+.cr-sla.none { color: #7a8791; }
+
+.cr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cr-actions .muted {
+  color: #8794a0;
+  font-size: 12px;
+}
+
+.cr-detail {
+  padding: 14px;
+  border: 1px solid #dde5ec;
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.cr-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cr-timeline {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cr-timeline li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.cr-timeline li span {
+  color: #7a8791;
+  min-width: 150px;
+}
+
+.cr-timeline li em {
+  color: #5b6b7c;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.change-requests-page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.change-requests-page th,
+.change-requests-page td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e7edf2;
+  vertical-align: top;
+}
+
+.change-requests-page td small {
+  display: block;
+  color: #8794a0;
+  font-size: 11px;
+}
+
+.change-requests-page .empty {
+  text-align: center;
+  color: #8794a0;
+  padding: 22px;
+}
+
+.link {
+  background: none;
+  border: none;
+  color: #1f5f9e;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.alert.error { background: #fdecec; color: #a12b2b; }
+.alert.success { background: #eaf5ee; color: #216b3c; }
+
+button.mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #1f5f9e;
+  background: #1f5f9e;
+  color: #fff;
+  cursor: pointer;
+}
+
+button.mini.secondary {
+  background: #fff;
+  color: #1f5f9e;
+}

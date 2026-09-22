@@ -14,7 +14,7 @@ import {createRoot} from 'react-dom/client';
   }catch{ /* ignore */ }
 })();
 
-import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Mail,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,ClipboardList,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Mail,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {API_URL, api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearAccessToken, clearMfaSetupToken, getAccessToken, getMfaSetupToken, setAccessToken, setMfaSetupToken} from './auth_session';
 import {clearOfflineQueue} from './field_offline';
@@ -26,6 +26,7 @@ import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversigh
 import {WorkplaceHomePage} from './workplace_home';
 import {WorkplaceTrainingRecordsPage} from './workplace_training_records';
 import {WorkplaceBackupsPage} from './workplace_backups';
+import {ChangeRequestsPage} from './change_requests';
 import {workplaceBackupsEnabled} from './workplace_backups_logic';
 import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
@@ -271,6 +272,7 @@ const menuCatalog={
   facility_summary:['Tesis Uygunluk Özeti',ShieldCheck],
   workplace_home:['İşyeri Ana Panel',LayoutDashboard],
   workplace_backups:['Yedeklerim',Download],
+  change_requests:['Değişiklik Talepleri',ClipboardList],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
   workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
@@ -3075,6 +3077,7 @@ function App(){
     facility_summary:<FacilityComplianceSummaryPage user={user}/>,
     workplace_home:<WorkplaceHomePage user={user} onNavigate={goModule}/>,
     workplace_backups:<WorkplaceBackupsPage user={user}/>,
+    change_requests:<ChangeRequestsPage user={user}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
     workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout} embedded/>,

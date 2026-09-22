@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -33,7 +33,13 @@ from app.schemas.incident import (
     RootCauseUpsert,
 )
 from app.services.assigned_team import team_names
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.business_days import add_turkish_business_days
+from app.services.change_guard import (
+    archive_records_before_delete,
+    require_delete_reason,
+    serialize_row,
+)
 from app.services.incident_meta import (
     EVENT_PREFIX,
     build_auto_warning,
@@ -370,6 +376,7 @@ def list_incidents(
 @router.post("", response_model=IncidentResponse)
 def create_incident(
     payload: IncidentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -396,6 +403,30 @@ def create_incident(
     _apply_scoring(row)
     _apply_sgk_process(row)
     db.add(row)
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="incident_created",
+        module="incident",
+        entity_type="incident_event",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Olay kaydı oluşturuldu: {row.form_no} ({row.event_type})",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "form_no": row.form_no,
+                "event_type": row.event_type,
+                "event_date": row.event_date,
+                "location": row.location,
+                "risk_score": row.risk_score,
+                "risk_level": row.risk_level,
+                "sgk_due_date": row.sgk_due_date,
+            }
+        ),
+    )
     db.commit()
     return _load(db, row.id)
 
@@ -414,20 +445,89 @@ def get_incident(
 @router.delete("/{incident_id}")
 def delete_incident(
     incident_id: int,
+    request: Request,
+    reason: str | None = Query(None),
+    dry_run: bool = Query(False),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    """Olay kayd?n? k?k neden ve ba?l? D?F kay?tlar?yla birlikte kal?c? siler."""
+    """Olay kaydını kök neden ve bağlı DÖF kayıtlarıyla birlikte kalıcı siler.
+
+    Gerekçe zorunludur; kayıtlar önce merkezi arşive yazılır ve işlem
+    ``audit_logs``'a işlenir. ``dry_run=true`` hiçbir şeyi silmez.
+    """
     row = _load(db, incident_id)
     ensure_access(db, user, row.company_id)
 
     form_no = row.form_no
+    dofs = list(row.dofs or [])
+    root_cause = row.root_cause
 
-    for dof in list(row.dofs or []):
+    if dry_run:
+        return {
+            "dry_run": True,
+            "id": incident_id,
+            "form_no": form_no,
+            "message": (
+                f"Önizleme: {form_no} olay kaydı, {len(dofs)} DÖF ve "
+                f"{1 if root_cause else 0} kök neden kaydı kalıcı silinecek."
+            ),
+            "dof_count": len(dofs),
+            "has_root_cause": bool(root_cause),
+        }
+
+    confirmed_reason = require_delete_reason(reason)
+
+    archive_targets: list[object] = [row, *dofs]
+    if root_cause:
+        archive_targets.append(root_cause)
+    try:
+        archive_records_before_delete(
+            db,
+            rows=archive_targets,
+            entity_type="incident_hard_delete",
+            entity_id=str(row.id),
+            company_id=row.company_id,
+            user=user,
+            reason=confirmed_reason,
+            original_name=f"olay-{form_no}.json",
+        )
+    except RuntimeError as exc:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    snapshot = serialize_row(row)
+    add_audit_log(
+        db,
+        user=user,
+        action="incident_hard_deleted",
+        module="incident",
+        entity_type="incident_event",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=(
+            f"{form_no} numaralı olay kaydı kalıcı olarak silindi "
+            f"({len(dofs)} DÖF). Gerekçe: {confirmed_reason}"
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(
+            {
+                "form_no": snapshot.get("form_no"),
+                "event_type": snapshot.get("event_type"),
+                "event_date": snapshot.get("event_date"),
+                "sgk_reported": snapshot.get("sgk_reported"),
+                "dof_count": len(dofs),
+            }
+        ),
+        new_value=serialize_audit_value({"deleted": True, "reason": confirmed_reason}),
+    )
+
+    for dof in dofs:
         db.delete(dof)
 
-    if row.root_cause:
-        db.delete(row.root_cause)
+    if root_cause:
+        db.delete(root_cause)
 
     db.delete(row)
     db.commit()
@@ -435,7 +535,7 @@ def delete_incident(
     return {
         "ok": True,
         "id": incident_id,
-        "message": f"{form_no} numaral? olay kayd? kal?c? olarak silindi.",
+        "message": f"{form_no} numaralı olay kaydı kalıcı olarak silindi.",
     }
 
 
@@ -443,11 +543,13 @@ def delete_incident(
 def update_incident(
     incident_id: int,
     payload: IncidentUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, incident_id)
     ensure_access(db, user, row.company_id)
+    before = serialize_row(row)
     updates = payload.model_dump(exclude_unset=True)
     date_fields = {"event_date", "sgk_report_date", "sgk_reported"} & payload.model_fields_set
     if date_fields:
@@ -476,6 +578,22 @@ def update_incident(
         setattr(row, k, v)
     _apply_scoring(row)
     _apply_sgk_process(row)
+    after = serialize_row(row)
+    changed = {key: before.get(key) for key in updates if before.get(key) != after.get(key)}
+    add_audit_log(
+        db,
+        user=user,
+        action="incident_updated",
+        module="incident",
+        entity_type="incident_event",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"Olay kaydı güncellendi: {row.form_no}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(changed),
+        new_value=serialize_audit_value({key: after.get(key) for key in changed}),
+    )
     db.commit()
     return _load(db, incident_id)
 

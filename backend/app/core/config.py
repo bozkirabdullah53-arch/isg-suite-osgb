@@ -1,6 +1,9 @@
+import logging
 from urllib.parse import urlsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -48,6 +51,19 @@ class Settings(BaseSettings):
     # Production enable_backup_crypto_for_production secret_key kullanır; acil kapatma:
     backup_encryption_secret_fallback: bool = False
     backup_encryption_force_off: bool = False
+    # İBYS Yedekleme Prosedürü — tam veritabanı dump zamanlaması, saklama ve offsite.
+    # DB_BACKUP_ENABLED yalnızca zamanlanmış pg_dump/sqlite dump üretimini yönetir.
+    db_backup_enabled: bool = True
+    db_backup_retention_days: int = 30
+    db_backup_weekly_retention_weeks: int = 12
+    db_backup_monthly_retention_months: int = 12
+    # DB dump / tenant yedeklerinin R2-S3 offsite kopyası (3-2-1 kuralı).
+    backup_remote_enabled: bool = False
+    backup_remote_prefix: str = "db-backups"
+    # true iken offsite kimlik bilgileri eksikse production başlamaz (fail-closed).
+    backup_remote_required: bool = False
+    # Yedek yaşı bu saati aşarsa sağlık durumu degraded olur (RPO izleme).
+    backup_max_age_hours: int = 36
     seed_admin_email: str | None = None
     seed_admin_password: str | None = None
     # Canlıda kapalı: silinen demo OSGB'ler restart'ta geri gelmesin
@@ -242,6 +258,16 @@ def workplace_backups_active() -> bool:
     return bool(getattr(settings, "workplace_backups_enabled", False))
 
 
+def db_backup_active() -> bool:
+    """Zamanlanmış tam veritabanı yedeğinin fail-closed açma kapısı."""
+    return bool(getattr(settings, "db_backup_enabled", True))
+
+
+def backup_remote_active() -> bool:
+    """Offsite yedek kopyası kapısı (DB dump + tenant arşivleri)."""
+    return bool(getattr(settings, "backup_remote_enabled", False))
+
+
 def vision_analysis_active() -> bool:
     """Saha fotoğrafı AI analizinin fail-closed rollout kapısı.
 
@@ -389,6 +415,40 @@ def apply_production_rollout() -> None:
 apply_production_rollout()
 
 
+def _offsite_credentials_present() -> bool:
+    """R2/S3 offsite yedeği için gereken ortam değişkenleri dolu mu?"""
+    bucket = (settings.object_storage_bucket or "").strip()
+    key = (settings.object_storage_access_key or "").strip()
+    secret = (settings.object_storage_secret_key or "").strip()
+    endpoint = (settings.object_storage_endpoint or "").strip()
+    region = (settings.object_storage_region or "").strip()
+    return bool(bucket and key and secret and (endpoint or region))
+
+
+def _validate_backup_offsite_credentials() -> None:
+    """Offsite yedek açıkken kimlik bilgisi yokluğu sessiz kalmaz.
+
+    ``BACKUP_REMOTE_REQUIRED=true`` ise production başlamaz (fail-closed).
+    Aksi halde yüksek sesle uyarılır; yedekler yerelde tutulmaya devam eder.
+    """
+    requested = bool(
+        getattr(settings, "backup_remote_enabled", False)
+        or getattr(settings, "workplace_backup_remote_enabled", False)
+    )
+    if not requested or _offsite_credentials_present():
+        return
+    message = (
+        "Offsite yedek (BACKUP_REMOTE_ENABLED / WORKPLACE_BACKUP_REMOTE_ENABLED) açık "
+        "fakat OBJECT_STORAGE_BUCKET/ACCESS_KEY/SECRET_KEY ve endpoint veya region eksik. "
+        "Yedekler yalnızca yerel kalıcı diskte tutulacak."
+    )
+    if bool(getattr(settings, "backup_remote_required", False)):
+        raise RuntimeError(
+            message + " BACKUP_REMOTE_REQUIRED=true olduğu için başlatma durduruldu."
+        )
+    logger.error(message)
+
+
 def validate_runtime_settings() -> None:
     """Üretimde zayıf secret veya zorunlu altyapı eksiğiyle başlamayı engelle."""
     env = (settings.environment or "").strip().lower()
@@ -428,6 +488,9 @@ def validate_runtime_settings() -> None:
         raise RuntimeError(
             "Production ortamında PostgreSQL DATABASE_URL zorunludur; SQLite kullanılamaz."
         )
+
+    _validate_backup_offsite_credentials()
+
     frontend_origin = (settings.frontend_origin or "").strip()
     parsed_origin = urlsplit(frontend_origin)
     if (

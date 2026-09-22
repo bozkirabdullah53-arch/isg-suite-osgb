@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.api.deps import require_roles
 from app.core.database import get_db
 from app.models.entities import Company, Employee, HealthRecord, Prescription, PrescriptionItem, PrescriptionStatus, User, UserRole
 from app.schemas.prescriptions import PrescriptionCancel, PrescriptionCreate, PrescriptionResponse, PrescriptionUpdate
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.health_field_crypto import decrypt_field, encrypt_field
 
 router = APIRouter(prefix="/prescriptions", tags=["e-Reçete"])
@@ -65,7 +66,7 @@ def list_prescriptions(company_id: int | None = None, employee_id: int | None = 
 
 
 @router.post("", response_model=PrescriptionResponse, status_code=201)
-def create_prescription(payload: PrescriptionCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
+def create_prescription(payload: PrescriptionCreate, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
     ensure_company_access(db, user, payload.company_id)
     employee = db.get(Employee, payload.employee_id)
     if not employee or employee.company_id != payload.company_id or not employee.is_active:
@@ -79,14 +80,53 @@ def create_prescription(payload: PrescriptionCreate, db: Session = Depends(get_d
     db.flush()
     for item in payload.items:
         db.add(PrescriptionItem(prescription_id=row.id, **item.model_dump()))
+    add_audit_log(
+        db,
+        user=user,
+        action="prescription_created",
+        module="prescription",
+        entity_type="prescription",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=(
+            f"e-Reçete taslağı oluşturuldu: firma #{row.company_id} / çalışan #{row.employee_id} "
+            f"({len(payload.items)} kalem)"
+        ),
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "company_id": row.company_id,
+                "employee_id": row.employee_id,
+                "health_record_id": row.health_record_id,
+                "physician_user_id": row.physician_user_id,
+                "status": "draft",
+                "prescription_date": row.prescription_date,
+                "diagnosis_code": row.diagnosis_code,
+                "has_diagnosis_text": bool(payload.diagnosis_text),
+                "has_clinical_note": bool(payload.clinical_note),
+                "item_count": len(payload.items),
+                "version": row.version,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return _to_response(db, row)
 
 
 @router.patch("/{prescription_id}", response_model=PrescriptionResponse)
-def update_prescription(prescription_id: int, payload: PrescriptionUpdate, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
+def update_prescription(prescription_id: int, payload: PrescriptionUpdate, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
     row = _owned_draft(db, prescription_id, user)
+    old_value = {
+        "id": row.id,
+        "status": row.status.value if hasattr(row.status, "value") else str(row.status),
+        "prescription_date": row.prescription_date,
+        "diagnosis_code": row.diagnosis_code,
+        "version": row.version,
+        "item_count": len(list(db.scalars(select(PrescriptionItem.id).where(PrescriptionItem.prescription_id == row.id)).all())),
+    }
     data = payload.model_dump(exclude_unset=True)
     items = data.pop("items", None)
     for key, value in data.items():
@@ -98,13 +138,41 @@ def update_prescription(prescription_id: int, payload: PrescriptionUpdate, db: S
         for item in items:
             db.add(PrescriptionItem(prescription_id=row.id, **item))
     row.version += 1
+    add_audit_log(
+        db,
+        user=user,
+        action="prescription_updated",
+        module="prescription",
+        entity_type="prescription",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"e-Reçete taslağı güncellendi: firma #{row.company_id} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value(old_value),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "status": row.status.value if hasattr(row.status, "value") else str(row.status),
+                "prescription_date": row.prescription_date,
+                "diagnosis_code": row.diagnosis_code,
+                "version": row.version,
+                "item_count": (
+                    len(items)
+                    if items is not None
+                    else len(list(db.scalars(select(PrescriptionItem.id).where(PrescriptionItem.prescription_id == row.id)).all()))
+                ),
+                "updated_fields": sorted(set(data) | ({"items"} if items is not None else set())),
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return _to_response(db, row)
 
 
 @router.post("/{prescription_id}/ready", response_model=PrescriptionResponse)
-def mark_ready(prescription_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
+def mark_ready(prescription_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
     row = _owned_draft(db, prescription_id, user)
     item_count = len(list(db.scalars(select(PrescriptionItem.id).where(PrescriptionItem.prescription_id == row.id)).all()))
     if item_count < 1:
@@ -114,13 +182,36 @@ def mark_ready(prescription_id: int, db: Session = Depends(get_db), user: User =
     row.status = PrescriptionStatus.READY
     row.approved_at = datetime.utcnow()
     row.version += 1
+    add_audit_log(
+        db,
+        user=user,
+        action="prescription_ready",
+        module="prescription",
+        entity_type="prescription",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"e-Reçete onaya hazırlandı: firma #{row.company_id} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "status": "draft", "version": row.version - 1}),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "status": "ready",
+                "approved_at": row.approved_at,
+                "version": row.version,
+                "item_count": item_count,
+                "diagnosis_code": row.diagnosis_code,
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return _to_response(db, row)
 
 
 @router.post("/{prescription_id}/cancel", response_model=PrescriptionResponse)
-def cancel_prescription(prescription_id: int, payload: PrescriptionCancel, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
+def cancel_prescription(prescription_id: int, payload: PrescriptionCancel, request: Request, db: Session = Depends(get_db), user: User = Depends(require_roles(*PHYSICIAN_ONLY))):
     row = db.get(Prescription, prescription_id)
     if not row:
         raise HTTPException(status_code=404, detail="Reçete bulunamadı.")
@@ -131,10 +222,33 @@ def cancel_prescription(prescription_id: int, payload: PrescriptionCancel, db: S
         return _to_response(db, row)
     if row.status == PrescriptionStatus.APPROVED:
         raise HTTPException(status_code=409, detail="MEDULA tarafından onaylanmış reçete bu ekrandan iptal edilemez.")
+    old_status = row.status.value if hasattr(row.status, "value") else str(row.status)
     row.status = PrescriptionStatus.CANCELLED
     row.cancelled_at = datetime.utcnow()
     row.cancel_reason = encrypt_field(payload.reason)
     row.version += 1
+    add_audit_log(
+        db,
+        user=user,
+        action="prescription_cancelled",
+        module="prescription",
+        entity_type="prescription",
+        entity_id=str(row.id),
+        company_id=row.company_id,
+        description=f"e-Reçete iptal edildi: firma #{row.company_id} / çalışan #{row.employee_id}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        old_value=serialize_audit_value({"id": row.id, "status": old_status, "version": row.version - 1}),
+        new_value=serialize_audit_value(
+            {
+                "id": row.id,
+                "status": "cancelled",
+                "cancelled_at": row.cancelled_at,
+                "version": row.version,
+                "has_cancel_reason": bool(payload.reason),
+            }
+        ),
+    )
     db.commit()
     db.refresh(row)
     return _to_response(db, row)

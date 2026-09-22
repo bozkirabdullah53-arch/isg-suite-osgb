@@ -33,3 +33,17 @@ def verify_audit_chain(db: Session) -> dict:
         "hash_breaks": hash_breaks,
         "ok": chain_breaks == 0 and hash_breaks == 0,
     }
+
+
+def audit_chain_health() -> dict:
+    """Sağlık/release çıktısı için güvenli zincir durumu (kendi oturumunu açar).
+
+    Denetim zinciri kontrolü hiçbir zaman çağıran akışı bozmaz.
+    """
+    try:
+        from app.core.database import SessionLocal
+
+        with SessionLocal() as db:
+            return verify_audit_chain(db)
+    except Exception as exc:  # pragma: no cover - savunmacı
+        return {"supported": False, "reason": type(exc).__name__, "ok": None}

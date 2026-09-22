@@ -791,19 +791,58 @@ def purge_expired_scheduled_backups(db: Session, *, cutoff: datetime):
                 remote_present = remote_size is not None
             if path is None and not remote_present:
                 raise FileNotFoundError("Süreli işyeri yedeği bulunamadı.")
+            # Silme geri alınamaz: kim/ne zaman/neden bilgisi denetime yazılır.
+            _record_purge_audit(db, row, cutoff=cutoff)
             if path is not None:
                 path.unlink()
             if remote_present:
                 remote.delete(_remote_backup_key(row))
             db.delete(row); db.commit(); deleted += 1
-        except Exception:
-            db.rollback(); failed += 1
+        except Exception as exc:
+            db.rollback()
+            failed += 1
+            logger.warning(
+                "Süresi dolmuş işyeri yedeği silinemedi: archive_id=%s error=%s",
+                getattr(row, "id", "?"),
+                type(exc).__name__,
+            )
     return PurgeSummary(deleted, failed)
+
+
+def _record_purge_audit(db: Session, row: object, *, cutoff: datetime) -> None:
+    """Retention silmesini denetime yazar (İBYS Yedekleme Prosedürü §9)."""
+    from app.services.audit import add_audit_log, serialize_audit_value
+
+    add_audit_log(
+        db,
+        user=None,
+        action="workplace_backup_purged",
+        module="backup",
+        entity_type="eisa_archive",
+        entity_id=str(getattr(row, "id", "")),
+        company_id=getattr(row, "company_id", None),
+        description=(
+            f"Saklama süresi dolan otomatik işyeri yedeği silindi: "
+            f"{getattr(row, 'original_name', None)}"
+        ),
+        old_value=serialize_audit_value(
+            {
+                "backup_id": getattr(row, "id", None),
+                "company_id": getattr(row, "company_id", None),
+                "original_name": getattr(row, "original_name", None),
+                "size_bytes": getattr(row, "size_bytes", None),
+                "checksum": getattr(row, "checksum", None),
+                "completed_at": getattr(row, "completed_at", None),
+                "retention_cutoff": cutoff,
+            }
+        ),
+    )
 
 def run_scheduled_company_backups(db_factory, *, now: datetime | None = None):
     now = now or datetime.utcnow()
     with db_factory() as db: ids = list(db.scalars(select(Company.id).where(Company.is_active.is_(True)).order_by(Company.id)).all())
     created = skipped = failed = 0
+    failures: list[dict[str, Any]] = []
     cutoff = now - timedelta(days=max(1, settings.workplace_backup_retention_days))
     # Alan doluyken önce eski otomatik yedekleri sil; üretimden sonra temizlemek
     # disk doluluğu senaryosunda artık çok geç kalır.
@@ -814,9 +853,21 @@ def run_scheduled_company_backups(db_factory, *, now: datetime | None = None):
             key = schedule_key(company_id, now)
             if db.scalar(select(EisaArchiveRecord.id).where(EisaArchiveRecord.schedule_key == key)) is not None: skipped += 1; continue
             try: create_company_backup(db, company_id=company_id, actor_user_id=None, source=BackupSource.SCHEDULED, schedule_key=key); created += 1
-            except Exception: db.rollback(); failed += 1
+            except Exception as exc:
+                db.rollback(); failed += 1
+                # Hata detayı kaybolmaz: hem loglanır hem alarm üretilir.
+                logger.exception(
+                    "Zamanlanmış işyeri yedeği başarısız: company_id=%s error=%s",
+                    company_id,
+                    type(exc).__name__,
+                )
+                failures.append(
+                    {"company_id": company_id, "error_class": type(exc).__name__, "error": str(exc)[:300]}
+                )
     with db_factory() as db:
         purge_after = purge_expired_scheduled_backups(db, cutoff=cutoff)
+    if failures:
+        _raise_backup_failure_alerts(db_factory, failures=failures, now=now)
     return BackupRunSummary(
         len(ids),
         created,
@@ -824,3 +875,42 @@ def run_scheduled_company_backups(db_factory, *, now: datetime | None = None):
         failed,
         purge_before.deleted + purge_after.deleted,
     )
+
+
+def _raise_backup_failure_alerts(db_factory, *, failures: list[dict[str, Any]], now: datetime) -> None:
+    """Yedek başarısızlığında global yöneticilere bildirim üretir (prosedür §9)."""
+    from app.models.entities import Notification, NotificationType, User, UserRole
+
+    try:
+        with db_factory() as db:
+            admins = list(
+                db.scalars(
+                    select(User).where(
+                        User.role == UserRole.GLOBAL_ADMIN,
+                        User.is_active.is_(True),
+                    )
+                ).all()
+            )
+            if not admins:
+                return
+            summary = ", ".join(
+                f"#{item['company_id']} ({item['error_class']})" for item in failures[:10]
+            )
+            for admin in admins:
+                db.add(
+                    Notification(
+                        user_id=admin.id,
+                        company_id=None,
+                        type=NotificationType.CRITICAL,
+                        title="Otomatik yedek başarısız",
+                        message=(
+                            f"{len(failures)} işyeri yedeği {now.date()} gecesi alınamadı: {summary}. "
+                            "Yedekleme altyapısını kontrol edin; RPO riski oluşabilir."
+                        ),
+                        entity_type="backup_failure",
+                        entity_id=str(now.date()),
+                    )
+                )
+            db.commit()
+    except Exception:  # pragma: no cover - alarm asla yedek akışını bozmaz
+        logger.exception("Yedek başarısızlık bildirimi oluşturulamadı")

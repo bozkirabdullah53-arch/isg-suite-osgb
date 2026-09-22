@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import shutil
 import zipfile
 from datetime import datetime
@@ -29,6 +30,9 @@ from app.models.entities import (
     User,
     WorkplaceAssignment,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def archive_root() -> Path:
@@ -478,6 +482,33 @@ def create_tenant_backup(
     zip_path = _maybe_encrypt_file(zip_path)
     zip_name = zip_path.name
 
+    # 3-2-1 kuralı: yerel arşiv kopyasına ek olarak doğrulanmış offsite kopya.
+    offsite_result: dict = {"uploaded": False, "reason": "remote-disabled"}
+    try:
+        from app.services.backup_management import (
+            BackupOffsiteError,
+            offsite_key,
+            upload_backup_to_offsite,
+        )
+
+        storage_rel = _rel_store(zip_path)
+        offsite_result = upload_backup_to_offsite(
+            zip_path,
+            key=offsite_key(Path(storage_rel), prefix=f"{settings.backup_remote_prefix}/central-archive"),
+        )
+    except BackupOffsiteError as exc:
+        if bool(getattr(settings, "backup_remote_required", False)):
+            raise
+        logger.warning(
+            "Tenant yedeği offsite kopyalanamadı; yerel arşiv korundu: %s",
+            str(exc)[:200],
+        )
+    except Exception as exc:  # pragma: no cover - savunmacı
+        logger.warning(
+            "Tenant yedeği offsite kopyalanamadı; yerel arşiv korundu: %s",
+            type(exc).__name__,
+        )
+
     row = EisaArchiveRecord(
         kind=ArchiveKind.TENANT_BACKUP,
         osgb_id=target_osgb,
@@ -492,6 +523,7 @@ def create_tenant_backup(
             f"Tenant yedek v3 — {len(companies)} işyeri, "
             f"{domain_counts['documents']} doküman, {domain_counts['health_records']} sağlık, "
             f"{domain_counts['risk_assessments']} risk, {domain_counts['training_sessions']} eğitim"
+            + (" · offsite:doğrulandı" if offsite_result.get("uploaded") else " · offsite:yerel")
         ),
         created_by_user_id=user.id,
     )

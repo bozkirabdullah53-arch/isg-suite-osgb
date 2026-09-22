@@ -1,18 +1,19 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import hmac
 from dataclasses import asdict
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, is_workplace_operations_account
 from app.core.config import settings, workplace_backups_active
 from app.core.database import get_db
 from app.core.database import SessionLocal
 from app.models.entities import ArchiveKind, BackupSource, BackupStatus, Company, EisaArchiveRecord, User
+from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.backup_safety import verify_archive_checksum
 from app.services.backup_restore import _decrypt_if_needed
 from app.services.workplace_backup import (
@@ -61,9 +62,47 @@ def run_scheduled(x_workplace_backup_token: str = Header(default="")):
     return asdict(run_scheduled_company_backups(SessionLocal, now=datetime.utcnow()))
 
 @router.get("/status")
-def status(user: User = Depends(_require_workplace_manager)):
-    return {"enabled": True, "automatic_enabled": True, "retention_days": settings.workplace_backup_retention_days,
-        "backup_hour_tr": settings.workplace_backup_hour_tr, "company_id": int(user.company_id)}
+def status(db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
+    """Yedek sağlığı — son başarılı yedek yaşı ve RPO uyumu (prosedür §9)."""
+    company_id = int(user.company_id)
+    scope = (
+        EisaArchiveRecord.kind == ArchiveKind.TENANT_BACKUP,
+        EisaArchiveRecord.entity_type == "workplace_backup_v4",
+        EisaArchiveRecord.company_id == company_id,
+    )
+    last_success = db.scalar(
+        select(func.max(EisaArchiveRecord.completed_at)).where(
+            *scope, EisaArchiveRecord.backup_status == BackupStatus.COMPLETED
+        )
+    )
+    last_attempt = db.scalar(select(func.max(EisaArchiveRecord.created_at)).where(*scope))
+    failed_count = int(
+        db.scalar(
+            select(func.count(EisaArchiveRecord.id)).where(
+                *scope, EisaArchiveRecord.backup_status == BackupStatus.FAILED
+            )
+        )
+        or 0
+    )
+    max_age_hours = max(1, int(getattr(settings, "backup_max_age_hours", 36)))
+    age_hours = None
+    if last_success is not None:
+        age_hours = round((datetime.utcnow() - last_success).total_seconds() / 3600.0, 2)
+    healthy = last_success is not None and age_hours is not None and age_hours <= max_age_hours
+    return {
+        "enabled": True,
+        "automatic_enabled": True,
+        "retention_days": settings.workplace_backup_retention_days,
+        "backup_hour_tr": settings.workplace_backup_hour_tr,
+        "company_id": company_id,
+        "offsite_enabled": bool(getattr(settings, "workplace_backup_remote_enabled", False)),
+        "last_successful_backup_at": last_success,
+        "last_attempt_at": last_attempt,
+        "backup_age_hours": age_hours,
+        "max_age_hours": max_age_hours,
+        "failed_count": failed_count,
+        "healthy": healthy,
+    }
 @router.get("", response_model=list[WorkplaceBackupResponse])
 def listing(db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     rows = db.scalars(select(EisaArchiveRecord).where(EisaArchiveRecord.kind == ArchiveKind.TENANT_BACKUP,
@@ -71,7 +110,7 @@ def listing(db: Session = Depends(get_db), user: User = Depends(_require_workpla
         .order_by(EisaArchiveRecord.created_at.desc()).limit(500)).all()
     return [_response(row) for row in rows]
 @router.post("", response_model=WorkplaceBackupResponse)
-def create(_payload: CreateWorkplaceBackupRequest, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
+def create(_payload: CreateWorkplaceBackupRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     if db.scalar(select(Company.id).where(Company.id == int(user.company_id), Company.is_active.is_(True))) is None:
         raise HTTPException(404, "Aktif işyeri bulunamadı.")
     try:
@@ -83,9 +122,32 @@ def create(_payload: CreateWorkplaceBackupRequest, db: Session = Depends(get_db)
         )
     except BackupStorageFullError as exc:
         raise HTTPException(status_code=507, detail=str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="workplace_backup_created",
+        module="backup",
+        entity_type="eisa_archive",
+        entity_id=str(row.id),
+        company_id=int(user.company_id),
+        description=f"İşyeri yedeği oluşturuldu: {row.original_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+        new_value=serialize_audit_value(
+            {
+                "backup_id": row.id,
+                "company_id": int(user.company_id),
+                "size_bytes": row.size_bytes,
+                "checksum": row.checksum,
+                "source": "manual",
+            }
+        ),
+    )
+    db.commit()
+    db.refresh(row)
     return _response(row)
 @router.get("/{backup_id}/download")
-def download(backup_id: int, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
+def download(backup_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     row = _own_backup(db, user, backup_id)
     if row.backup_status != BackupStatus.COMPLETED:
         raise HTTPException(409, "Yedek henüz hazır değil.")
@@ -101,6 +163,19 @@ def download(backup_id: int, db: Session = Depends(get_db), user: User = Depends
         if remote_temporary:
             _cleanup_paths([path])
         raise
+    add_audit_log(
+        db,
+        user=user,
+        action="workplace_backup_downloaded",
+        module="backup",
+        entity_type="eisa_archive",
+        entity_id=str(row.id),
+        company_id=int(user.company_id),
+        description=f"İşyeri yedeği indirildi: {row.original_name}",
+        ip_address=request_ip(request),
+        user_agent=request_user_agent(request),
+    )
+    db.commit()
     cleanup_paths = [downloadable] if downloadable != path else []
     if remote_temporary:
         cleanup_paths.append(path)
@@ -112,7 +187,7 @@ def download(backup_id: int, db: Session = Depends(get_db), user: User = Depends
         background=BackgroundTask(_cleanup_paths, cleanup_paths) if cleanup_paths else None,
     )
 @router.get("/{backup_id}/contents")
-def contents(backup_id: int, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
+def contents(backup_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(_require_workplace_manager)):
     row = _own_backup(db, user, backup_id)
     if row.backup_status != BackupStatus.COMPLETED:
         raise HTTPException(409, "Yedek henüz hazır değil.")
@@ -123,13 +198,26 @@ def contents(backup_id: int, db: Session = Depends(get_db), user: User = Depends
     except FileNotFoundError as exc:
         raise HTTPException(404, "Yedek dosyası bulunamadı.") from exc
     try:
-        checksum = verify_archive_checksum(path, row.checksum)
-        if checksum.get("status") == "mismatch":
-            raise HTTPException(409, "Yedek bütünlük kontrolünden geçemedi.")
+        # verify_archive_checksum kayıtlı checksum uyuşmazsa 409 yükseltir.
+        checksum_status = verify_archive_checksum(path, row.checksum)
         manifest = read_company_backup_manifest(row, path=path)
         if int(manifest.get("company_id", -1)) != int(user.company_id):
             raise HTTPException(409, "Yedek firma kapsamı doğrulanamadı.")
-        return {"checksum": checksum, "manifest": manifest}
+        add_audit_log(
+            db,
+            user=user,
+            action="workplace_backup_inspected",
+            module="backup",
+            entity_type="eisa_archive",
+            entity_id=str(row.id),
+            company_id=int(user.company_id),
+            description=f"İşyeri yedeği içeriği incelendi: {row.original_name}",
+            ip_address=request_ip(request),
+            user_agent=request_user_agent(request),
+            new_value=serialize_audit_value({"checksum": checksum_status}),
+        )
+        db.commit()
+        return {"checksum": checksum_status, "manifest": manifest}
     finally:
         if remote_temporary:
             _cleanup_paths([path])

@@ -90,6 +90,23 @@ jobs:
           tests/test_clamav_scan.py
           tests/test_capacity_engine.py
           tests/test_backup_restore.py
+          tests/test_backup_database.py
+          tests/test_backup_offsite_config.py
+          tests/test_backup_management.py
+          tests/test_rebuild_audit_chain.py
+          tests/test_backup_restore_drill.py
+          tests/test_backup_key_rotation.py
+          tests/test_render_blueprint_backups.py
+          tests/test_workplace_backup_audit.py
+          tests/test_audit_chain.py
+          tests/test_audit_chain_verify_script.py
+          tests/test_audit_long_tail.py
+          tests/test_incident_audit.py
+          tests/test_hard_delete_safety.py
+          tests/test_change_request.py
+          tests/test_change_request_apply.py
+          tests/test_change_requests_api.py
+          tests/test_migration_heads.py
           tests/test_active_osgb.py
           tests/test_ci_postgres_parity.py
           tests/test_tenant_context.py
@@ -137,12 +154,26 @@ jobs:
         run: pip install -r requirements.txt
       - name: Alembic upgrade head
         run: alembic upgrade head
+      - name: Alembic single-head guard
+        run: |
+          HEADS=$(alembic heads | grep -c '(head)')
+          echo "alembic head sayısı: $HEADS"
+          if [ "$HEADS" -ne 1 ]; then
+            echo "::error::Çoklu alembic head tespit edildi; migration zinciri dallanmış."
+            alembic heads
+            exit 1
+          fi
       - name: Postgres schema parity
         run: python scripts/ci_postgres_parity.py
       - name: Pytest (Postgres parity + personnel + training + committee workflow)
         run: >
           pytest -q
           tests/test_ci_postgres_parity.py
+          tests/test_migration_heads.py
+          tests/test_change_request.py
+          tests/test_change_request_apply.py
+          tests/test_change_requests_api.py
+          tests/test_audit_chain.py
           tests/test_personnel_profile_core.py
           tests/test_training_nace_classification.py
           tests/test_training_presentation_versions.py
