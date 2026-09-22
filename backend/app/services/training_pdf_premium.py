@@ -27,6 +27,23 @@ def _fit(tp, c, text: str, width: float, font: str, size: float):
     return tp._fit(c, text, width, font, size)
 
 
+def _draw_job_field(c, w, y, gorev: str, *, tp):
+    """Draw the job label and value in non-overlapping fixed columns."""
+    label_x = w - 97 * mm
+    value_x = label_x + 27 * mm
+    right_x = w - 9 * mm
+    font_size = 6.7
+
+    c.setFont(tp._FONT_B, font_size)
+    c.drawString(label_x, y, "Görevi:")
+    c.setFont(tp._FONT, font_size)
+    c.drawRightString(
+        right_x,
+        y,
+        _fit(tp, c, gorev or "—", right_x - value_x, tp._FONT, font_size),
+    )
+
+
 def _draw_header_icon(c, x, y, kind: str):
     """Small line icons drawn without external assets."""
     c.saveState()
@@ -215,10 +232,7 @@ def draw_certificate_page(
     c.drawString(9 * mm, body_top - 17 * mm, "T.C. Kimlik No:")
     c.setFont(tp._FONT, 6.7)
     c.drawString(31 * mm, body_top - 17 * mm, tc or "—")
-    c.setFont(tp._FONT_B, 6.7)
-    c.drawRightString(w - 36 * mm, body_top - 17 * mm, "Görevi:")
-    c.setFont(tp._FONT, 6.7)
-    c.drawRightString(w - 9 * mm, body_top - 17 * mm, gorev or "—")
+    _draw_job_field(c, w, body_top - 17 * mm, gorev, tp=tp)
     c.setFont(tp._FONT_B, 6.7)
     c.drawCentredString(w / 2 - 17 * mm, body_top - 21.5 * mm, "Eğitim Tarihi:")
     c.setFont(tp._FONT, 6.7)
