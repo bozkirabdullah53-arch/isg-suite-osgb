@@ -32,6 +32,7 @@ from app.services.training_question_bank import (
     valid_nace_scope,
     validate_question_for_publish,
 )
+from app.services import training_exam_pdf
 from app.services.training_exam_pdf import (
     _exam_pdf_question_text,
     _load_or_create_snapshot,
@@ -338,6 +339,35 @@ def test_exam_pdf_is_generated_with_twenty_questions(db: Session):
     snapshot = _load_or_create_snapshot(db, training, user.id)
     assert snapshot.question_count == QUESTION_COUNT
     assert len(snapshot.items) == QUESTION_COUNT
+
+
+def test_exam_pdf_header_includes_training_title_and_uploaded_logo(db: Session, monkeypatch):
+    training, user = _seed_training(db)
+    training.title = "Akümülatör İmalatı İş Sağlığı ve Güvenliği Eğitimi"
+    db.commit()
+
+    logo_calls = []
+    monkeypatch.setattr(training_exam_pdf, "_resolve_logo", lambda _training: object())
+    monkeypatch.setattr(
+        training_exam_pdf,
+        "_draw_logo",
+        lambda *_args, **kwargs: logo_calls.append(kwargs) or True,
+    )
+
+    pdf = build_exam_pdf(
+        company_name="Tersane Test",
+        training=training,
+        db=db,
+        created_by_id=user.id,
+    )
+    pdf_text = " ".join(
+        (page.extract_text() or "") for page in PdfReader(BytesIO(pdf)).pages
+    )
+
+    assert "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI" in pdf_text
+    assert "Eğitim: Akümülatör İmalatı İş Sağlığı ve Güvenliği Eğitimi" in pdf_text
+    assert logo_calls
+    assert logo_calls[0]["x"] > 0
 
 
 @pytest.mark.parametrize(

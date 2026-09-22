@@ -8,12 +8,14 @@ from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import settings
 from app.models.entities import Branch, Company, Employee, TrainingExamSnapshot
 from app.services.special_training_profiles import resolve_special_profile_key, SPECIAL_TRAINING_PROFILES
 from app.services.training_question_bank import (
@@ -55,6 +57,85 @@ def _register_fonts() -> None:
         pdfmetrics.registerFont(TTFont(FONT_REGULAR, str(regular)))
     if FONT_BOLD not in pdfmetrics.getRegisteredFontNames():
         pdfmetrics.registerFont(TTFont(FONT_BOLD, str(bold)))
+
+
+def _resolve_logo(training) -> Path | None:
+    """Return the uploaded training logo only from the configured upload root."""
+    relative = str(getattr(training, "logo_path", None) or "").strip()
+    if not relative:
+        return None
+    root = Path(settings.upload_dir).resolve()
+    path = (root / relative).resolve()
+    if root not in path.parents and path != root:
+        return None
+    return path if path.is_file() else None
+
+
+def _draw_logo(
+    c: canvas.Canvas,
+    training,
+    *,
+    x: float,
+    y: float,
+    max_w: float,
+    max_h: float,
+) -> bool:
+    """Draw the optional training logo proportionally inside the header area."""
+    path = _resolve_logo(training)
+    if not path:
+        return False
+    try:
+        image = ImageReader(str(path))
+        image_w, image_h = image.getSize()
+        if not image_w or not image_h:
+            return False
+        scale = min(max_w / image_w, max_h / image_h)
+        draw_w, draw_h = image_w * scale, image_h * scale
+        c.drawImage(
+            image,
+            x,
+            y + (max_h - draw_h) / 2,
+            width=draw_w,
+            height=draw_h,
+            mask="auto",
+        )
+        return True
+    except Exception:
+        # A missing/corrupt optional logo must not prevent the exam PDF from
+        # being generated.
+        return False
+
+
+def _fit_font_size(
+    c: canvas.Canvas,
+    text: str,
+    font: str,
+    max_width: float,
+    start_size: float,
+    min_size: float,
+) -> float:
+    size = start_size
+    while size > min_size and c.stringWidth(text, font, size) > max_width:
+        size -= 0.25
+    return size
+
+
+def _wrap_header_text(
+    c: canvas.Canvas,
+    text: str,
+    width: float,
+    font: str,
+    start_size: float,
+    min_size: float,
+    max_lines: int = 2,
+) -> tuple[list[str], float]:
+    size = start_size
+    while size >= min_size:
+        lines = _wrap(c, text, width, font, size)
+        if len(lines) <= max_lines:
+            return lines, size
+        size -= 0.25
+    return _wrap(c, text, width, font, min_size), min_size
 
 
 def _load_or_create_snapshot(db: Session, training, created_by_id: int) -> TrainingExamSnapshot:
@@ -206,6 +287,11 @@ def build_exam_pdf(
     )
     special_profile = SPECIAL_TRAINING_PROFILES.get(special_key or "")
     exam_title = str((special_profile or {}).get("title") or "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
+    training_title = str(getattr(training, "title", None) or "").strip()
+    show_training_title = bool(
+        training_title and training_title.casefold() != exam_title.casefold()
+    )
+    has_logo = _resolve_logo(training) is not None
     participant_names = [] if answer_key_only else _exam_participant_names(db, training)
 
     def header(page_no: int):
@@ -213,15 +299,69 @@ def build_exam_pdf(
         c.rect(0, h - 30 * mm, w, 30 * mm, fill=1, stroke=0)
         c.setFillColorRGB(*emerald)
         c.rect(0, h - 31.5 * mm, w, 1.5 * mm, fill=1, stroke=0)
+
+        # Keep the logo in the upper-left corner on every question page and
+        # reserve a text column so long titles never run underneath it.
+        if has_logo:
+            _draw_logo(
+                c,
+                training,
+                x=10 * mm,
+                y=h - 27 * mm,
+                max_w=29 * mm,
+                max_h=22 * mm,
+            )
+        content_left = 45 * mm if has_logo else 12 * mm
+        content_right = w - 12 * mm
+        content_width = content_right - content_left
+        content_center = (content_left + content_right) / 2
+
         c.setFillColorRGB(1, 1, 1)
-        c.setFont(FONT_BOLD, 14 if len(exam_title) < 46 else 12)
-        c.drawCentredString(w / 2, h - 13 * mm, exam_title.upper())
-        c.setFont(FONT_REGULAR, 7.5)
+        title_text = exam_title.upper()
+        title_size = _fit_font_size(
+            c,
+            title_text,
+            FONT_BOLD,
+            content_width,
+            13.5 if len(title_text) < 46 else 12,
+            9,
+        )
+        c.setFont(FONT_BOLD, title_size)
+        c.drawCentredString(content_center, h - 9.5 * mm, title_text)
+
+        if show_training_title:
+            training_header = f"Eğitim: {training_title}"
+            training_size = _fit_font_size(
+                c,
+                training_header,
+                FONT_REGULAR,
+                content_width,
+                8.5,
+                6.5,
+            )
+            c.setFont(FONT_REGULAR, training_size)
+            c.drawCentredString(content_center, h - 15 * mm, training_header)
+
+        c.setFont(FONT_REGULAR, 7.2)
         subtitle = (
             f"{training.hazard_class} • Sektör: {sector_name} • "
             f"{snapshot.question_count} Soru • Sürüm {snapshot.version}"
         )
-        c.drawCentredString(w / 2, h - 21 * mm, subtitle)
+        subtitle_lines, subtitle_size = _wrap_header_text(
+            c,
+            subtitle,
+            content_width,
+            FONT_REGULAR,
+            7.2,
+            5.8,
+            max_lines=2,
+        )
+        c.setFont(FONT_REGULAR, subtitle_size)
+        subtitle_y = h - (21 * mm if show_training_title else 18 * mm)
+        for line in subtitle_lines[:2]:
+            c.drawCentredString(content_center, subtitle_y, line)
+            subtitle_y -= 3.2 * mm
+
         c.setFillColorRGB(0.25, 0.3, 0.35)
         c.setFont(FONT_REGULAR, 7)
         c.drawRightString(w - 15 * mm, 10 * mm, f"Sayfa {page_no}")
