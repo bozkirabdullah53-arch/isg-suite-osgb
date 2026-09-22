@@ -554,12 +554,14 @@
 }
 
 .training-pro .ibys-identity-table-wrap {
-  overflow-x: auto;
+  width: 100%;
+  overflow-x: hidden;
   border-top: 1px solid #e7f0ed;
 }
 
 .training-pro .ibys-identity-table {
-  min-width: 1120px;
+  width: 100%;
+  min-width: 0;
   table-layout: fixed;
 }
 
@@ -577,11 +579,11 @@
   vertical-align: middle;
 }
 
-.training-pro .ibys-identity-table th:nth-child(1) { width: 24%; }
-.training-pro .ibys-identity-table th:nth-child(2) { width: 11%; }
-.training-pro .ibys-identity-table th:nth-child(3) { width: 11%; }
-.training-pro .ibys-identity-table th:nth-child(4) { width: 22%; }
-.training-pro .ibys-identity-table th:nth-child(5) { width: 32%; }
+.training-pro .ibys-identity-table th:nth-child(1) { width: 21%; }
+.training-pro .ibys-identity-table th:nth-child(2) { width: 10%; }
+.training-pro .ibys-identity-table th:nth-child(3) { width: 10%; }
+.training-pro .ibys-identity-table th:nth-child(4) { width: 21%; }
+.training-pro .ibys-identity-table th:nth-child(5) { width: 38%; }
 
 .training-pro .ibys-identity-course strong,
 .training-pro .ibys-linked-professional strong {
@@ -684,9 +686,11 @@
 
 .training-pro .ibys-identity-form {
   display: grid;
-  grid-template-columns: 108px minmax(190px, 1fr) auto;
+  grid-template-columns: 96px minmax(0, 1fr) minmax(128px, auto);
   gap: 8px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .training-pro .ibys-identity-form .tp-select,
@@ -696,7 +700,8 @@
 }
 
 .training-pro .ibys-identity-number {
-  min-width: 190px;
+  width: 100%;
+  min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.08em;
@@ -713,6 +718,27 @@
   line-height: 1.35;
 }
 
+@media (max-width: 1480px) {
+  .training-pro .ibys-identity-form {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .training-pro .ibys-identity-save {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .training-pro .ibys-link-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .training-pro .ibys-link-button {
+    width: 100%;
+    min-height: 40px;
+  }
+}
+
 @media (max-width: 1180px) {
   .training-pro .ibys-identity-head {
     flex-direction: column;
@@ -724,6 +750,17 @@
 
   .training-pro .ibys-identity-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .training-pro .ibys-identity-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .training-pro .ibys-identity-table {
+    min-width: 900px;
   }
 }
 
