@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.core.input_rules import assert_date_order, assert_event_date, assert_meaningful_text, assert_person_name
+from app.core.input_rules import assert_date_order, assert_event_date, assert_meaningful_text
 from app.models.entities import AnnualPlanStatus
 
 
@@ -27,7 +27,11 @@ class AnnualPlanCreate(BaseModel):
         self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
         if self.legal_basis is not None:
             self.legal_basis = self.legal_basis.strip() or None
-        self.responsible_name = assert_person_name(self.responsible_name, label="Sorumlu")
+        # Annual-plan templates may assign a role or unit rather than one person
+        # (e.g. "İSG Uzmanı / İşveren" or "İdari İşler / Teknik Birim").
+        self.responsible_name = assert_meaningful_text(
+            self.responsible_name, label="Sorumlu", min_len=2, required=False
+        )
         self.target_date = assert_event_date(
             self.target_date, label="Hedef tarih", required=False, allow_future_days=800
         )
@@ -69,7 +73,9 @@ class AnnualPlanUpdate(BaseModel):
         if self.legal_basis is not None:
             self.legal_basis = self.legal_basis.strip() or None
         if self.responsible_name is not None:
-            self.responsible_name = assert_person_name(self.responsible_name, label="Sorumlu")
+            self.responsible_name = assert_meaningful_text(
+                self.responsible_name, label="Sorumlu", min_len=2, required=False
+            )
         if self.target_date is not None:
             self.target_date = assert_event_date(
                 self.target_date, label="Hedef tarih", required=False, allow_future_days=800
@@ -110,3 +116,4 @@ class AnnualPlanResponse(BaseModel):
 class AnnualPlanGenerate(BaseModel):
     company_id: int
     year: int = Field(ge=2020, le=2100)
+

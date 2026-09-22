@@ -445,6 +445,7 @@ export function AnnualPlansPage({user}) {
 
       {open && (
         <Modal title={editing ? 'Plan Maddesini Düzenle' : 'Yeni Plan Maddesi'} close={() => setOpen(false)}>
+          {message && <div className="error" role="alert" style={{marginBottom: 12}}>{message}</div>}
           <form className="form-grid" onSubmit={save}>
             {!editing && (
               <Select
@@ -502,3 +503,4 @@ export function AnnualPlansPage({user}) {
     </>
   );
 }
+

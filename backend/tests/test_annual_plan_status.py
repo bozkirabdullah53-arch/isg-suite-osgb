@@ -43,6 +43,19 @@ def test_create_and_update_payloads_normalize_completion_to_completed():
     assert updated.status == AnnualPlanStatus.COMPLETED
 
 
+def test_update_accepts_template_responsible_role_with_completion_date():
+    updated = AnnualPlanUpdate(
+        activity="Yıllık İSG çalışma planının oluşturulması",
+        responsible_name="İSG Uzmanı / İşveren",
+        target_date=date(2026, 1, 15),
+        status=AnnualPlanStatus.DELAYED,
+        completion_date=date(2026, 1, 22),
+    )
+
+    assert updated.responsible_name == "İSG Uzmanı / İşveren"
+    assert updated.status == AnnualPlanStatus.COMPLETED
+
+
 def test_refresh_converts_legacy_completed_date_from_delayed_to_completed():
     item = SimpleNamespace(
         status=AnnualPlanStatus.DELAYED,
@@ -68,3 +81,4 @@ def test_refresh_only_marks_uncompleted_past_items_as_delayed():
     _refresh_delayed(db, [item])
 
     assert item.status == AnnualPlanStatus.DELAYED
+
