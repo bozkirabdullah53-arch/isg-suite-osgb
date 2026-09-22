@@ -8,7 +8,9 @@ on:
       - 'backend/app/models/regulatory_identity.py'
       - 'backend/alembic/versions/0083_personnel_profile_osgb_scope.py'
       - 'backend/alembic/versions/0084_regulatory_identity_vault.py'
+      - 'backend/alembic/versions/0125_ibys_training_health.py'
       - 'backend/tests/test_regulatory_application_readiness.py'
+      - 'backend/tests/test_ibys_training_health_structured.py'
       - 'backend/scripts/regulatory_application_readiness.py'
       - 'backend/scripts/ci_postgres_parity.py'
       - 'docs/regulatory/**'
@@ -78,11 +80,22 @@ jobs:
           cols = {c['name'] for c in inspector.get_columns('regulatory_identities')}
           required = {'company_id','employee_id','identity_type','masked_value','ciphertext','lookup_hash','encryption_version'}
           assert required <= cols, (required - cols)
+          assert 'professional_regulatory_identities' in inspector.get_table_names(), inspector.get_table_names()
+          pcols = {c['name'] for c in inspector.get_columns('professional_regulatory_identities')}
+          prequired = {'osgb_id','professional_id','identity_type','masked_value','ciphertext','lookup_hash','encryption_version'}
+          assert prequired <= pcols, (prequired - pcols)
+          tcols = {c['name'] for c in inspector.get_columns('training_sessions')}
+          assert 'instructor_professional_id' in tcols
+          hcols = {c['name'] for c in inspector.get_columns('health_records')}
+          assert {'diagnosis','laboratory_result_summary','anamnesis_chronic_diseases','anamnesis_current_complaints'} <= hcols
           with engine.connect() as conn:
-              assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0084_regulatory_identity_vault'
-          print('regulatory identity vault schema + re-upgrade: OK')
+              assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0125'
+          print('regulatory identity + IBYS training/health schema + re-upgrade: OK')
           PY
       - name: Main Postgres parity gate
         run: python scripts/ci_postgres_parity.py
-      - name: Regulatory fail-closed and crypto tests
-        run: pytest -q tests/test_regulatory_application_readiness.py
+      - name: Regulatory fail-closed, identity and structured health tests
+        run: >
+          pytest -q
+          tests/test_regulatory_application_readiness.py
+          tests/test_ibys_training_health_structured.py

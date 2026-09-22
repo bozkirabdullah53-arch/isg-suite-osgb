@@ -63,11 +63,15 @@ entegrasyon bilinçli fail-closed (`authority_integration_gate`, REVIEW_FIX_REPO
 | Tarih/süre | `TrainingSession` tarih + süre alanları; geçerlilik hesapları (`test_training_validity`) | ✅ |
 | Yöntem (yüz yüze/uzaktan) | classroom + `remote_training` modülü (video, ilerleme, sınav, politika gate'leri) | ✅ |
 | Eğitici/eğitilen + sertifika | katılımcı kayıtları, eğitmen modu, sertifika PDF + QR `trainings/verify/{code}` | ✅ |
+| Eğitici TCKN bağlantısı | `TrainingSession.instructor_professional_id` + ayrı şifreli `ProfessionalRegulatoryIdentity`; tam TCKN yalnız authority adapter içinde çözülür | ✅ |
+| Eski eğitim eğitici backfill | Yönetici Eğitim Kayıtları ekranında readiness matrisi; aynı OSGB + birebir ad-soyad eşleşmesi dışında otomatik bağlama yok, belirsiz kayıt manuel inceleme | ✅ |
 | Resmî JSON/XML şeması | Resmî sözleşme bekliyor — `katip-prep/export.csv` + `ibys-export/package` veri hazırlığı mevcut | ⛔ sözleşme |
 
 ### b) Sağlık Gözetimi Veri Seti
 - `HealthRecord`: odyometri (tarih+sonuç), spirometri/SFT, akciğer grafisi, kan kurşunu (değer/birim/ref/eval), diğer biyolojik testler, maruziyetler, önerilen tetkikler, bilgilendirilmiş onay (+tarih), kısıtlamalar, takip notu, hekim bağlantısı (`physician_professional_id`), `fitness_status` (işe elverişlilik kanaat enum'ı) + `form.html`/`fitness.html` çıktıları + rapor dosyası. ✅
-- Anamnez: `summary` + `exposures` + `follow_up_note` üzerinden serbest metin; **yapılandırılmış anamnez formu** isteğe bağlı geliştirme (İBYS şeması geldikçe alan bazında ayrıştırılabilir). ⚠
+- Anamnez: yapılandırılmış alanlar eklendi: kronik hastalık, geçmiş tıbbi/cerrahi öykü, aile öyküsü, ilaç, alerji, sigara + paket-yıl, alkol, mesleki geçmiş, geçmiş maruziyet ve güncel yakınma. Eski `summary`/`exposures` kayıtları geriye uyum için korunur. ✅
+- Hekim değerlendirmesi: `diagnosis` ve `laboratory_result_summary` ayrı alanlar olarak eklendi. ✅
+- Sağlık Excel çıktısı: tanı, laboratuvar özeti ve yapılandırılmış anamnez alanları sağlık gözetimi dışa aktarımına eklendi; revizyon snapshot'ı model kolonlarını dinamik aldığı için 0125 alanları hash-zincirli geçmişe dahildir. ✅
 - Gizlilik: alan bazlı şifreleme production'da açık (`HEALTH_FIELD_ENCRYPTION_ENABLED=true`), revizyon + erişim logu, hekim rolü scoping (`require_roles_or_workplace_manager`). ✅
 - Laboratuvar/tetkik kaydı: `WorkplaceMeasurement` (limit_value, lab_name, report_ref). ✅
 
@@ -101,7 +105,7 @@ Ayrıntı: `isg-suite-osgb-guvenlik-raporu.md` + `isg-suite-osgb-retest.csv` (bu
 
 - Yeni testler: `test_audit_chain.py` (3), `test_risk_exposed_count.py` (5) → **8/8 geçti**.
 - Regresyon: `test_osgb_purge.py` + `test_token_revoke.py` + `test_risk_validity.py` + `test_risk_scoring_thresholds.py` → **35/35 geçti**.
-- Migration zinciri: `0121 → 0122 → 0123`; production açılışta `alembic upgrade head` (start.sh, başarısızsa **başlamayı reddeder**).
+- Migration zinciri: `0121 → 0122 → 0123 → 0124 → 0125`; production açılışta `alembic upgrade head` (start.sh, başarısızsa **başlamayı reddeder**).
 - CI: push sonrası GitHub Actions (backend pytest + PG matris + security workflow).
 
 ## 6) Üretim Öncesi Kalan Dış Bağımlılıklar (kodla çözülemez)

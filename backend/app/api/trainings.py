@@ -26,6 +26,7 @@ from app.models.entities import (
     Branch,
     Company,
     Employee,
+    IsgProfessional,
     TrainingParticipant,
     TrainingSession,
     TrainingStatus,
@@ -33,8 +34,11 @@ from app.models.entities import (
     UserRole,
 )
 from app.models.remote_training import RemoteTrainingCertificate
+from app.models.regulatory_identity import ProfessionalRegulatoryIdentity
 from app.models.training_presentation_approval import TrainingPresentationApproval
 from app.schemas.training import (
+    InstructorIdentityUpsert,
+    InstructorProfessionalLink,
     TrainingArchiveRequest,
     TrainingCreate,
     TrainingResponse,
@@ -42,6 +46,11 @@ from app.schemas.training import (
     TrainingVerifyResponse,
 )
 from app.services.assigned_team import assigned_team, training_defaults
+from app.services.regulatory_identity_vault import (
+    RegulatoryIdentityError,
+    public_professional_identity_status,
+    upsert_professional_identity,
+)
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
@@ -144,6 +153,13 @@ EXCEL_EXT = (".xlsx", ".xlsm", ".csv")
 
 def ensure_access(db: Session, user: User, company_id: int):
     ensure_company_access(db, user, company_id)
+
+
+def _ensure_professional_osgb_scope(user: User, professional: IsgProfessional) -> None:
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    if not user.osgb_id or int(professional.osgb_id) != int(user.osgb_id):
+        raise HTTPException(403, "Bu profesyonelin kimlik kaydını yönetme yetkiniz yok.")
 
 
 def _ensure_hygiene_instructor_is_authorized(
@@ -694,6 +710,208 @@ def export_trainings_xlsx(
     )
 
 
+def _normalized_person_name(value: object) -> str:
+    return " ".join(str(value or "").strip().casefold().replace("i\u0307", "i").split())
+
+
+@router.get("/instructor-regulatory-readiness")
+def instructor_regulatory_readiness(
+    company_id: int | None = None,
+    include_archived: bool = Query(True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_training_package_manager),
+):
+    """Masked, manager-only readiness matrix for instructor identity/backfill.
+
+    No plaintext identity value is returned. Legacy training rows are matched
+    only by exact normalized instructor name inside the workplace OSGB scope.
+    Ambiguous/no-match rows are never auto-linked.
+    """
+    query = select(TrainingSession).order_by(
+        TrainingSession.start_date.desc(), TrainingSession.id.desc()
+    )
+    if not include_archived:
+        query = query.where(TrainingSession.archived_at.is_(None))
+
+    if user.role == UserRole.GLOBAL_ADMIN:
+        if company_id:
+            query = query.where(TrainingSession.company_id == company_id)
+    else:
+        allowed = accessible_company_ids_or_empty(db, user)
+        if not allowed:
+            return {
+                "counts": {"total": 0, "ready": 0, "identity_missing": 0, "link_available": 0, "review_required": 0},
+                "rows": [],
+                "full_identity_exposed": False,
+            }
+        if company_id:
+            ensure_access(db, user, company_id)
+            query = query.where(TrainingSession.company_id == company_id)
+        else:
+            query = query.where(TrainingSession.company_id.in_(allowed))
+
+    trainings = list(db.scalars(query.limit(3000)).all())
+    company_ids = {row.company_id for row in trainings}
+    companies = {
+        company.id: company
+        for company in db.scalars(
+            select(Company).where(Company.id.in_(company_ids or {-1}))
+        ).all()
+    }
+    osgb_ids = {company.osgb_id for company in companies.values() if company.osgb_id}
+    professionals = list(
+        db.scalars(
+            select(IsgProfessional).where(
+                IsgProfessional.osgb_id.in_(osgb_ids or {-1}),
+                IsgProfessional.is_active.is_(True),
+            )
+        ).all()
+    )
+    professionals_by_id = {professional.id: professional for professional in professionals}
+    professionals_by_osgb_name: dict[tuple[int, str], list[IsgProfessional]] = {}
+    for professional in professionals:
+        key = (int(professional.osgb_id), _normalized_person_name(professional.full_name))
+        professionals_by_osgb_name.setdefault(key, []).append(professional)
+
+    identity_rows = list(
+        db.scalars(
+            select(ProfessionalRegulatoryIdentity).where(
+                ProfessionalRegulatoryIdentity.professional_id.in_(
+                    list(professionals_by_id) or [-1]
+                )
+            )
+        ).all()
+    )
+    identities_by_professional: dict[int, list[ProfessionalRegulatoryIdentity]] = {}
+    for identity in identity_rows:
+        identities_by_professional.setdefault(int(identity.professional_id), []).append(identity)
+
+    def public_candidate(professional: IsgProfessional) -> dict[str, object]:
+        return {
+            "professional_id": professional.id,
+            "full_name": professional.full_name,
+            "professional_type": (
+                professional.professional_type.value
+                if hasattr(professional.professional_type, "value")
+                else str(professional.professional_type)
+            ),
+            "certificate_class": professional.certificate_class,
+            "certificate_number": professional.certificate_number,
+        }
+
+    rows: list[dict[str, object]] = []
+    counts = {
+        "total": len(trainings),
+        "ready": 0,
+        "identity_missing": 0,
+        "link_available": 0,
+        "review_required": 0,
+    }
+
+    for training in trainings:
+        company = companies.get(training.company_id)
+        linked = (
+            professionals_by_id.get(int(training.instructor_professional_id))
+            if training.instructor_professional_id is not None
+            else None
+        )
+        candidates: list[IsgProfessional] = []
+        if linked is None and company and company.osgb_id:
+            candidates = professionals_by_osgb_name.get(
+                (int(company.osgb_id), _normalized_person_name(training.instructor_name)),
+                [],
+            )
+
+        target = linked or (candidates[0] if len(candidates) == 1 else None)
+        identity_public: list[dict[str, object]] = []
+        if target is not None:
+            identity_public = [
+                {
+                    "identity_type": item.identity_type,
+                    "masked_value": item.masked_value,
+                    "verified": bool(item.verified_at),
+                    "encryption_version": item.encryption_version,
+                }
+                for item in identities_by_professional.get(target.id, [])
+            ]
+
+        if linked is not None:
+            status = "ready" if identity_public else "identity_missing"
+        elif len(candidates) == 1:
+            status = "link_available"
+        else:
+            status = "review_required"
+
+        counts[status if status in counts else "review_required"] += 1
+        rows.append(
+            {
+                "training_id": training.id,
+                "company_id": training.company_id,
+                "company_name": company.name if company else str(training.company_id),
+                "title": training.title,
+                "start_date": training.start_date.isoformat() if training.start_date else None,
+                "archived": bool(training.archived_at),
+                "instructor_name": training.instructor_name,
+                "instructor_professional_id": training.instructor_professional_id,
+                "status": status,
+                "linked_professional": public_candidate(linked) if linked else None,
+                "candidate_professionals": [public_candidate(item) for item in candidates],
+                "identities": identity_public,
+            }
+        )
+
+    return {
+        "counts": counts,
+        "rows": rows,
+        "full_identity_exposed": False,
+        "matching_rule": "exact_normalized_name_within_osgb",
+    }
+
+
+@router.get("/instructors/{professional_id}/identity-status")
+def instructor_identity_status(
+    professional_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_training_package_manager),
+):
+    professional = db.get(IsgProfessional, professional_id)
+    if not professional or not professional.is_active:
+        raise HTTPException(404, "Aktif eğitici/profesyonel bulunamadı.")
+    _ensure_professional_osgb_scope(user, professional)
+    return public_professional_identity_status(
+        db, osgb_id=professional.osgb_id, professional_id=professional.id
+    )
+
+
+@router.put("/instructors/{professional_id}/regulatory-identity")
+def save_instructor_regulatory_identity(
+    professional_id: int,
+    payload: InstructorIdentityUpsert,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_training_package_manager),
+):
+    professional = db.get(IsgProfessional, professional_id)
+    if not professional or not professional.is_active:
+        raise HTTPException(404, "Aktif eğitici/profesyonel bulunamadı.")
+    _ensure_professional_osgb_scope(user, professional)
+    try:
+        upsert_professional_identity(
+            db,
+            osgb_id=professional.osgb_id,
+            professional_id=professional.id,
+            identity_type=payload.identity_type,
+            raw_value=payload.raw_value,
+            verified_by_id=user.id,
+        )
+        db.commit()
+    except RegulatoryIdentityError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    return public_professional_identity_status(
+        db, osgb_id=professional.osgb_id, professional_id=professional.id
+    )
+
+
 @router.post("", response_model=TrainingResponse)
 def create_training(
     payload: TrainingCreate,
@@ -705,6 +923,13 @@ def create_training(
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
+    instructor_professional = None
+    if payload.instructor_professional_id is not None:
+        instructor_professional = db.get(IsgProfessional, payload.instructor_professional_id)
+        if not instructor_professional or not instructor_professional.is_active:
+            raise HTTPException(422, "Seçilen eğitici/profesyonel aktif değil veya bulunamadı.")
+        if company.osgb_id is None or int(instructor_professional.osgb_id) != int(company.osgb_id):
+            raise HTTPException(422, "Seçilen eğitici bu işyerinin bağlı olduğu OSGB kapsamında değil.")
     _ensure_hygiene_instructor_is_authorized(
         db,
         company_id=payload.company_id,
@@ -763,6 +988,10 @@ def create_training(
     values = payload.model_dump(exclude={"participant_ids"})
     values["sector"] = kod
     values["hazard_class"] = etkin_tehlike_sinifi
+    if instructor_professional is not None:
+        # Eğitmen adı profesyonel ana kaydından kanonik alınır; TCKN eğitim
+        # satırına kopyalanmaz, yalnız şifreli regulatory vault'ta tutulur.
+        values["instructor_name"] = instructor_professional.full_name
     if not (values.get("stamp_text") or "").strip():
         values["stamp_text"] = (
             "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve "
@@ -911,6 +1140,40 @@ def update_training(
         setattr(row, k, v)
     if new_ids is not None:
         _replace_participants(db, row, new_ids)
+    db.commit()
+    return _load_training(db, training_id)
+
+
+@router.put("/{training_id}/instructor-regulatory-link", response_model=TrainingResponse)
+def link_historical_training_instructor(
+    training_id: int,
+    payload: InstructorProfessionalLink,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_training_package_manager),
+):
+    """Link an existing training to the canonical professional without rewriting history.
+
+    Completed/archived records may be linked only when the stored instructor
+    name already matches the professional. This prevents a regulatory backfill
+    from silently changing who delivered the training.
+    """
+    row = _load_training(db, training_id)
+    ensure_access(db, user, row.company_id)
+    company = db.get(Company, row.company_id)
+    professional = db.get(IsgProfessional, payload.professional_id)
+    if not company or not professional or not professional.is_active:
+        raise HTTPException(404, "İşyeri veya aktif eğitici/profesyonel bulunamadı.")
+    if company.osgb_id is None or int(professional.osgb_id) != int(company.osgb_id):
+        raise HTTPException(422, "Seçilen eğitici bu işyerinin bağlı olduğu OSGB kapsamında değil.")
+
+    stored_name = " ".join(str(row.instructor_name or "").split()).casefold()
+    canonical_name = " ".join(str(professional.full_name or "").split()).casefold()
+    if stored_name != canonical_name:
+        raise HTTPException(
+            409,
+            "Tarihsel eğitici adı profesyonel kaydıyla eşleşmiyor; otomatik bağlantı yapılmadı.",
+        )
+    row.instructor_professional_id = professional.id
     db.commit()
     return _load_training(db, training_id)
 

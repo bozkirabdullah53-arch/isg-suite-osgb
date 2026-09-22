@@ -223,6 +223,7 @@ function emptyForm(user) {
     end_date: '',
     hazard_class: 'Çok Tehlikeli',
     sector: 'genel_uretim',
+    instructor_professional_id: null,
     instructor_name: '',
     instructor_qualification: '',
     workplace_physician: '',
@@ -449,6 +450,11 @@ export function TrainingPage({user}) {
   const [renewalFilter, setRenewalFilter] = useState('');
   const [renewalBusy, setRenewalBusy] = useState(false);
   const [renewalErr, setRenewalErr] = useState('');
+  const [instructorReadiness, setInstructorReadiness] = useState(null);
+  const [instructorReadinessBusy, setInstructorReadinessBusy] = useState(false);
+  const [identityDrafts, setIdentityDrafts] = useState({});
+  const [linkChoices, setLinkChoices] = useState({});
+  const [readinessAction, setReadinessAction] = useState('');
   const [sectorQuery, setSectorQuery] = useState('');
   const [sectorPickerOpen, setSectorPickerOpen] = useState(false);
 
@@ -534,6 +540,7 @@ export function TrainingPage({user}) {
     const first = instructorOptions[0];
     setForm((current) => ({
       ...current,
+      instructor_professional_id: first.professional_id || null,
       instructor_name: first.value,
       instructor_qualification: first.qualification || '',
     }));
@@ -550,13 +557,19 @@ export function TrainingPage({user}) {
   function pickInstructor(value) {
     if (value === '__custom__') {
       setManualInstructor(true);
-      setForm((f) => ({...f, instructor_name: '', instructor_qualification: ''}));
+      setForm((f) => ({
+        ...f,
+        instructor_professional_id: null,
+        instructor_name: '',
+        instructor_qualification: '',
+      }));
       return;
     }
     setManualInstructor(false);
     const picked = instructorOptions.find((o) => o.value === value);
     setForm((f) => ({
       ...f,
+      instructor_professional_id: picked?.professional_id || null,
       instructor_name: value,
       instructor_qualification: picked?.qualification || f.instructor_qualification,
     }));
@@ -655,7 +668,7 @@ export function TrainingPage({user}) {
     }
   }
 
-  const TEAM_FIELDS = ['instructor_name', 'instructor_qualification', 'workplace_physician', 'employer_representative'];
+  const TEAM_FIELDS = ['instructor_professional_id', 'instructor_name', 'instructor_qualification', 'workplace_physician', 'employer_representative'];
 
   /** Görevlendirmeden gelen adları forma yazar; kullanıcının elle yazdığını ezmez. */
   function applyTeamDefaults(info, {force = false} = {}) {
@@ -691,6 +704,83 @@ export function TrainingPage({user}) {
     } catch (_) {
       setAssignedTeam(null);
       return null;
+    }
+  }
+
+  async function loadInstructorReadiness() {
+    if (!canManagePackage) {
+      setInstructorReadiness(null);
+      return null;
+    }
+    setInstructorReadinessBusy(true);
+    try {
+      const data = await api('/trainings/instructor-regulatory-readiness?include_archived=true');
+      setInstructorReadiness(data);
+      return data;
+    } catch (x) {
+      setErr(x.message || 'Eğitici kimlik hazırlık bilgisi alınamadı.');
+      return null;
+    } finally {
+      setInstructorReadinessBusy(false);
+    }
+  }
+
+  async function linkHistoricalInstructor(row) {
+    const candidates = row?.candidate_professionals || [];
+    const selected = Number(
+      linkChoices[row.training_id]
+      || (candidates.length === 1 ? candidates[0]?.professional_id : 0),
+    );
+    if (!row?.training_id || !selected) {
+      setErr('Bağlanacak profesyoneli seçiniz.');
+      return;
+    }
+    setReadinessAction(`link-${row.training_id}`);
+    setErr('');
+    setOkMsg('');
+    try {
+      await api(`/trainings/${row.training_id}/instructor-regulatory-link`, {
+        method: 'PUT',
+        body: JSON.stringify({professional_id: selected}),
+      });
+      setOkMsg(`Eğitim #${row.training_id} eğitici-profesyonel kaydına bağlandı.`);
+      await Promise.all([loadInstructorReadiness(), load()]);
+    } catch (x) {
+      setErr(x.message || 'Eğitici bağlantısı yapılamadı.');
+    } finally {
+      setReadinessAction('');
+    }
+  }
+
+  async function saveInstructorIdentity(professionalId) {
+    const draft = identityDrafts[professionalId] || {};
+    const raw = String(draft.value || '').replace(/\D/g, '');
+    const identityType = draft.type || 'tckn';
+    if (!professionalId) return;
+    if ((identityType === 'tckn' && raw.length !== 11) || (identityType === 'ykn' && ![10, 11].includes(raw.length))) {
+      setErr(identityType === 'tckn'
+        ? 'TCKN 11 haneli olmalıdır.'
+        : 'YKN 10 veya 11 haneli olmalıdır.');
+      return;
+    }
+    setReadinessAction(`identity-${professionalId}`);
+    setErr('');
+    setOkMsg('');
+    try {
+      await api(`/trainings/instructors/${professionalId}/regulatory-identity`, {
+        method: 'PUT',
+        body: JSON.stringify({identity_type: identityType, raw_value: raw}),
+      });
+      setIdentityDrafts((current) => ({
+        ...current,
+        [professionalId]: {...(current[professionalId] || {}), value: ''},
+      }));
+      setOkMsg('Eğitici kimliği şifreli entegrasyon kasasına kaydedildi.');
+      await loadInstructorReadiness();
+    } catch (x) {
+      setErr(x.message || 'Eğitici kimliği kaydedilemedi.');
+    } finally {
+      setReadinessAction('');
     }
   }
 
@@ -821,6 +911,12 @@ export function TrainingPage({user}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, form.company_id, renewalFilter]);
 
+  useEffect(() => {
+    if (tab !== 'kayitlar' || !canManagePackage) return;
+    loadInstructorReadiness();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, canManagePackage]);
+
   function validateDates(f = form) {
     if (!f.start_date || !f.end_date) {
       return 'Eğitim başlangıç ve bitiş tarihlerini girin (tarih aralığı zorunlu).';
@@ -851,6 +947,7 @@ export function TrainingPage({user}) {
       end_date: f.end_date,
       hazard_class: f.hazard_class,
       sector: f.sector,
+      instructor_professional_id: f.instructor_professional_id ? Number(f.instructor_professional_id) : null,
       instructor_name: (f.instructor_name || '').trim(),
       instructor_qualification: f.instructor_qualification || null,
       workplace_physician: (f.workplace_physician || '').trim() || null,
@@ -1245,6 +1342,10 @@ export function TrainingPage({user}) {
       evaluation_method:
         (profile.evaluation_methods && profile.evaluation_methods[0]) || prev.evaluation_method,
       passing_score: 60,
+      instructor_professional_id:
+        ['hijyen_sanitasyon', 'gida_su_hijyeni'].includes(code)
+          ? null
+          : prev.instructor_professional_id,
       instructor_name:
         ['hijyen_sanitasyon', 'gida_su_hijyeni'].includes(code) ? '' : prev.instructor_name,
       instructor_qualification:
@@ -1553,7 +1654,7 @@ export function TrainingPage({user}) {
                     style={instructorOptions.length > 0 ? {marginTop: 8} : undefined}
                     value={form.instructor_name}
                     disabled={!canEdit}
-                    onChange={(e) => setForm({...form, instructor_name: e.target.value})}
+                    onChange={(e) => setForm({...form, instructor_professional_id: null, instructor_name: e.target.value})}
                     placeholder={
                       isHygieneSpecialProfile
                         ? 'İşyeri hekimi, hemşire veya diğer sağlık personelinin adı soyadı'
@@ -2259,7 +2360,7 @@ export function TrainingPage({user}) {
                     required
                     value={form.instructor_name}
                     disabled={!canEdit}
-                    onChange={(e) => setForm({...form, instructor_name: e.target.value})}
+                    onChange={(e) => setForm({...form, instructor_professional_id: null, instructor_name: e.target.value})}
                     placeholder={
                       isHygieneSpecialProfile
                         ? 'İşyeri hekimi, hemşire veya diğer sağlık personelinin adı soyadı'
@@ -2585,6 +2686,179 @@ export function TrainingPage({user}) {
     );
   }
 
+  function renderInstructorReadinessPanel() {
+    if (!canManagePackage) return null;
+    const data = instructorReadiness;
+    const counts = data?.counts || {};
+    const readinessRows = data?.rows || [];
+    const badge = (status) => {
+      const map = {
+        ready: ['Hazır', '#166534', '#dcfce7'],
+        identity_missing: ['Kimlik eksik', '#b45309', '#fef3c7'],
+        link_available: ['Bağlantı hazır', '#1d4ed8', '#dbeafe'],
+        review_required: ['İnceleme gerekli', '#b91c1c', '#fee2e2'],
+      };
+      const [label, color, background] = map[status] || map.review_required;
+      return <span className="badge" style={{background, color, whiteSpace: 'nowrap'}}>{label}</span>;
+    };
+
+    return (
+      <section className="panel-card" style={{marginBottom: 16, border: '1px solid #bbf7d0'}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14}}>
+          <div>
+            <div className="section-title">İBYS Eğitici Kimlik Hazırlığı</div>
+            <h3 style={{margin: '4px 0 6px'}}>Eğitmen TCKN / profesyonel bağlantısı</h3>
+            <p className="tp-help" style={{margin: 0, maxWidth: 780}}>
+              Tam TCKN/YKN ekranda veya eğitim kaydında tutulmaz. Girilen kimlik şifreli entegrasyon
+              kasasına yazılır; bu panel yalnız maskeli durumu gösterir. Eski kayıtlar sadece aynı OSGB
+              içindeki birebir ad-soyad eşleşmesinde bağlanabilir.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-outline-premium"
+            style={{width: 'auto', minHeight: 38, padding: '0 12px'}}
+            disabled={instructorReadinessBusy}
+            onClick={loadInstructorReadiness}
+          >
+            {instructorReadinessBusy ? 'Kontrol ediliyor…' : 'Yeniden Kontrol Et'}
+          </button>
+        </div>
+
+        <div className="tp-grid-4" style={{marginBottom: 14}}>
+          <div className="field-card"><span className="tp-help">Toplam eğitim</span><strong style={{display: 'block', fontSize: 20}}>{counts.total || 0}</strong></div>
+          <div className="field-card"><span className="tp-help">İBYS hazır</span><strong style={{display: 'block', fontSize: 20, color: '#166534'}}>{counts.ready || 0}</strong></div>
+          <div className="field-card"><span className="tp-help">Kimlik eksik</span><strong style={{display: 'block', fontSize: 20, color: '#b45309'}}>{counts.identity_missing || 0}</strong></div>
+          <div className="field-card"><span className="tp-help">Bağlantı / inceleme</span><strong style={{display: 'block', fontSize: 20}}>{(counts.link_available || 0) + (counts.review_required || 0)}</strong></div>
+        </div>
+
+        <div className="table-wrap">
+          <table className="records-table">
+            <thead>
+              <tr>
+                <th>Eğitim / İşyeri</th>
+                <th>Eğitici</th>
+                <th>Durum</th>
+                <th>Profesyonel bağlantısı</th>
+                <th>Şifreli kimlik</th>
+              </tr>
+            </thead>
+            <tbody>
+              {readinessRows.length ? readinessRows.map((row) => {
+                const candidates = row.candidate_professionals || [];
+                const linked = row.linked_professional;
+                const targetId = Number(linked?.professional_id || 0);
+                const identities = row.identities || [];
+                const tckn = identities.find((item) => item.identity_type === 'tckn');
+                const ykn = identities.find((item) => item.identity_type === 'ykn');
+                return (
+                  <tr key={row.training_id}>
+                    <td>
+                      <strong>{row.title}</strong>
+                      <div className="tp-help">{row.company_name} · {row.start_date || '—'} · #{row.training_id}{row.archived ? ' · Arşiv' : ''}</div>
+                    </td>
+                    <td>{row.instructor_name || '—'}</td>
+                    <td>{badge(row.status)}</td>
+                    <td style={{minWidth: 230}}>
+                      {linked ? (
+                        <div>
+                          <strong>{linked.full_name}</strong>
+                          <div className="tp-help">{linked.certificate_number || linked.professional_type || 'Profesyonel kayıt'}</div>
+                        </div>
+                      ) : candidates.length ? (
+                        <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+                          <select
+                            className="tp-select"
+                            style={{minWidth: 170, width: 'auto'}}
+                            value={linkChoices[row.training_id] || (candidates.length === 1 ? candidates[0].professional_id : '')}
+                            onChange={(e) => setLinkChoices((current) => ({...current, [row.training_id]: e.target.value}))}
+                          >
+                            {candidates.length > 1 && <option value="">Profesyonel seçiniz</option>}
+                            {candidates.map((candidate) => (
+                              <option key={candidate.professional_id} value={candidate.professional_id}>
+                                {candidate.full_name}{candidate.certificate_number ? ` — ${candidate.certificate_number}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn-outline-premium"
+                            style={{width: 'auto', minHeight: 34, padding: '0 10px'}}
+                            disabled={readinessAction === `link-${row.training_id}`}
+                            onClick={() => linkHistoricalInstructor(row)}
+                          >
+                            {readinessAction === `link-${row.training_id}` ? 'Bağlanıyor…' : 'Bağla'}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="tp-help">Aynı OSGB içinde birebir ad-soyad eşleşmesi bulunamadı.</span>
+                      )}
+                    </td>
+                    <td style={{minWidth: 320}}>
+                      {targetId ? (
+                        <div>
+                          <div style={{marginBottom: 7, fontSize: 12}}>
+                            {tckn ? <span style={{marginRight: 10}}>TCKN: <strong>{tckn.masked_value}</strong></span> : null}
+                            {ykn ? <span>YKN: <strong>{ykn.masked_value}</strong></span> : null}
+                            {!identities.length ? <span className="tp-help">Henüz kimlik kaydı yok.</span> : null}
+                          </div>
+                          <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
+                            <select
+                              className="tp-select"
+                              style={{width: 86}}
+                              value={identityDrafts[targetId]?.type || 'tckn'}
+                              onChange={(e) => setIdentityDrafts((current) => ({
+                                ...current,
+                                [targetId]: {...(current[targetId] || {}), type: e.target.value},
+                              }))}
+                            >
+                              <option value="tckn">TCKN</option>
+                              <option value="ykn">YKN</option>
+                            </select>
+                            <input
+                              className="tp-input"
+                              style={{width: 150}}
+                              type="password"
+                              inputMode="numeric"
+                              autoComplete="off"
+                              maxLength={11}
+                              placeholder="Kimlik numarası"
+                              value={identityDrafts[targetId]?.value || ''}
+                              onChange={(e) => setIdentityDrafts((current) => ({
+                                ...current,
+                                [targetId]: {
+                                  ...(current[targetId] || {}),
+                                  value: e.target.value.replace(/\D/g, '').slice(0, 11),
+                                },
+                              }))}
+                            />
+                            <button
+                              type="button"
+                              className="btn-outline-premium"
+                              style={{width: 'auto', minHeight: 34, padding: '0 10px'}}
+                              disabled={readinessAction === `identity-${targetId}`}
+                              onClick={() => saveInstructorIdentity(targetId)}
+                            >
+                              {readinessAction === `identity-${targetId}` ? 'Kaydediliyor…' : identities.length ? 'Kimliği Güncelle' : 'Kimliği Kaydet'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="tp-help">Önce profesyonel bağlantısını tamamlayın.</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr><td colSpan={5}>{instructorReadinessBusy ? 'Kontrol ediliyor…' : 'Eğitim kaydı bulunamadı.'}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  }
+
   /* ───────── Kayıtlar tab ───────── */
   function renderKayitlarTab() {
     if (detail) {
@@ -2710,7 +2984,9 @@ export function TrainingPage({user}) {
     }
 
   return (
-    <div className="panel-card">
+    <>
+      {renderInstructorReadinessPanel()}
+      <div className="panel-card">
       <div className="section-title" style={{marginBottom: 6}}>Yüz Yüze Eğitim Kayıtları</div>
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}}>
         <div>
@@ -2842,6 +3118,7 @@ export function TrainingPage({user}) {
           </table>
         </div>
       </div>
+    </>
     );
   }
 

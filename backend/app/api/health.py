@@ -11,6 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -47,7 +48,7 @@ from app.models.entities import (
     WorkplaceAssignment,
 )
 from app.schemas.health import HealthRecordCreate, HealthRecordResponse, HealthRecordUpdate
-from app.services.health_field_crypto import DecryptedRecordView, encrypt_payload
+from app.services.health_field_crypto import DecryptedRecordView, SENSITIVE_TEXT_FIELDS, encrypt_payload
 from app.services.health_audit import (
     append_health_access,
     append_health_revision,
@@ -232,6 +233,19 @@ def _to_response(
             fitness_status=row.fitness_status,
             physician_professional_id=row.physician_professional_id,
             physician_name=row.physician_name,
+            diagnosis=view.diagnosis,
+            laboratory_result_summary=view.laboratory_result_summary,
+            anamnesis_chronic_diseases=view.anamnesis_chronic_diseases,
+            anamnesis_past_medical_history=view.anamnesis_past_medical_history,
+            anamnesis_family_history=view.anamnesis_family_history,
+            anamnesis_current_medications=view.anamnesis_current_medications,
+            anamnesis_allergies=view.anamnesis_allergies,
+            anamnesis_smoking_status=view.anamnesis_smoking_status,
+            anamnesis_smoking_pack_years=row.anamnesis_smoking_pack_years,
+            anamnesis_alcohol_use=view.anamnesis_alcohol_use,
+            anamnesis_occupational_history=view.anamnesis_occupational_history,
+            anamnesis_previous_exposures=view.anamnesis_previous_exposures,
+            anamnesis_current_complaints=view.anamnesis_current_complaints,
             summary=view.summary,
             confidential_note=view.confidential_note,
             informed_consent=bool(row.informed_consent),
@@ -264,18 +278,7 @@ def _to_response(
             version=row.version,
         )
     data = HealthRecordResponse.model_validate(row)
-    for field in (
-        "confidential_note",
-        "summary",
-        "restrictions",
-        "audiometry_result",
-        "spirometry_result",
-        "chest_xray_result",
-        "follow_up_note",
-        "other_biological_test",
-        "exposures",
-        "suggested_tests",
-    ):
+    for field in SENSITIVE_TEXT_FIELDS:
         setattr(data, field, getattr(view, field))
     data.employee_name = employee.full_name if employee else None
     data.job_title = employee.job_title if employee else None
@@ -290,6 +293,9 @@ def _to_response(
 
         for field in SENSITIVE_TEXT_FIELDS:
             setattr(data, field, None)
+        # Yapılandırılmış anamnezdeki sayısal klinik yoğunluk alanı da
+        # metin alanlarıyla aynı minimum-gerekli görünürlük kuralına tabidir.
+        data.anamnesis_smoking_pack_years = None
         # DSP klinik karar üretmez; liste yanıtı hekim uygunluk kararını da
         # taşımamalıdır. Kayıt ve dosya kapsamı yine atama + tenant ile korunur.
         data.fitness_status = None
@@ -1060,7 +1066,11 @@ def export_health_xlsx(
     if employer_view:
         headers = [
             "Personel", "Görev", "Bölüm", "Muayene Türü", "Muayene Tarihi", "Sonraki Muayene",
-            "Uygunluk", "Hekim", "Özet", "Gizli Hekim Notu", "Bilgilendirme Onayı",
+            "Uygunluk", "Hekim", "Tanı / Klinik Değerlendirme", "Laboratuvar Sonuç Özeti",
+            "Kronik Hastalıklar", "Geçmiş Hastalık / Ameliyat", "Aile Öyküsü", "Kullanılan İlaçlar",
+            "Alerjiler", "Sigara", "Sigara Paket-Yıl", "Alkol", "Mesleki Geçmiş",
+            "Geçmiş Mesleki Maruziyetler", "Güncel Yakınmalar",
+            "Özet", "Gizli Hekim Notu", "Bilgilendirme Onayı",
             "Odyometri", "SFT", "Akciğer Grafisi", "Kan Kurşun", "Kurşun Değerlendirme",
             "Önerilen Tetkikler", "Maruziyetler", "Takip Notu", "Diğer Biyolojik Tetkik",
             "Çalışma Kısıtları", "Akıllı Özet", "Tetkik Özeti", "Rapor Dosyası",
@@ -1085,6 +1095,19 @@ def export_health_xlsx(
                 row.next_examination_date.isoformat() if row.next_examination_date else "",
                 excel_safe(FITNESS_LABELS.get(row.fitness_status, row.fitness_status.value)),
                 excel_safe(row.physician_name or ""),
+                excel_safe(view.diagnosis or ""),
+                excel_safe(view.laboratory_result_summary or ""),
+                excel_safe(view.anamnesis_chronic_diseases or ""),
+                excel_safe(view.anamnesis_past_medical_history or ""),
+                excel_safe(view.anamnesis_family_history or ""),
+                excel_safe(view.anamnesis_current_medications or ""),
+                excel_safe(view.anamnesis_allergies or ""),
+                excel_safe(view.anamnesis_smoking_status or ""),
+                row.anamnesis_smoking_pack_years if row.anamnesis_smoking_pack_years is not None else "",
+                excel_safe(view.anamnesis_alcohol_use or ""),
+                excel_safe(view.anamnesis_occupational_history or ""),
+                excel_safe(view.anamnesis_previous_exposures or ""),
+                excel_safe(view.anamnesis_current_complaints or ""),
                 excel_safe(view.summary or ""),
                 excel_safe(view.confidential_note or ""),
                 "Evet" if row.informed_consent else "Hayır",
@@ -1104,11 +1127,13 @@ def export_health_xlsx(
             ])
         ws.freeze_panes = "A2"
         ws.auto_filter.ref = ws.dimensions
-        for idx, width in enumerate(
-            (28, 22, 22, 24, 18, 18, 20, 24, 36, 36, 18, 30, 30, 30, 24, 22, 36, 36, 36, 36, 40, 40, 40, 30),
-            start=1,
-        ):
-            ws.column_dimensions[chr(64 + idx) if idx <= 26 else "X"].width = width
+        widths = [
+            28, 22, 22, 24, 18, 18, 20, 24,
+            38, 38, 34, 34, 34, 34, 30, 18, 16, 24, 38, 38, 38,
+            36, 36, 18, 30, 30, 30, 24, 22, 36, 36, 36, 36, 40, 40, 40, 30,
+        ]
+        for idx, width in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = width
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -1139,7 +1164,11 @@ def export_health_xlsx(
 
     headers = [
         "Personel", "Görev", "Bölüm", "Muayene Türü", "Muayene Tarihi", "Sonraki Muayene",
-        "Durum", "Hekim", "Odyometri", "SFT", "Akciğer", "Kan Kurşun", "Kurşun Değerlendirme",
+        "Durum", "Hekim", "Tanı / Klinik Değerlendirme", "Laboratuvar Sonuç Özeti",
+        "Kronik Hastalıklar", "Geçmiş Hastalık / Ameliyat", "Aile Öyküsü", "Kullanılan İlaçlar",
+        "Alerjiler", "Sigara", "Sigara Paket-Yıl", "Alkol", "Mesleki Geçmiş",
+        "Geçmiş Mesleki Maruziyetler", "Güncel Yakınmalar",
+        "Odyometri", "SFT", "Akciğer", "Kan Kurşun", "Kurşun Değerlendirme",
         "Önerilen Tetkikler", "Maruziyetler", "Diğer Biyolojik", "Akıllı Özet", "Rapor Dosyası",
     ]
     ws.append(headers)
@@ -1155,6 +1184,19 @@ def export_health_xlsx(
             r.next_examination_date.isoformat() if r.next_examination_date else "",
             FITNESS_LABELS.get(r.fitness_status, r.fitness_status.value),
             r.physician_name or "",
+            view.diagnosis or "",
+            view.laboratory_result_summary or "",
+            view.anamnesis_chronic_diseases or "",
+            view.anamnesis_past_medical_history or "",
+            view.anamnesis_family_history or "",
+            view.anamnesis_current_medications or "",
+            view.anamnesis_allergies or "",
+            view.anamnesis_smoking_status or "",
+            r.anamnesis_smoking_pack_years if r.anamnesis_smoking_pack_years is not None else "",
+            view.anamnesis_alcohol_use or "",
+            view.anamnesis_occupational_history or "",
+            view.anamnesis_previous_exposures or "",
+            view.anamnesis_current_complaints or "",
             f"{r.audiometry_date or ''} / {view.audiometry_result or ''}".strip(" /"),
             f"{r.spirometry_date or ''} / {view.spirometry_result or ''}".strip(" /"),
             f"{r.chest_xray_date or ''} / {view.chest_xray_result or ''}".strip(" /"),
@@ -1463,6 +1505,20 @@ def health_form_html(
         )
     )
     conf = view.confidential_note if full_health_view else None
+    diagnosis_txt = view.diagnosis if full_health_view else None
+    laboratory_summary = view.laboratory_result_summary if full_health_view else None
+    anamnesis_lines = [
+        ("Kronik hastalıklar", view.anamnesis_chronic_diseases),
+        ("Geçmiş hastalık / ameliyat", view.anamnesis_past_medical_history),
+        ("Aile öyküsü", view.anamnesis_family_history),
+        ("Kullanılan ilaçlar", view.anamnesis_current_medications),
+        ("Alerjiler", view.anamnesis_allergies),
+        ("Sigara", view.anamnesis_smoking_status),
+        ("Alkol", view.anamnesis_alcohol_use),
+        ("Mesleki geçmiş", view.anamnesis_occupational_history),
+        ("Geçmiş maruziyetler", view.anamnesis_previous_exposures),
+        ("Güncel yakınmalar", view.anamnesis_current_complaints),
+    ] if full_health_view else []
     audiometry_txt = view.audiometry_result if full_health_view else None
     spirometry_txt = view.spirometry_result if full_health_view else None
     chest_txt = view.chest_xray_result if full_health_view else None
@@ -1519,6 +1575,14 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 {cell('Uygunluk', FITNESS_LABELS.get(record.fitness_status, record.fitness_status.value))}
 {cell('Bilgilendirme Onayı', consent_txt)}
 </div>
+<h3>Yapılandırılmış Anamnez</h3>
+<div class="grid">
+{''.join(cell(label, value or '') for label, value in anamnesis_lines)}
+{cell('Sigara paket-yıl', record.anamnesis_smoking_pack_years if record.anamnesis_smoking_pack_years is not None else '')}
+</div>
+<h3>Hekim Değerlendirmesi</h3>
+<p><strong>Tanı / değerlendirme:</strong> {safe(diagnosis_txt) or '—'}</p>
+<p><strong>Laboratuvar sonuç özeti:</strong> {safe(laboratory_summary) or '—'}</p>
 <h3>Tetkikler</h3>
 <div class="grid">
 {cell('Odyometri', f"{record.audiometry_date or ''} / {audiometry_txt or ''}".strip(' /'))}

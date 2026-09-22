@@ -95,6 +95,7 @@ def training_defaults(db: Session, company_id: int) -> dict:
     options = [
         {
             "value": person["full_name"],
+            "professional_id": person["professional_id"],
             "qualification": person["title"],
             "role": role,
         }
@@ -113,6 +114,7 @@ def training_defaults(db: Session, company_id: int) -> dict:
         "team": team,
         "instructor_options": options,
         "defaults": {
+            "instructor_professional_id": (specialist or physician or {}).get("professional_id"),
             "instructor_name": (specialist or physician or {}).get("full_name"),
             "instructor_qualification": (specialist or physician or {}).get("title"),
             "workplace_physician": (physician or {}).get("full_name"),

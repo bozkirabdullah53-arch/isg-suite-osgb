@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.regulatory_identity import RegulatoryIdentity
+from app.models.regulatory_identity import ProfessionalRegulatoryIdentity, RegulatoryIdentity
 
 IdentityType = Literal["tckn", "ykn"]
 PREFIX = "rid:v1:"
@@ -188,6 +188,103 @@ def public_identity_status(db: Session, *, company_id: int, employee_id: int) ->
     return {
         "employee_id": employee_id,
         "company_id": company_id,
+        "identities": [
+            {
+                "identity_type": row.identity_type,
+                "masked_value": row.masked_value,
+                "verified": bool(row.verified_at),
+                "encryption_version": row.encryption_version,
+            }
+            for row in rows
+        ],
+        "full_identity_exposed": False,
+    }
+
+
+def upsert_professional_identity(
+    db: Session,
+    *,
+    osgb_id: int,
+    professional_id: int,
+    identity_type: IdentityType,
+    raw_value: str,
+    verified_by_id: int | None = None,
+    commit: bool = False,
+) -> ProfessionalRegulatoryIdentity:
+    """Store an instructor/professional identity encrypted and return only the ORM row."""
+    normalized = validate_identity(identity_type, raw_value)
+    row = db.scalar(
+        select(ProfessionalRegulatoryIdentity).where(
+            ProfessionalRegulatoryIdentity.professional_id == professional_id,
+            ProfessionalRegulatoryIdentity.identity_type == identity_type,
+        )
+    )
+    if row is None:
+        row = ProfessionalRegulatoryIdentity(
+            osgb_id=osgb_id,
+            professional_id=professional_id,
+            identity_type=identity_type,
+            masked_value=mask_identity(normalized),
+            ciphertext=encrypt_identity(identity_type, normalized),
+            lookup_hash=lookup_hash(identity_type, normalized),
+            encryption_version="rid:v1",
+        )
+        db.add(row)
+    else:
+        if row.osgb_id != osgb_id:
+            raise RegulatoryIdentityError(
+                "Professional/OSGB scope mismatch in regulatory identity vault."
+            )
+        row.masked_value = mask_identity(normalized)
+        row.ciphertext = encrypt_identity(identity_type, normalized)
+        row.lookup_hash = lookup_hash(identity_type, normalized)
+        row.encryption_version = "rid:v1"
+    if verified_by_id:
+        row.verified_by_id = verified_by_id
+        row.verified_at = datetime.utcnow()
+    db.flush()
+    if commit:
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+def professional_identity_for_authority(
+    db: Session,
+    *,
+    osgb_id: int,
+    professional_id: int,
+    identity_type: IdentityType = "tckn",
+) -> str:
+    """Internal adapter-only resolver for trainer/professional identity."""
+    row = db.scalar(
+        select(ProfessionalRegulatoryIdentity).where(
+            ProfessionalRegulatoryIdentity.osgb_id == osgb_id,
+            ProfessionalRegulatoryIdentity.professional_id == professional_id,
+            ProfessionalRegulatoryIdentity.identity_type == identity_type,
+        )
+    )
+    if row is None:
+        raise RegulatoryIdentityError(
+            "Eğitici/profesyonel için resmî entegrasyon kimlik kaydı bulunamadı."
+        )
+    return decrypt_identity(row.ciphertext)
+
+
+def public_professional_identity_status(
+    db: Session, *, osgb_id: int, professional_id: int
+) -> dict[str, object]:
+    rows = list(
+        db.scalars(
+            select(ProfessionalRegulatoryIdentity).where(
+                ProfessionalRegulatoryIdentity.osgb_id == osgb_id,
+                ProfessionalRegulatoryIdentity.professional_id == professional_id,
+            )
+        ).all()
+    )
+    return {
+        "professional_id": professional_id,
+        "osgb_id": osgb_id,
         "identities": [
             {
                 "identity_type": row.identity_type,
