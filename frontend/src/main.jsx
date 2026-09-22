@@ -3316,8 +3316,14 @@ createRoot(document.getElementById('root')).render(
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   const hadController = Boolean(navigator.serviceWorker.controller);
+  const swBuildId = encodeURIComponent(
+    String(import.meta.env.VITE_APP_BUILD_ID || 'current'),
+  );
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(console.error);
+    navigator.serviceWorker
+      .register(`/sw.js?v=${swBuildId}`, {updateViaCache: 'none'})
+      .then((registration) => registration.update())
+      .catch(console.error);
   });
 
   // Yeni sürüm canlıya alındığında açık PWA sekmesi eski bundle ile çalışmaya
@@ -3334,14 +3340,20 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
   // Uzun süre açık kalan PWA'da SW güncelleme kontrolü (24 saatlik tarayıcı
   // periyodunu beklemeden) her görünür olduğunda — en fazla 5 dakikada bir — yapılsın.
   let lastSwUpdateCheck = 0;
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
+  async function checkForPwaUpdate() {
     const now = Date.now();
-    if (now - lastSwUpdateCheck < 300000) return;
+    if (now - lastSwUpdateCheck < 60000) return;
     lastSwUpdateCheck = now;
-    navigator.serviceWorker
-      .getRegistration()
-      .then((reg) => reg && reg.update())
-      .catch(() => {});
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.update();
+    } catch (_) {
+      // Ağ kesintisinde mevcut PWA çalışmaya devam eder.
+    }
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkForPwaUpdate();
   });
+  window.addEventListener("focus", checkForPwaUpdate);
 }
