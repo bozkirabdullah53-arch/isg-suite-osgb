@@ -289,8 +289,6 @@ def _to_response(
     data.tetkik_summary = tetkik_summary(view)
     if not include_confidential:
         # P0-07: hassas klinik metin yalnız hekim/GA
-        from app.services.health_field_crypto import SENSITIVE_TEXT_FIELDS
-
         for field in SENSITIVE_TEXT_FIELDS:
             setattr(data, field, None)
         # Yapılandırılmış anamnezdeki sayısal klinik yoğunluk alanı da
