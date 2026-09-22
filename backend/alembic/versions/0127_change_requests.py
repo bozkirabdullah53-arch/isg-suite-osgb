@@ -19,6 +19,13 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _create_index_if_missing(bind, name: str, table: str, columns: list[str]) -> None:
+    """Create a named index only when the database does not already have it."""
+    existing = {item["name"] for item in sa.inspect(bind).get_indexes(table)}
+    if name not in existing:
+        op.create_index(name, table, columns)
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -29,7 +36,7 @@ def upgrade() -> None:
             "change_requests",
             sa.Column("id", sa.Integer, primary_key=True),
             sa.Column("request_no", sa.String(32), nullable=False, unique=True, index=True),
-            sa.Column("company_id", sa.Integer, sa.ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True),
+            sa.Column("company_id", sa.Integer, sa.ForeignKey("companies.id", ondelete="SET NULL"), nullable=True),
             sa.Column("requested_by_user_id", sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True),
             sa.Column("requester_type", sa.String(20), nullable=False, default="employer"),
             sa.Column("channel", sa.String(20), nullable=False, default="platform"),
@@ -43,7 +50,7 @@ def upgrade() -> None:
             sa.Column("requested_value", sa.Text, nullable=False),
             sa.Column("justification", sa.Text, nullable=False),
             sa.Column("attachment_path", sa.String(500), nullable=True),
-            sa.Column("status", sa.String(20), nullable=False, default="submitted", index=True),
+            sa.Column("status", sa.String(20), nullable=False, default="submitted"),
             sa.Column("verified_by_id", sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
             sa.Column("verified_at", sa.DateTime, nullable=True),
             sa.Column("approved_by_id", sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
@@ -53,26 +60,31 @@ def upgrade() -> None:
             sa.Column("rejected_by_id", sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
             sa.Column("rejected_at", sa.DateTime, nullable=True),
             sa.Column("rejection_reason", sa.Text, nullable=True),
-            sa.Column("sla_due_at", sa.DateTime, nullable=True, index=True),
+            sa.Column("sla_due_at", sa.DateTime, nullable=True),
             sa.Column("created_at", sa.DateTime, nullable=False, default=sa.func.now()),
             sa.Column("updated_at", sa.DateTime, nullable=False, default=sa.func.now(), onupdate=sa.func.now()),
         )
-        op.create_index("ix_change_requests_company_id", "change_requests", ["company_id"])
-        op.create_index("ix_change_requests_status", "change_requests", ["status"])
-        op.create_index("ix_change_requests_sla_due_at", "change_requests", ["sla_due_at"])
+    _create_index_if_missing(bind, "ix_change_requests_company_id", "change_requests", ["company_id"])
+    _create_index_if_missing(bind, "ix_change_requests_status", "change_requests", ["status"])
+    _create_index_if_missing(bind, "ix_change_requests_sla_due_at", "change_requests", ["sla_due_at"])
 
     if "change_request_events" not in tables:
         op.create_table(
             "change_request_events",
             sa.Column("id", sa.Integer, primary_key=True),
-            sa.Column("change_request_id", sa.Integer, sa.ForeignKey("change_requests.id", ondelete="CASCADE"), nullable=False, index=True),
+            sa.Column("change_request_id", sa.Integer, sa.ForeignKey("change_requests.id", ondelete="CASCADE"), nullable=False),
             sa.Column("from_status", sa.String(20), nullable=True),
             sa.Column("to_status", sa.String(20), nullable=False),
             sa.Column("actor_user_id", sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
             sa.Column("note", sa.Text, nullable=True),
             sa.Column("created_at", sa.DateTime, nullable=False, default=sa.func.now()),
         )
-        op.create_index("ix_change_request_events_request_id", "change_request_events", ["change_request_id"])
+    _create_index_if_missing(
+        bind,
+        "ix_change_request_events_request_id",
+        "change_request_events",
+        ["change_request_id"],
+    )
 
 
 def downgrade() -> None:
