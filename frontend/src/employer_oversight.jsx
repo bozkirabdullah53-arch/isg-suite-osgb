@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {AlertTriangle, BarChart3, CheckCircle2, RefreshCw, Shield} from 'lucide-react';
 import {api} from './api';
+import {persistSelectedCompanyId, readPersistedCompanyId} from './nace_context';
 
 function stepColor(status, dark) {
   if (status === 'approved') return dark ? '#4ade80' : '#166534';
@@ -271,14 +272,21 @@ export function EmployerOversightPanel({companyId, user = null, compact = false,
 
 export function EmployerOversightPage({user}) {
   const [companies, setCompanies] = useState([]);
-  const [companyId, setCompanyId] = useState(user.company_id || '');
+  const [companyId, setCompanyId] = useState(
+    user.company_id ? String(user.company_id) : (readPersistedCompanyId() || '')
+  );
   const [err, setErr] = useState('');
 
   useEffect(() => {
     api('/companies')
       .then((rows) => {
-        setCompanies(rows || []);
-        if (!companyId && rows?.length) setCompanyId(String(rows[0].id));
+        const list = Array.isArray(rows) ? rows : [];
+        setCompanies(list);
+        setCompanyId((current) => {
+          if (user.company_id) return String(user.company_id);
+          if (current && list.some((row) => String(row.id) === String(current))) return String(current);
+          return '';
+        });
       })
       .catch((e) => setErr(e.message));
   }, []);
@@ -296,8 +304,25 @@ export function EmployerOversightPage({user}) {
         {!user.company_id && (
           <label className="field" style={{maxWidth: 420, marginBottom: 16}}>
             <span>İşyeri</span>
-            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-              <option value="">Seçiniz</option>
+            <select
+              value={companyId}
+              onChange={(e) => {
+                const next = String(e.target.value || '');
+                const company = companies.find((row) => String(row.id) === next);
+                setCompanyId(next);
+                persistSelectedCompanyId(next);
+                if (company) {
+                  window.dispatchEvent(new CustomEvent('isg:company-selected', {
+                    detail: {companyId: next, company, source: 'employer-oversight'},
+                  }));
+                } else {
+                  window.dispatchEvent(new CustomEvent('isg:nace-context-reset', {
+                    detail: {source: 'employer-oversight'},
+                  }));
+                }
+              }}
+            >
+              <option value="">Firma / işyeri seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>

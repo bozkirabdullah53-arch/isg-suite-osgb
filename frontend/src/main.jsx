@@ -2152,7 +2152,9 @@ function NotificationsPage({onNavigate, user}){
   // Bildirim ekranında boş seçim kesinlikle "tüm işyerleri" anlamına gelmez.
   // OSGB hesabı önce gerçek işyerini seçer; böylece eski veya başka işyerine
   // ait kişi bildirimleri ekrana düşemez.
-  const[companyId,setCompanyId]=useState(()=>String(user?.company_id||''));
+  const[companyId,setCompanyId]=useState(()=>
+    String(user?.company_id||readPersistedCompanyId()||'')
+  );
   const[companiesReady,setCompaniesReady]=useState(!canSelectCompany);
   const selectedCompany=companies.find(c=>String(c.id)===String(companyId))||null;
 
@@ -2380,7 +2382,19 @@ function ThemeToggle({theme,onToggle,floating}){
   );
 }
 
-function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,preview,loading,className=''}){
+function GlobalNaceContextCard({
+  companyName,
+  naceCode,
+  activity,
+  hazardClass,
+  preview,
+  loading,
+  className='',
+  companies=[],
+  selectedCompanyId='',
+  canSelectCompany=false,
+  onCompanyChange,
+}){
   const hasCompany=Boolean(String(companyName||'').trim());
   const hasNace=Boolean(String(naceCode||'').trim());
   const activityText=activity
@@ -2392,20 +2406,40 @@ function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,previe
       aria-live="polite"
     >
       <div className="global-nace-context-head">
-        <span className="global-nace-context-kicker"><Building2 size={13}/> İŞYERİ NACE BİLGİSİ</span>
+        <span className="global-nace-context-kicker"><Building2 size={13}/> İŞYERİ BAĞLAMI</span>
       </div>
-      <strong className="global-nace-context-company">{companyName||'Firma seçiniz'}</strong>
+      {canSelectCompany&&(
+        <label className="global-nace-context-selector">
+          <span>FİRMA / İŞYERİ SEÇİNİZ</span>
+          <select
+            value={selectedCompanyId}
+            onChange={(event)=>onCompanyChange?.(event.target.value)}
+            aria-label="Firma / işyeri seçiniz"
+            data-global-company-selector="true"
+          >
+            <option value="">Firma / işyeri seçiniz</option>
+            {companies.map((company)=>(
+              <option key={company.id} value={company.id}>{company.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <strong className="global-nace-context-company">
+        {companyName||(canSelectCompany?'Henüz işyeri seçilmedi':'Firma seçiniz')}
+      </strong>
       <div className="global-nace-context-code">
         <span>NACE KODU</span>
-        <strong>{naceCode||'Bilgi yok'}</strong>
+        <strong>{hasCompany?(naceCode||'Bilgi yok'):'—'}</strong>
       </div>
       <div className="global-nace-context-row">
         <span>TEHLİKE SINIFI</span>
-        <strong>{hazardClass||'Belirlenemedi'}</strong>
+        <strong>{hasCompany?(hazardClass||'Belirlenemedi'):'—'}</strong>
       </div>
       <div className="global-nace-context-row global-nace-context-activity">
         <span>FAALİYET TANIMI</span>
-        <p title={activityText}>{hasCompany?activityText:'OSGB ana panelini görmek için önce firma seçiniz.'}</p>
+        <p title={hasCompany?activityText:''}>
+          {hasCompany?activityText:'Firma / işyeri seçildiğinde NACE ve tehlike bilgileri burada gösterilir.'}
+        </p>
       </div>
       {loading&&<small className="global-nace-context-loading">NACE kataloğu yükleniyor…</small>}
     </section>
@@ -2492,6 +2526,9 @@ function App(){
   const[naceDraft,setNaceDraft]=useState('');
   const[naceContextLoading,setNaceContextLoading]=useState(false);
   const naceDraftTimerRef=useRef(null);
+  const requiresPageCompanySelection=Boolean(
+    user?.role==='company_admin' && !user?.company_id
+  );
   const[applyMode,setApplyMode]=useState(()=>{
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='osgb'}catch{return false}
   });
@@ -2520,13 +2557,12 @@ function App(){
       setContextCompanies(companies);
       setNaceCatalog(sectors);
       const persisted=readPersistedCompanyId();
-      const preferredId=active==='osgb_dashboard'
-        ? ''
-        : user.company_id
+      const preferredId=user.company_id
         ? String(user.company_id)
-        : (active==='notifications'
+        : requiresPageCompanySelection
           ? ''
-          : persisted);
+          : (active==='osgb_dashboard'||active==='notifications' ? '' : persisted);
+      if(requiresPageCompanySelection) persistSelectedCompanyId('');
       const preferred=companies.find((row)=>String(row.id)===preferredId);
       setSelectedContextCompanyId(preferred?String(preferred.id):'');
       setNaceDraft('');
@@ -2534,7 +2570,7 @@ function App(){
       if(!cancelled) setNaceContextLoading(false);
     });
     return()=>{cancelled=true};
-  },[logged,user?.id,user?.company_id,active]);
+  },[logged,user?.id,user?.company_id,user?.role,active,requiresPageCompanySelection]);
 
   useEffect(()=>{
     if(!logged) return undefined;
@@ -2603,6 +2639,7 @@ function App(){
     }
     function onCompanyFieldChange(event){
       const target=event.target;
+      if(target?.dataset?.globalCompanySelector==='true') return;
       if(!isCompanySelector(target)) return;
       const id=String(target.value||'');
       if(!id){
@@ -2641,10 +2678,13 @@ function App(){
   },[active]);
 
   useEffect(()=>{
-    if(active!=='osgb_dashboard') return;
+    if(!logged||!user) return;
+    const shouldReset=requiresPageCompanySelection||active==='osgb_dashboard';
+    if(!shouldReset) return;
     setSelectedContextCompanyId('');
+    setNaceDraft('');
     persistSelectedCompanyId('');
-  },[active]);
+  },[active,logged,user?.id,user?.role,user?.company_id,requiresPageCompanySelection]);
 
   const selectedContextCompany=contextCompanies.find(
     (row)=>String(row.id)===String(selectedContextCompanyId),
@@ -2660,12 +2700,31 @@ function App(){
     preview:Boolean(draftNace),
     loading:naceContextLoading,
   };
-  // NACE detayları gerçek bir firma/işyeri seçimiyle gösterilir. OSGB ana
-  // panelinde seçim yapılana kadar kart, kapsam seçimi için placeholder olur.
+  const canSelectGlobalCompany=requiresPageCompanySelection;
   const hasGlobalNaceContext=Boolean(selectedContextCompany);
   const showOsgbScopePlaceholder=active==='osgb_dashboard'
-    && (user.role==='global_admin'||user.role==='company_admin');
-  const showGlobalNaceContext=hasGlobalNaceContext||showOsgbScopePlaceholder;
+    && user.role==='global_admin';
+  const showGlobalNaceContext=
+    canSelectGlobalCompany||hasGlobalNaceContext||showOsgbScopePlaceholder;
+
+  function chooseGlobalContextCompany(value){
+    const next=String(value||'');
+    const company=contextCompanies.find((row)=>String(row.id)===next)||null;
+    setNaceDraft('');
+    if(!company){
+      setSelectedContextCompanyId('');
+      persistSelectedCompanyId('');
+      window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{
+        detail:{source:'global-workplace-selector'},
+      }));
+      return;
+    }
+    setSelectedContextCompanyId(next);
+    persistSelectedCompanyId(next);
+    window.dispatchEvent(new CustomEvent('isg:company-selected',{
+      detail:{companyId:next,company,source:'global-workplace-selector'},
+    }));
+  }
 
   function publicApplyHash(){
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')||''}catch{return ''}
@@ -2716,6 +2775,11 @@ function App(){
 
   function goModule(id,{replace=false,companyId=''}={}){
     setMobileMoreOpen(false);
+    if(requiresPageCompanySelection && id!==active && id!=='customer_360'){
+      setSelectedContextCompanyId('');
+      setNaceDraft('');
+      persistSelectedCompanyId('');
+    }
     if(typeof window!=='undefined' && typeof window.scrollTo==='function'){
       window.scrollTo({top:0,left:0,behavior:'auto'});
     }
@@ -3130,7 +3194,14 @@ function App(){
           </button>
         </nav>
         <div className="global-nace-context-desktop" hidden={!showGlobalNaceContext}>
-          <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-desktop-card"/>
+          <GlobalNaceContextCard
+            {...globalNaceContext}
+            className="global-nace-context-desktop-card"
+            companies={contextCompanies}
+            selectedCompanyId={selectedContextCompanyId}
+            canSelectCompany={canSelectGlobalCompany}
+            onCompanyChange={chooseGlobalContextCompany}
+          />
         </div>
         <button type="button" className="logout" onClick={logout}>
           <LogOut size={19}/><span>Çıkış</span>
@@ -3197,14 +3268,28 @@ function App(){
         </header>
         <main className="content">
           <div className="mobile-nace-context" hidden={!showGlobalNaceContext}>
-            <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-mobile-card"/>
+            <GlobalNaceContextCard
+              {...globalNaceContext}
+              className="global-nace-context-mobile-card"
+              companies={contextCompanies}
+              selectedCompanyId={selectedContextCompanyId}
+              canSelectCompany={canSelectGlobalCompany}
+              onCompanyChange={chooseGlobalContextCompany}
+            />
           </div>
           {!user.is_eisa && user.subscription_write_allowed===false && (
             <div className="readonly-banner" role="status">
               Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.
             </div>
           )}
-          <ErrorBoundary key={active==='customer_360'?`c360-${c360Id}`:(active||'none')} onHome={goHome}>
+          <ErrorBoundary
+            key={
+              active==='customer_360'
+                ? `c360-${c360Id}`
+                : `${active||'none'}:${requiresPageCompanySelection?(selectedContextCompanyId||'no-company'):'fixed'}`
+            }
+            onHome={goHome}
+          >
             {active==='customer_360' && c360Id && !isWorkplaceAccountUser(user) ? (
               <Customer360Page companyId={c360Id} onBack={closeCustomer360} onNavigate={goModule} user={user}/>
             ) : pages[active] || (
