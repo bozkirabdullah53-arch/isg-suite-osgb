@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {ClipboardCheck, Download, Plus, RefreshCw, Sparkles, X} from 'lucide-react';
 import {api, downloadFile, wakeApi} from './api';
+import {annualPlanStatusWithCompletion} from './annual_plan_status';
 import {AppModal} from './ui_modal';
 
 const MONTHS = [
@@ -199,6 +200,7 @@ export function AnnualPlansPage({user}) {
     try {
       const payload = {
         ...form,
+        status: annualPlanStatusWithCompletion(form.status, form.completion_date),
         company_id: Number(form.company_id),
         year: Number(form.year),
         month: Number(form.month),
@@ -477,7 +479,19 @@ export function AnnualPlansPage({user}) {
             <Select label="Durum" value={form.status} onChange={(e) => setForm({...form, status: e.target.value})}>
               {statusOpts.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
             </Select>
-            <Field label="Tamamlanma" type="date" value={form.completion_date} onChange={(e) => setForm({...form, completion_date: e.target.value})} />
+            <Field
+              label="Tamamlanma"
+              type="date"
+              value={form.completion_date}
+              onChange={(e) => {
+                const completionDate = e.target.value;
+                setForm({
+                  ...form,
+                  completion_date: completionDate,
+                  status: annualPlanStatusWithCompletion(form.status, completionDate),
+                });
+              }}
+            />
             <TextArea label="Notlar" value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} />
             <div className="form-actions">
               <button type="submit" disabled={busy}>{editing ? 'Güncelle' : 'Kaydet'}</button>

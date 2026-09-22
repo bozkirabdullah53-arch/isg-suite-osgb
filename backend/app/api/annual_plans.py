@@ -88,11 +88,30 @@ def _validate_plan_date_pair(
     return actual_target_date, actual_completion_date
 
 
+def _status_for_completion(status: AnnualPlanStatus | str | None, completion_date: date | None):
+    """A completion date is authoritative for an annual-plan item.
+
+    Older records can contain a completion date while still carrying the
+    planned/delayed status.  Keeping that combination would let the daily
+    delayed refresh overwrite what the user explicitly completed.
+    """
+    if completion_date is not None:
+        return AnnualPlanStatus.COMPLETED
+    return status
+
+
 def _refresh_delayed(db: Session, items: list[AnnualPlanItem]) -> None:
     today = date.today()
     changed = False
     try:
         for item in items:
+            if item.completion_date is not None and item.status not in (
+                AnnualPlanStatus.COMPLETED,
+                AnnualPlanStatus.CANCELLED,
+            ):
+                item.status = AnnualPlanStatus.COMPLETED
+                changed = True
+                continue
             if item.status in (AnnualPlanStatus.COMPLETED, AnnualPlanStatus.CANCELLED):
                 continue
             if item.target_date and item.target_date < today and item.status != AnnualPlanStatus.DELAYED:
@@ -195,6 +214,7 @@ def create_plan_item(
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     data = payload.model_dump()
+    data["status"] = _status_for_completion(data.get("status"), data.get("completion_date"))
     if not data.get("target_date"):
         data["target_date"] = plan_target_date(payload.year, payload.month, 15)
     item = AnnualPlanItem(**data, created_by_id=user.id)
@@ -577,6 +597,12 @@ def update_plan_item(
             updates["target_date"] = actual_target_date
         if "completion_date" in date_fields:
             updates["completion_date"] = actual_completion_date
+    effective_completion_date = updates.get("completion_date", item.completion_date)
+    if effective_completion_date is not None:
+        updates["status"] = _status_for_completion(
+            updates.get("status", item.status),
+            effective_completion_date,
+        )
     old_value = {k: getattr(item, k, None) for k in updates}
     for k, v in updates.items():
         setattr(item, k, v)

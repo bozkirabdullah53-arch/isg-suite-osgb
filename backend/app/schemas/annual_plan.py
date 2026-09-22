@@ -34,6 +34,8 @@ class AnnualPlanCreate(BaseModel):
         self.completion_date = assert_event_date(
             self.completion_date, label="Tamamlanma tarihi", required=False, allow_future_days=0
         )
+        if self.completion_date is not None:
+            self.status = AnnualPlanStatus.COMPLETED
         assert_date_order(
             self.target_date,
             self.completion_date,
@@ -76,6 +78,7 @@ class AnnualPlanUpdate(BaseModel):
             self.completion_date = assert_event_date(
                 self.completion_date, label="Tamamlanma tarihi", required=False, allow_future_days=0
             )
+            self.status = AnnualPlanStatus.COMPLETED
         assert_date_order(
             self.target_date,
             self.completion_date,
