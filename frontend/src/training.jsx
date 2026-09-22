@@ -630,7 +630,7 @@ export function TrainingPage({user}) {
     if (user.company_id) return String(user.company_id);
     const persisted = readPersistedCompanyId();
     if (persisted && list.some((company) => String(company.id) === persisted)) return persisted;
-    if (list.length === 1) return String(list[0].id);
+    if (user.role !== 'company_admin' && list.length === 1) return String(list[0].id);
     return '';
   }
 
@@ -713,9 +713,21 @@ export function TrainingPage({user}) {
       setInstructorReadiness(null);
       return null;
     }
+    const selectedCompanyId = String(form.company_id || user.company_id || '');
+    if (user.role === 'company_admin' && !user.company_id && !selectedCompanyId) {
+      const empty = {
+        counts: {total: 0, ready: 0, identity_missing: 0, link_available: 0, review_required: 0},
+        rows: [],
+        full_identity_exposed: false,
+      };
+      setInstructorReadiness(empty);
+      return empty;
+    }
     setInstructorReadinessBusy(true);
     try {
-      const data = await api('/trainings/instructor-regulatory-readiness?include_archived=true');
+      const params = new URLSearchParams({include_archived: 'true'});
+      if (selectedCompanyId) params.set('company_id', selectedCompanyId);
+      const data = await api('/trainings/instructor-regulatory-readiness?' + params.toString());
       setInstructorReadiness(data);
       return data;
     } catch (x) {
@@ -863,7 +875,10 @@ export function TrainingPage({user}) {
       const [c, t, sec] = await Promise.all([
         api('/companies'),
         (() => {
+          const centralOsgbManager = user.role === 'company_admin' && !user.company_id;
+          if (centralOsgbManager && !preferredCid) return Promise.resolve([]);
           const params = new URLSearchParams();
+          if (preferredCid) params.set('company_id', preferredCid);
           if (searchQ) params.set('q', searchQ);
           if (includeArchived) params.set('include_archived', 'true');
           const queryString = params.toString();
@@ -877,7 +892,7 @@ export function TrainingPage({user}) {
 
       const cid =
         preferredCid ||
-        (c.length === 1 ? String(c[0].id) : '');
+        (user.role !== 'company_admin' && c.length === 1 ? String(c[0].id) : '');
       const selectedCompany = c.find((company) => String(company.id) === String(cid));
       const mappedCompanySector = companyNaceSector(selectedCompany, sec);
       const shouldApplyCompanyNace =
@@ -932,7 +947,7 @@ export function TrainingPage({user}) {
     if (tab !== 'kayitlar' || !canManagePackage) return;
     loadInstructorReadiness();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, canManagePackage]);
+  }, [tab, canManagePackage, form.company_id]);
 
   function validateDates(f = form) {
     if (!f.start_date || !f.end_date) {
