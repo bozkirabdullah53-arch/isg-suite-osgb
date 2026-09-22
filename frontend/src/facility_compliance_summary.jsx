@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {AlertTriangle,ArrowRight,RefreshCw,ShieldCheck} from 'lucide-react';
 import {api} from './api';
+import {persistSelectedCompanyId, readPersistedCompanyId} from './nace_context';
 import {controlTowerActionFor,controlTowerActionHref,controlTowerCompanyContextHref} from './control_tower_actions';
 
 function Metric({label,value,warning=false,dark=false}){return <div style={{padding:12,borderRadius:12,border:dark?'1px solid rgba(255,255,255,.14)':'1px solid #e2e8f0',background:dark?'rgba(15,23,42,.45)':'#fff'}}><small style={{opacity:.72}}>{label}</small><div style={{fontSize:24,fontWeight:800,color:warning&&Number(value)>0?'#f59e0b':undefined}}>{value??0}</div></div>}
@@ -30,7 +31,39 @@ export function FacilityComplianceSummaryPanel({companyId,dark=false,compact=fal
 }
 
 export function FacilityComplianceSummaryPage({user}){
-  const[companies,setCompanies]=useState([]);const[companyId,setCompanyId]=useState(user.company_id||'');const[err,setErr]=useState('');
-  useEffect(()=>{api('/companies').then(rows=>{setCompanies(rows||[]);if(!companyId&&rows?.length)setCompanyId(String(rows[0].id))}).catch(e=>setErr(e.message))},[]);
-  return <><div className="page-title"><h3><ShieldCheck size={20}/> Tesis Uygunluk Özeti · İSG Control Tower</h3></div><section className="panel"><p className="muted">Bu ekran kayıt değiştirmez; mevcut saha modüllerinin durumunu tek bakışta toplar ve “bugün neye müdahale etmeliyim?” önceliği ile açıklanabilir 0–100 operasyon skoru üretir. Uygun kısayollar yalnız mevcut modülleri açar; yeni veya paralel iş akışı oluşturmaz. “İşyeri bağlamı” seçili işyerinin mevcut Durum Merkezi'ni açar ve yanlış işyerine geçiş riskini azaltır.</p>{!user.company_id&&<label className="field" style={{maxWidth:460}}><span>İşyeri</span><select value={companyId} onChange={e=>setCompanyId(e.target.value)}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}{err&&<div className="error">{err}</div>}<FacilityComplianceSummaryPanel companyId={companyId?Number(companyId):null} userRole={user.role}/></section></>;
+  const[companies,setCompanies]=useState([]);
+  const[companyId,setCompanyId]=useState(
+    user.company_id?String(user.company_id):(readPersistedCompanyId()||'')
+  );
+  const[err,setErr]=useState('');
+
+  useEffect(()=>{
+    api('/companies').then(rows=>{
+      const list=Array.isArray(rows)?rows:[];
+      setCompanies(list);
+      setCompanyId((current)=>{
+        if(user.company_id) return String(user.company_id);
+        if(current&&list.some((row)=>String(row.id)===String(current))) return String(current);
+        return '';
+      });
+    }).catch(e=>setErr(e.message));
+  },[]);
+
+  function chooseCompany(value){
+    const next=String(value||'');
+    const company=companies.find((row)=>String(row.id)===next);
+    setCompanyId(next);
+    persistSelectedCompanyId(next);
+    if(company){
+      window.dispatchEvent(new CustomEvent('isg:company-selected',{
+        detail:{companyId:next,company,source:'facility-summary'},
+      }));
+    }else{
+      window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{
+        detail:{source:'facility-summary'},
+      }));
+    }
+  }
+
+  return <><div className="page-title"><h3><ShieldCheck size={20}/> Tesis Uygunluk Özeti · İSG Control Tower</h3></div><section className="panel"><p className="muted">Bu ekran kayıt değiştirmez; mevcut saha modüllerinin durumunu tek bakışta toplar ve “bugün neye müdahale etmeliyim?” önceliği ile açıklanabilir 0–100 operasyon skoru üretir. Uygun kısayollar yalnız mevcut modülleri açar; yeni veya paralel iş akışı oluşturmaz. “İşyeri bağlamı” seçili işyerinin mevcut Durum Merkezi'ni açar ve yanlış işyerine geçiş riskini azaltır.</p>{!user.company_id&&<label className="field" style={{maxWidth:460}}><span>Firma / işyeri</span><select value={companyId} onChange={e=>chooseCompany(e.target.value)}><option value="">Firma / işyeri seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}{err&&<div className="error">{err}</div>}{!companyId&&!err&&<p className="muted">Tesis özetini görmek için önce firma / işyeri seçiniz.</p>}<FacilityComplianceSummaryPanel companyId={companyId?Number(companyId):null} userRole={user.role}/></section></>;
 }
