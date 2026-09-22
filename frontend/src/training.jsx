@@ -455,6 +455,7 @@ export function TrainingPage({user}) {
   const [identityDrafts, setIdentityDrafts] = useState({});
   const [linkChoices, setLinkChoices] = useState({});
   const [readinessAction, setReadinessAction] = useState('');
+  const [instructorReadinessFeedback, setInstructorReadinessFeedback] = useState(null);
   const [sectorQuery, setSectorQuery] = useState('');
   const [sectorPickerOpen, setSectorPickerOpen] = useState(false);
 
@@ -732,21 +733,29 @@ export function TrainingPage({user}) {
       || (candidates.length === 1 ? candidates[0]?.professional_id : 0),
     );
     if (!row?.training_id || !selected) {
-      setErr('Bağlanacak profesyoneli seçiniz.');
+      setInstructorReadinessFeedback({
+        type: 'err',
+        text: 'Bağlanacak profesyoneli seçiniz.',
+      });
       return;
     }
     setReadinessAction(`link-${row.training_id}`);
-    setErr('');
-    setOkMsg('');
+    setInstructorReadinessFeedback(null);
     try {
       await api(`/trainings/${row.training_id}/instructor-regulatory-link`, {
         method: 'PUT',
         body: JSON.stringify({professional_id: selected}),
       });
-      setOkMsg(`Eğitim #${row.training_id} eğitici-profesyonel kaydına bağlandı.`);
+      setInstructorReadinessFeedback({
+        type: 'ok',
+        text: `Eğitim #${row.training_id} eğitici-profesyonel kaydına bağlandı.`,
+      });
       await Promise.all([loadInstructorReadiness(), load()]);
     } catch (x) {
-      setErr(x.message || 'Eğitici bağlantısı yapılamadı.');
+      setInstructorReadinessFeedback({
+        type: 'err',
+        text: x.message || 'Eğitici bağlantısı yapılamadı.',
+      });
     } finally {
       setReadinessAction('');
     }
@@ -758,14 +767,16 @@ export function TrainingPage({user}) {
     const identityType = draft.type || 'tckn';
     if (!professionalId) return;
     if ((identityType === 'tckn' && raw.length !== 11) || (identityType === 'ykn' && ![10, 11].includes(raw.length))) {
-      setErr(identityType === 'tckn'
-        ? 'TCKN 11 haneli olmalıdır.'
-        : 'YKN 10 veya 11 haneli olmalıdır.');
+      setInstructorReadinessFeedback({
+        type: 'err',
+        text: identityType === 'tckn'
+          ? 'TCKN 11 haneli olmalıdır.'
+          : 'YKN 10 veya 11 haneli olmalıdır.',
+      });
       return;
     }
     setReadinessAction(`identity-${professionalId}`);
-    setErr('');
-    setOkMsg('');
+    setInstructorReadinessFeedback(null);
     try {
       await api(`/trainings/instructors/${professionalId}/regulatory-identity`, {
         method: 'PUT',
@@ -775,10 +786,16 @@ export function TrainingPage({user}) {
         ...current,
         [professionalId]: {...(current[professionalId] || {}), value: ''},
       }));
-      setOkMsg('Eğitici kimliği şifreli entegrasyon kasasına kaydedildi.');
+      setInstructorReadinessFeedback({
+        type: 'ok',
+        text: 'Eğitici kimliği güvenli entegrasyon kasasına kaydedildi.',
+      });
       await loadInstructorReadiness();
     } catch (x) {
-      setErr(x.message || 'Eğitici kimliği kaydedilemedi.');
+      setInstructorReadinessFeedback({
+        type: 'err',
+        text: x.message || 'Eğitici kimliği kaydedilemedi.',
+      });
     } finally {
       setReadinessAction('');
     }
@@ -2693,54 +2710,58 @@ export function TrainingPage({user}) {
     const readinessRows = data?.rows || [];
     const badge = (status) => {
       const map = {
-        ready: ['Hazır', '#166534', '#dcfce7'],
-        identity_missing: ['Kimlik eksik', '#b45309', '#fef3c7'],
-        link_available: ['Bağlantı hazır', '#1d4ed8', '#dbeafe'],
-        review_required: ['İnceleme gerekli', '#b91c1c', '#fee2e2'],
+        ready: ['Hazır', 'is-ready'],
+        identity_missing: ['Kimlik eksik', 'is-missing'],
+        link_available: ['Bağlantı hazır', 'is-linkable'],
+        review_required: ['İnceleme gerekli', 'is-review'],
       };
-      const [label, color, background] = map[status] || map.review_required;
-      return <span className="badge" style={{background, color, whiteSpace: 'nowrap'}}>{label}</span>;
+      const [label, className] = map[status] || map.review_required;
+      return <span className={`ibys-identity-badge ${className}`}>{label}</span>;
     };
 
     return (
-      <section className="panel-card" style={{marginBottom: 16, border: '1px solid #bbf7d0'}}>
-        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14}}>
+      <section className="panel-card ibys-identity-panel">
+        <div className="ibys-identity-head">
           <div>
             <div className="section-title">İBYS Eğitici Kimlik Hazırlığı</div>
-            <h3 style={{margin: '4px 0 6px'}}>Eğitmen TCKN / profesyonel bağlantısı</h3>
-            <p className="tp-help" style={{margin: 0, maxWidth: 780}}>
-              Tam TCKN/YKN ekranda veya eğitim kaydında tutulmaz. Girilen kimlik şifreli entegrasyon
-              kasasına yazılır; bu panel yalnız maskeli durumu gösterir. Eski kayıtlar sadece aynı OSGB
-              içindeki birebir ad-soyad eşleşmesinde bağlanabilir.
+            <h3>Eğitmen kimliği ve profesyonel bağlantısı</h3>
+            <p>
+              Kimlik numarası yalnız giriş sırasında görünür. Kaydedildiğinde güvenli entegrasyon kasasında
+              şifrelenir ve ekranda yalnız maskeli son dört hane gösterilir.
             </p>
           </div>
           <button
             type="button"
-            className="btn-outline-premium"
-            style={{width: 'auto', minHeight: 38, padding: '0 12px'}}
+            className="ibys-identity-refresh"
             disabled={instructorReadinessBusy}
             onClick={loadInstructorReadiness}
           >
-            {instructorReadinessBusy ? 'Kontrol ediliyor…' : 'Yeniden Kontrol Et'}
+            {instructorReadinessBusy ? 'Kontrol ediliyor…' : 'Durumu Yenile'}
           </button>
         </div>
 
-        <div className="tp-grid-4" style={{marginBottom: 14}}>
-          <div className="field-card"><span className="tp-help">Toplam eğitim</span><strong style={{display: 'block', fontSize: 20}}>{counts.total || 0}</strong></div>
-          <div className="field-card"><span className="tp-help">İBYS hazır</span><strong style={{display: 'block', fontSize: 20, color: '#166534'}}>{counts.ready || 0}</strong></div>
-          <div className="field-card"><span className="tp-help">Kimlik eksik</span><strong style={{display: 'block', fontSize: 20, color: '#b45309'}}>{counts.identity_missing || 0}</strong></div>
-          <div className="field-card"><span className="tp-help">Bağlantı / inceleme</span><strong style={{display: 'block', fontSize: 20}}>{(counts.link_available || 0) + (counts.review_required || 0)}</strong></div>
+        {instructorReadinessFeedback && (
+          <div className={`ibys-identity-feedback ${instructorReadinessFeedback.type === 'ok' ? 'is-ok' : 'is-error'}`}>
+            {instructorReadinessFeedback.text}
+          </div>
+        )}
+
+        <div className="ibys-identity-metrics">
+          <div><span>Toplam eğitim</span><strong>{counts.total || 0}</strong></div>
+          <div><span>İBYS hazır</span><strong>{counts.ready || 0}</strong></div>
+          <div><span>Kimlik eksik</span><strong>{counts.identity_missing || 0}</strong></div>
+          <div><span>Bağlantı / inceleme</span><strong>{(counts.link_available || 0) + (counts.review_required || 0)}</strong></div>
         </div>
 
-        <div className="table-wrap">
-          <table className="records-table">
+        <div className="ibys-identity-table-wrap">
+          <table className="records-table ibys-identity-table">
             <thead>
               <tr>
                 <th>Eğitim / İşyeri</th>
                 <th>Eğitici</th>
                 <th>Durum</th>
                 <th>Profesyonel bağlantısı</th>
-                <th>Şifreli kimlik</th>
+                <th>Kimlik doğrulama</th>
               </tr>
             </thead>
             <tbody>
@@ -2751,25 +2772,30 @@ export function TrainingPage({user}) {
                 const identities = row.identities || [];
                 const tckn = identities.find((item) => item.identity_type === 'tckn');
                 const ykn = identities.find((item) => item.identity_type === 'ykn');
+                const draft = identityDrafts[targetId] || {};
+                const identityType = draft.type || 'tckn';
+                const identityValue = String(draft.value || '');
+                const structurallyReady = identityType === 'tckn'
+                  ? identityValue.length === 11
+                  : [10, 11].includes(identityValue.length);
                 return (
                   <tr key={row.training_id}>
-                    <td>
+                    <td className="ibys-identity-course">
                       <strong>{row.title}</strong>
-                      <div className="tp-help">{row.company_name} · {row.start_date || '—'} · #{row.training_id}{row.archived ? ' · Arşiv' : ''}</div>
+                      <span>{row.company_name} · {row.start_date || '—'} · #{row.training_id}{row.archived ? ' · Arşiv' : ''}</span>
                     </td>
-                    <td>{row.instructor_name || '—'}</td>
+                    <td className="ibys-identity-instructor">{row.instructor_name || '—'}</td>
                     <td>{badge(row.status)}</td>
-                    <td style={{minWidth: 230}}>
+                    <td className="ibys-identity-professional-cell">
                       {linked ? (
-                        <div>
+                        <div className="ibys-linked-professional">
                           <strong>{linked.full_name}</strong>
-                          <div className="tp-help">{linked.certificate_number || linked.professional_type || 'Profesyonel kayıt'}</div>
+                          <span>{linked.certificate_number || linked.professional_type || 'Profesyonel kayıt'}</span>
                         </div>
                       ) : candidates.length ? (
-                        <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+                        <div className="ibys-link-form">
                           <select
-                            className="tp-select"
-                            style={{minWidth: 170, width: 'auto'}}
+                            className="tp-select ibys-professional-select"
                             value={linkChoices[row.training_id] || (candidates.length === 1 ? candidates[0].professional_id : '')}
                             onChange={(e) => setLinkChoices((current) => ({...current, [row.training_id]: e.target.value}))}
                           >
@@ -2782,8 +2808,7 @@ export function TrainingPage({user}) {
                           </select>
                           <button
                             type="button"
-                            className="btn-outline-premium"
-                            style={{width: 'auto', minHeight: 34, padding: '0 10px'}}
+                            className="ibys-link-button"
                             disabled={readinessAction === `link-${row.training_id}`}
                             onClick={() => linkHistoricalInstructor(row)}
                           >
@@ -2791,39 +2816,39 @@ export function TrainingPage({user}) {
                           </button>
                         </div>
                       ) : (
-                        <span className="tp-help">Aynı OSGB içinde birebir ad-soyad eşleşmesi bulunamadı.</span>
+                        <span className="ibys-identity-muted">Aynı OSGB içinde birebir ad-soyad eşleşmesi bulunamadı.</span>
                       )}
                     </td>
-                    <td style={{minWidth: 320}}>
+                    <td className="ibys-identity-vault-cell">
                       {targetId ? (
-                        <div>
-                          <div style={{marginBottom: 7, fontSize: 12}}>
-                            {tckn ? <span style={{marginRight: 10}}>TCKN: <strong>{tckn.masked_value}</strong></span> : null}
-                            {ykn ? <span>YKN: <strong>{ykn.masked_value}</strong></span> : null}
-                            {!identities.length ? <span className="tp-help">Henüz kimlik kaydı yok.</span> : null}
+                        <div className="ibys-identity-vault">
+                          <div className="ibys-current-identity">
+                            {tckn ? <span><b>TCKN kayıtlı</b><strong>{tckn.masked_value}</strong></span> : null}
+                            {ykn ? <span><b>YKN kayıtlı</b><strong>{ykn.masked_value}</strong></span> : null}
+                            {!identities.length ? <span className="ibys-identity-muted">Henüz kimlik kaydı yok.</span> : null}
                           </div>
-                          <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
+                          <div className="ibys-identity-form">
                             <select
-                              className="tp-select"
-                              style={{width: 86}}
-                              value={identityDrafts[targetId]?.type || 'tckn'}
+                              className="tp-select ibys-identity-type"
+                              aria-label="Kimlik türü"
+                              value={identityType}
                               onChange={(e) => setIdentityDrafts((current) => ({
                                 ...current,
-                                [targetId]: {...(current[targetId] || {}), type: e.target.value},
+                                [targetId]: {...(current[targetId] || {}), type: e.target.value, value: ''},
                               }))}
                             >
                               <option value="tckn">TCKN</option>
                               <option value="ykn">YKN</option>
                             </select>
                             <input
-                              className="tp-input"
-                              style={{width: 150}}
-                              type="password"
+                              className="tp-input ibys-identity-number"
+                              type="text"
                               inputMode="numeric"
                               autoComplete="off"
                               maxLength={11}
-                              placeholder="Kimlik numarası"
-                              value={identityDrafts[targetId]?.value || ''}
+                              aria-label={identityType === 'tckn' ? 'T.C. Kimlik Numarası' : 'Yabancı Kimlik Numarası'}
+                              placeholder={identityType === 'tckn' ? '11 haneli TCKN' : '10–11 haneli YKN'}
+                              value={identityValue}
                               onChange={(e) => setIdentityDrafts((current) => ({
                                 ...current,
                                 [targetId]: {
@@ -2834,17 +2859,21 @@ export function TrainingPage({user}) {
                             />
                             <button
                               type="button"
-                              className="btn-outline-premium"
-                              style={{width: 'auto', minHeight: 34, padding: '0 10px'}}
-                              disabled={readinessAction === `identity-${targetId}`}
+                              className="ibys-identity-save"
+                              disabled={!structurallyReady || readinessAction === `identity-${targetId}`}
                               onClick={() => saveInstructorIdentity(targetId)}
                             >
-                              {readinessAction === `identity-${targetId}` ? 'Kaydediliyor…' : identities.length ? 'Kimliği Güncelle' : 'Kimliği Kaydet'}
+                              {readinessAction === `identity-${targetId}`
+                                ? 'Kaydediliyor…'
+                                : identities.length ? 'Kimliği Güncelle' : 'Kimliği Kaydet'}
                             </button>
+                          </div>
+                          <div className="ibys-identity-security-note">
+                            Tam numara yalnız giriş sırasında görünür; kayıttan sonra ekranda tutulmaz.
                           </div>
                         </div>
                       ) : (
-                        <span className="tp-help">Önce profesyonel bağlantısını tamamlayın.</span>
+                        <span className="ibys-identity-muted">Önce profesyonel bağlantısını tamamlayın.</span>
                       )}
                     </td>
                   </tr>
