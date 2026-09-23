@@ -11,7 +11,10 @@ import {
 } from './visit_qr_policy';
 import {effectiveAssignmentStatus} from './assignment_status';
 import {persistSelectedCompanyId} from './nace_context';
-import {osgbDashboardCompanyOptions} from './osgb_company_scope';
+import {
+ osgbDashboardCompanyOptions,
+ osgbDashboardInitialOrganizationId,
+} from './osgb_company_scope';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -277,7 +280,9 @@ export function OsgbDashboard({user, onNavigate}){
    if(cancelled) return;
    const rows=Array.isArray(o)?o:[];
    setOrgs(rows);
-   setOid(String(osgbId(user,rows)||''));
+   setOid((current)=>user?.role==='company_admin'&&!user?.osgb_id
+    ?current
+    :osgbDashboardInitialOrganizationId(user,rows));
   }).catch(()=>{
    if(!cancelled) setOrgs([]);
   });
@@ -291,11 +296,7 @@ export function OsgbDashboard({user, onNavigate}){
   api('/companies').then((rows)=>{
    if(cancelled) return;
    setCompanies(Array.isArray(rows)?rows:[]);
-   // OSGB ana paneli her açılışta açık bir kapsam ister; tek firma olsa bile
-   // son kullanılan/ilk firma otomatik seçilmez.
-   setCompanyId('');
-   persistSelectedCompanyId('');
-   window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{detail:{source:'osgb-dashboard'}}));
+   // Keep any selection received from the sidebar while this request was in flight.
   }).catch((error)=>{
    if(!cancelled){
     setCompanies([]);
@@ -329,7 +330,7 @@ export function OsgbDashboard({user, onNavigate}){
   const next=String(value||'');
   const selected=companyOptions.find((row)=>String(row.id)===next);
   setCompanyId(next);
-  if(!oid&&selected?.osgb_id) setOid(String(selected.osgb_id));
+  if(selected) setOid(String(selected.osgb_id||''));
   persistSelectedCompanyId(next);
   window.dispatchEvent(new CustomEvent('isg:company-selected',{
    detail:next?{companyId:next,company:selected}: {},
@@ -341,10 +342,18 @@ export function OsgbDashboard({user, onNavigate}){
    const detail=event.detail||{};
    const next=String(detail.companyId??detail.id??detail.company?.id??'');
    if(!next) return;
-   const selected=companyOptions.find((row)=>String(row.id)===next);
+   const selected=companyOptions.find((row)=>String(row.id)===next)
+    || (user?.role==='company_admin'
+     && String(detail.company?.id||'')===next
+     && detail.company?.is_active!==false
+     ?detail.company
+     :null);
    if(!selected) return;
+   if(selected===detail.company){
+    setCompanies((current)=>current.some((row)=>String(row.id)===next)?current:[...current,selected]);
+   }
    setCompanyId(next);
-   if(!oid&&selected.osgb_id) setOid(String(selected.osgb_id));
+   setOid(String(selected.osgb_id||''));
   }
   function onContextReset(){setCompanyId('')}
   window.addEventListener('isg:company-selected',onCompanySelected);
