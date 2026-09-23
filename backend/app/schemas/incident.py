@@ -258,9 +258,44 @@ class IncidentDofCreate(BaseModel):
 
 
 
+class IncidentDofUpdate(BaseModel):
+    finding: str | None = Field(default=None, max_length=2000)
+    root_cause: str | None = Field(default=None, max_length=2000)
+    corrective_action: str | None = Field(default=None, max_length=2000)
+    preventive_action: str | None = Field(default=None, max_length=2000)
+    responsible_person: str | None = Field(default=None, max_length=160)
+    term_date: date | None = None
+    priority: str | None = Field(default=None, max_length=30)
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        for key, label in (("finding", "Bulgu"), ("corrective_action", "Düzeltici faaliyet"),
+                           ("preventive_action", "Önleyici faaliyet")):
+            if key in self.model_fields_set:
+                setattr(self, key, assert_meaningful_text(getattr(self, key), label=label, min_len=10, required=True))
+        if "root_cause" in self.model_fields_set:
+            self.root_cause = assert_meaningful_text(self.root_cause, label="Kök neden", min_len=5, required=False)
+        if "responsible_person" in self.model_fields_set:
+            self.responsible_person = assert_person_name(self.responsible_person, label="Sorumlu kişi", required=True)
+        if "term_date" in self.model_fields_set:
+            if self.term_date is None:
+                raise ValueError("Termin tarihi zorunludur.")
+            self.term_date = assert_event_date(self.term_date, label="Termin tarihi", allow_future_days=3650, earliest=date(2000, 1, 1))
+        if "priority" in self.model_fields_set and self.priority not in {"Düşük", "Orta", "Yüksek", "Acil", "Kritik"}:
+            raise ValueError("Geçerli bir öncelik seçiniz.")
+        return self
+
+
 class IncidentDofComplete(BaseModel):
     effectiveness_note: str | None = Field(default=None, max_length=2000)
     close_approval: str | None = Field(default=None, max_length=160)
+    completion_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_completion_date(self):
+        if self.completion_date and not date(2000, 1, 1) <= self.completion_date <= date.today():
+            raise ValueError("Tamamlanma tarihi 2000 yılından önce veya gelecekte olamaz.")
+        return self
 
 
 class RootCauseResponse(BaseModel):

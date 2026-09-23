@@ -75,7 +75,8 @@ from app.services.ai_vision import build_full_analysis
 from app.services.job_queue import JobStatus, enqueue, get_job
 from app.core.config import vision_analysis_active
 from app.services.assigned_team import team_names
-from app.services.audit import add_audit_log
+from app.services.audit import add_audit_log, serialize_audit_value
+from app.services.capa_board import incident_dof_completed
 from app.services.hazard_seed import seed_hazard_library
 from app.services.risk_photo_tags import (
     TAGS_ENGINE,
@@ -108,6 +109,8 @@ from app.services.risk_scoring import (
 )
 from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
+from app.services.risk_deadlines import imported_deadline
+from app.api.capa_access import require_dof_editor
 from app.services.risk_excel_import import (
     build_import_risk_code,
     infer_category_name,
@@ -2239,6 +2242,7 @@ async def import_risk_excel(
                 term_override_days=item.get("term_days_hint"),
                 base_date=assessment_date,
             )
+            deadline = imported_deadline(item.get("term_text"), assessment_date)
             client_reference = f"excel:{item['fingerprint']}"
             # Do not derive an imported code from a tenant-filtered count.
             # RiskAssessment.risk_code is globally unique, and RLS can hide
@@ -2277,10 +2281,10 @@ async def import_risk_excel(
                 severity=calc["severity"],
                 risk_score=calc["risk_score"],
                 risk_level=calc["risk_level"],
-                term_days=calc["term_days"],
-                term_date=date.fromisoformat(calc["term_date"]),
+                term_days=deadline["days"],
+                term_date=deadline["date"],
                 term_suggested=calc["term_suggested"],
-                term_overridden=calc["term_overridden"],
+                term_overridden=deadline["days"] != calc["term_suggested"],
                 status="Açık",
                 created_by_id=user.id,
                 risk_source=item.get("risk_source"),
@@ -2601,7 +2605,7 @@ def add_dof(
     risk_id: int,
     payload: RiskDofCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_dof_editor),
 ):
     row = _load_risk(db, risk_id)
     ensure_access(db, user, row.company_id)
@@ -2625,11 +2629,14 @@ def add_dof(
         description=payload.description,
         responsible_person=payload.responsible_person,
         responsible_department=payload.responsible_department,
-        term_date=payload.term_date or row.term_date,
+        term_date=payload.term_date if "term_date" in payload.model_fields_set else row.term_date,
         cost_estimate=payload.cost_estimate,
         created_by_id=user.id,
     )
     db.add(dof)
+    db.flush()
+    add_audit_log(db, user=user, action="CREATE", entity_type="risk_dof", entity_id=str(dof.id),
+                  company_id=row.company_id, module="risk", description=f"DÖF oluşturuldu: {dof.dof_code}")
     db.commit()
     db.refresh(dof)
     return dof
@@ -2641,15 +2648,27 @@ def update_dof(
     dof_id: int,
     payload: RiskDofUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_dof_editor),
 ):
     row = _load_risk(db, risk_id)
     ensure_access(db, user, row.company_id)
     dof = db.get(RiskDof, dof_id)
     if not dof or dof.risk_id != risk_id:
         raise HTTPException(404, "DÖF bulunamadı.")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if "description" in changes and not str(changes["description"] or "").strip():
+        raise HTTPException(422, "DÖF açıklaması boş olamaz.")
+    if "status" in changes and changes["status"] not in {"Açık", "Devam Ediyor", "Tamamlandı"}:
+        raise HTTPException(422, "Geçerli bir DÖF durumu seçiniz.")
+    before = {key: getattr(dof, key) for key in changes}
+    for k, v in changes.items():
         setattr(dof, k, v)
+    if "status" in changes:
+        dof.is_completed = incident_dof_completed(dof.status)
+        dof.completion_date = (dof.completion_date or date.today()) if dof.is_completed else None
+    add_audit_log(db, user=user, action="UPDATE", entity_type="risk_dof", entity_id=str(dof.id),
+                  company_id=row.company_id, module="risk", description=f"DÖF güncellendi: {dof.dof_code}",
+                  old_value=serialize_audit_value(before), new_value=serialize_audit_value(changes))
     db.commit()
     db.refresh(dof)
     return dof
@@ -2661,18 +2680,24 @@ def complete_dof(
     dof_id: int,
     payload: RiskDofComplete = RiskDofComplete(),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_dof_editor),
 ):
     row = _load_risk(db, risk_id)
     ensure_access(db, user, row.company_id)
     dof = db.get(RiskDof, dof_id)
     if not dof or dof.risk_id != risk_id:
         raise HTTPException(404, "DÖF bulunamadı.")
+    if dof.is_completed:
+        return dof
     dof.is_completed = True
     dof.status = "Tamamlandı"
-    dof.completion_date = date.today()
+    dof.completion_date = payload.completion_date or date.today()
     if payload.completion_note:
         dof.completion_note = payload.completion_note
+    add_audit_log(db, user=user, action="UPDATE", entity_type="risk_dof", entity_id=str(dof.id),
+                  company_id=row.company_id, module="risk", description=f"DÖF tamamlandı: {dof.dof_code}",
+                  new_value=serialize_audit_value({"status": dof.status, "completion_date": dof.completion_date,
+                                                   "completion_note": dof.completion_note}))
     db.commit()
     db.refresh(dof)
     return dof

@@ -65,6 +65,7 @@ export const PROFESSIONAL_MENU_SECTIONS = {
       items: [
         'dashboard',
         'risk_analytics',
+        'capa',
         'health',
         'prescriptions',
         'visit_notebook',

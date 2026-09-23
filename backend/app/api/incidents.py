@@ -10,6 +10,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
+from app.api.capa_access import require_dof_editor
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.core.input_rules import assert_date_order, assert_event_date, assert_meaningful_text, assert_person_name
@@ -27,6 +28,7 @@ from app.schemas.incident import (
     IncidentDofComplete,
     IncidentDofCreate,
     IncidentDofResponse,
+    IncidentDofUpdate,
     IncidentResponse,
     IncidentUpdate,
     RootCauseResponse,
@@ -35,7 +37,7 @@ from app.schemas.incident import (
 from app.services.assigned_team import team_names
 from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.business_days import add_turkish_business_days
-from app.services.capa_board import build_capa_board, capa_summary
+from app.services.capa_board import build_capa_board, capa_summary, incident_dof_completed
 from app.services.change_guard import (
     archive_records_before_delete,
     require_delete_reason,
@@ -607,7 +609,7 @@ def add_incident_dof(
     incident_id: int,
     payload: IncidentDofCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_dof_editor),
 ):
     row = _load(db, incident_id)
     ensure_access(db, user, row.company_id)
@@ -629,24 +631,55 @@ def add_incident_dof(
     return dof
 
 
-@router.post("/{incident_id}/dofs/{dof_id}/complete", response_model=IncidentDofResponse)
-def complete_incident_dof(
+@router.patch("/{incident_id}/dofs/{dof_id}", response_model=IncidentDofResponse)
+def update_incident_dof(
     incident_id: int,
     dof_id: int,
-    payload: IncidentDofComplete = IncidentDofComplete(),
+    payload: IncidentDofUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_dof_editor),
 ):
     row = _load(db, incident_id)
     ensure_access(db, user, row.company_id)
     dof = db.get(IncidentDof, dof_id)
     if not dof or dof.incident_id != incident_id:
         raise HTTPException(404, "Olay DÖF kaydı bulunamadı.")
+    changes = payload.model_dump(exclude_unset=True)
+    before = {key: getattr(dof, key) for key in changes}
+    for key, value in changes.items():
+        setattr(dof, key, value)
+    add_audit_log(db, user=user, action="UPDATE", entity_type="incident_dof", entity_id=str(dof.id),
+                  company_id=row.company_id, module="incidents", description=f"DÖF güncellendi: {dof.dof_no}",
+                  old_value=serialize_audit_value(before), new_value=serialize_audit_value(changes))
+    db.commit()
+    db.refresh(dof)
+    return dof
+
+
+@router.post("/{incident_id}/dofs/{dof_id}/complete", response_model=IncidentDofResponse)
+def complete_incident_dof(
+    incident_id: int,
+    dof_id: int,
+    payload: IncidentDofComplete = IncidentDofComplete(),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_dof_editor),
+):
+    row = _load(db, incident_id)
+    ensure_access(db, user, row.company_id)
+    dof = db.get(IncidentDof, dof_id)
+    if not dof or dof.incident_id != incident_id:
+        raise HTTPException(404, "Olay DÖF kaydı bulunamadı.")
+    if incident_dof_completed(dof.status):
+        return dof
     evidence, approver = _validate_dof_completion(payload)
     dof.status = "Tamamlandı"
-    dof.completion_date = date.today()
+    dof.completion_date = payload.completion_date or date.today()
     dof.effectiveness_note = evidence
     dof.close_approval = approver
+    add_audit_log(db, user=user, action="UPDATE", entity_type="incident_dof", entity_id=str(dof.id),
+                  company_id=row.company_id, module="incidents", description=f"DÖF tamamlandı: {dof.dof_no}",
+                  new_value=serialize_audit_value({"status": dof.status, "completion_date": dof.completion_date,
+                                                   "effectiveness_note": evidence, "close_approval": approver}))
     db.commit()
     db.refresh(dof)
     return dof

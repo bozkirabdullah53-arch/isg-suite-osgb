@@ -186,6 +186,13 @@ class RiskDofCreate(BaseModel):
 
 class RiskDofComplete(BaseModel):
     completion_note: str | None = Field(default=None, max_length=2000)
+    completion_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_completion_date(self):
+        if self.completion_date and not date(2000, 1, 1) <= self.completion_date <= date.today():
+            raise ValueError("Tamamlanma tarihi 2000 yılından önce veya gelecekte olamaz.")
+        return self
 
 
 class RiskDofUpdate(BaseModel):

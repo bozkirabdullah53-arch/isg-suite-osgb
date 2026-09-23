@@ -15,6 +15,7 @@ from io import BytesIO
 from typing import Any
 
 from openpyxl import load_workbook
+from app.services.risk_deadlines import imported_deadline
 
 
 def _cell(value: Any) -> str:
@@ -75,16 +76,7 @@ def _parse_date(value: Any) -> date | None:
 
 
 def _parse_term_days(value: Any) -> int | None:
-    text = _cell(value)
-    folded = _norm(text)
-    if not text:
-        return None
-    match = re.search(r"\d+", text)
-    if match:
-        return max(0, min(365, int(match.group(0))))
-    if any(token in folded for token in ("derhal", "hemen", "acil")):
-        return 0
-    return None
+    return imported_deadline(_cell(value))["days"]
 
 
 _HEADER_ALIASES: dict[str, str] = {
