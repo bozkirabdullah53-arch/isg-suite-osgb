@@ -49,6 +49,22 @@ async function setup(page, {
       summaryError ? {detail: 'Özet servisine ulaşılamıyor.'} : {company_id: company.id, company_name: company.name, counts},
       summaryError ? 500 : 200);
     if (path === '/companies') return json(route, [company]);
+    if (path === '/incidents/capa-board') {
+      if (new URL(request.url()).searchParams.get('company_id') !== String(company.id)) {
+        return json(route, {detail: 'DÖF firma kapsamı hatalı.'}, 403);
+      }
+      return json(route, {
+        company_id: company.id,
+        items: [{
+          key: 'risk-1', id: 1, company_id: company.id, source: 'Risk',
+          code: 'DÖF-TEST-42', title: 'Seçili firmanın düzeltici faaliyeti',
+          parent: 'RSK-TEST-42', parentSummary: 'Firma kapsamı kontrolü',
+          responsible: 'İşyeri Yetkilisi', term: '2026-01-01', status: 'Açık',
+          is_completed: false, is_overdue: true,
+        }],
+        summary: {total: 1, open: 1, completed: 0, overdue: 1},
+      });
+    }
     if (path === '/health-records') return json(route, healthRows);
     if (/^\/health-records\/\d+\/form\.html$/.test(path)) {
       return route.fulfill({
@@ -451,11 +467,18 @@ test('workplace password account can download and upload the personnel Excel tem
   expect(state.errors).toEqual([]);
 });
 
-test('a fresh-tab module link is preserved', async ({page}) => {
-  await setup(page);
+test('a fresh-tab DÖF link retains its company after reload', async ({page}) => {
+  const state = await setup(page);
   await page.goto('/#m=capa');
   await expect(page.locator('main.content')).toContainText('DÖF Yönetimi');
-  await expect(page).toHaveURL(/m=capa$/);
+  await expect(page).toHaveURL(/m=capa&company=42$/);
+  await expect(page.getByRole('cell', {name: 'DÖF-TEST-42', exact: true})).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(/m=capa&company=42$/);
+  await expect(page.locator('main.content .page-title')).toContainText(company.name);
+  await expect(page.getByRole('cell', {name: 'DÖF-TEST-42', exact: true})).toBeVisible();
+  await expect(page.locator('main.content').getByRole('alert')).toHaveCount(0);
+  expect(state.errors).toEqual([]);
 });
 
 test('summary failure remains visible without blocking the modules', async ({page}) => {
