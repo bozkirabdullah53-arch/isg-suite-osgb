@@ -47,6 +47,78 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
+def _individual_registration_payload(**overrides):
+    return {
+        "full_name": "Ahmet Yilmaz",
+        "email": "individual@example.com",
+        "password": "IndividualPass123!",
+        "password_confirm": "IndividualPass123!",
+        "certificate_class": "C",
+        "contract_accepted": True,
+        "personal_data_accepted": True,
+        **overrides,
+    }
+
+
+@pytest.mark.parametrize(
+    ("certificate_fields", "expected_certificate"),
+    [
+        ({}, None),
+        ({"certificate_number": None}, None),
+        ({"certificate_number": ""}, None),
+        ({"certificate_number": "   "}, None),
+        ({"certificate_number": " ISG-C-123 "}, "ISG-C-123"),
+    ],
+    ids=["omitted", "null", "empty", "whitespace", "legacy-client"],
+)
+def test_individual_registration_certificate_is_optional(client, certificate_fields, expected_certificate):
+    from app.core.database import SessionLocal
+    from app.models.entities import OsgbSubscription, SubscriptionStatus
+
+    response = client.post(
+        "/api/v1/auth/register",
+        json=_individual_registration_payload(**certificate_fields),
+    )
+    assert response.status_code == 201, response.text
+    token = response.json()["access_token"]
+    assert token
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200, me.text
+    assert me.json()["is_individual"] is True
+    assert me.json()["role"] == "safety_specialist"
+    assert me.json()["company_id"] is None
+
+    with SessionLocal() as db:
+        user = db.query(User).filter_by(email="individual@example.com").one()
+        workspace = db.get(OsgbOrganization, user.osgb_id)
+        professional = db.query(IsgProfessional).filter_by(osgb_id=workspace.id).one()
+        subscription = db.query(OsgbSubscription).filter_by(osgb_id=workspace.id).one()
+        assert workspace.is_individual and workspace.is_active
+        assert professional.certificate_number == expected_certificate
+        assert professional.certificate_class == "C"
+        assert professional.is_active
+        assert subscription.status == SubscriptionStatus.TRIAL
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"contract_accepted": False},
+        {"personal_data_accepted": False},
+        {"password_confirm": "DifferentPass123!"},
+    ],
+    ids=["contract-required", "privacy-required", "matching-passwords-required"],
+)
+def test_individual_registration_keeps_other_required_checks(client, overrides):
+    from app.core.database import SessionLocal
+
+    response = client.post("/api/v1/auth/register", json=_individual_registration_payload(**overrides))
+    assert response.status_code == 422, response.text
+    with SessionLocal() as db:
+        assert db.query(User).filter_by(email="individual@example.com").first() is None
+        assert db.query(OsgbOrganization).filter_by(is_individual=True).count() == 0
+
+
 def test_refresh_endpoint_404_when_flag_off(client):
     r = client.post("/api/v1/auth/refresh")
     assert r.status_code == 404

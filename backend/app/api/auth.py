@@ -102,13 +102,11 @@ def register(
         full_name = assert_person_name(payload.full_name, label="Ad Soyad", required=True)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    certificate_number = payload.certificate_number.strip()
+    certificate_number = (payload.certificate_number or "").strip() or None
     if payload.password != payload.password_confirm:
         raise HTTPException(422, "Şifreler aynı değil.")
     if not payload.contract_accepted or not payload.personal_data_accepted:
         raise HTTPException(422, "Kullanım koşulları ve kişisel veri işleme onayı zorunludur.")
-    if len(certificate_number) < 3:
-        raise HTTPException(422, "İSG sertifika numarası zorunludur.")
 
     ip = _client_ip(request)
     try:
@@ -163,7 +161,7 @@ def register(
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(409, "Bu e-posta veya sertifika numarası zaten kayıtlı.") from exc
+        raise HTTPException(409, "Kayıt oluşturulamadı. Başvuru bilgilerinizi kontrol edin.") from exc
 
     db.refresh(user)
     return _issue_access(user, response)

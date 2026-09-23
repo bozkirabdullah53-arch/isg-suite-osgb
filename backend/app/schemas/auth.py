@@ -19,7 +19,8 @@ class RegisterRequest(BaseModel):
     password_confirm: str = Field(min_length=10, max_length=128)
     phone: str | None = Field(default=None, max_length=40)
     certificate_class: Literal["A", "B", "C"]
-    certificate_number: str = Field(min_length=3, max_length=80)
+    # Older clients may still send this; it is not required for membership.
+    certificate_number: str | None = Field(default=None, max_length=80)
     contract_accepted: bool
     personal_data_accepted: bool
 

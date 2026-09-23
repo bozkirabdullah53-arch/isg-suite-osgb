@@ -2136,7 +2136,6 @@ export function SpecialistRegisterPage({ onBack, onRegistered }) {
     email: '',
     phone: '',
     certificate_class: 'C',
-    certificate_number: '',
     password: '',
     password_confirm: '',
     contract_accepted: false,
@@ -2213,9 +2212,6 @@ export function SpecialistRegisterPage({ onBack, onRegistered }) {
                   <option value="B">B</option>
                   <option value="C">C</option>
                 </select>
-              </label>
-              <label className="field apply-span-2"><span>Sertifika no *</span>
-                <input required minLength={3} value={form.certificate_number} onChange={(e) => setForm({ ...form, certificate_number: e.target.value })} />
               </label>
               <label className="field"><span>Şifre *</span>
                 <input type="password" required minLength={10} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
