@@ -3,6 +3,8 @@ import {Download, Lightbulb, Plus, Search, Sparkles, X} from 'lucide-react';
 import {api, downloadFile} from './api';
 import {assertIncidentForm} from './validation';
 import {AppModal} from './ui_modal';
+import {readPersistedCompanyId, persistSelectedCompanyId} from './nace_context';
+import {parseNavigationLocation} from './navigation_history';
 
 const TYPE_DEFAULT = {
   near_miss: 'ramak_kala',
@@ -762,166 +764,140 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
 }
 
 /** DÖF merkezi — olay + risk açık DÖF’lerini tek listede toplar (stub isg-records yerine). */
-export function CapaPage({user}) {
-  const [rows, setRows] = useState([]);
+export function CapaPage({user, companyId: selectedCompanyId, onCompanyChange}) {
+  const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [companies, setCompanies] = useState([]);
-  const [companyId, setCompanyId] = useState(user.company_id || '');
+  const [localCompanyId, setLocalCompanyId] = useState(() =>
+    String(user.company_id || parseNavigationLocation(window.location).companyId || readPersistedCompanyId() || '')
+  );
+  const companyId = String(user.company_id || selectedCompanyId || (selectedCompanyId === undefined ? localCompanyId : '') || '');
   const [dlBusy, setDlBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const rows = result?.company_id === Number(companyId) ? result.items : [];
+  const summary = result?.company_id === Number(companyId) ? result.summary : null;
+  const company = companies.find((row) => String(row.id) === companyId);
+
+  useEffect(() => {
+    let cancelled = false;
+    api('/companies').then((list) => {
+      if (!cancelled) setCompanies(Array.isArray(list) ? list : []);
+    }).catch((error) => { if (!cancelled) setErr(error.message || 'Firma listesi yüklenemedi.'); });
+    return () => { cancelled = true; };
+  }, [user.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setResult(null);
+    setErr('');
+    if (!companyId) { setBusy(false); return undefined; }
+    setBusy(true);
+    api(`/incidents/capa-board?company_id=${encodeURIComponent(companyId)}`).then((data) => {
+      if (Number(data?.company_id) !== Number(companyId)) throw new Error('DÖF listesi seçili firmayla eşleşmiyor.');
+      if (!cancelled) setResult(data);
+    }).catch((error) => {
+      if (!cancelled) setErr(error.message || 'DÖF listesi yüklenemedi.');
+    }).finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [companyId, revision]);
+
+  function chooseCompany(value) {
+    if (onCompanyChange) { onCompanyChange(value); return; }
+    setLocalCompanyId(value);
+    persistSelectedCompanyId(value);
+    window.dispatchEvent(new CustomEvent('isg:company-selected', {
+      detail: {companyId: value, company: companies.find((row) => String(row.id) === value)},
+    }));
+  }
 
   async function downloadExcel() {
+    if (!companyId) return;
     setDlBusy(true);
     setErr('');
     try {
-      const params = new URLSearchParams();
-      if (companyId) params.set('company_id', String(companyId));
+      const params = new URLSearchParams({company_id: companyId});
       const stamp = new Date().toISOString().slice(0, 10);
-      await downloadFile(`/incidents/capa-board.xlsx?${params}`, `dof-panosu-${stamp}.xlsx`);
-    } catch (x) {
-      setErr(x.message || 'Excel indirilemedi.');
+      await downloadFile(`/incidents/capa-board.xlsx?${params}`, `dof-panosu-${companyId}-${stamp}.xlsx`);
+    } catch (error) {
+      setErr(error.message || 'Excel indirilemedi.');
     } finally {
       setDlBusy(false);
     }
   }
 
-  const load = async () => {
-    setErr('');
-    const companiesList = await api('/companies');
-    setCompanies(companiesList);
-    const cid = companyId || user.company_id || companiesList[0]?.id;
-    if (!cid && user.role === 'global_admin') {
-      setErr('DÖF listesi için firma seçiniz.');
-      setRows([]);
-      return;
-    }
-    if (cid && !companyId) setCompanyId(cid);
-
-    const riskQs = new URLSearchParams();
-    if (cid) riskQs.set('company_id', String(cid));
-    const [incidents, risks] = await Promise.all([
-      api('/incidents'),
-      api(`/risks?${riskQs}`).catch(() => []),
-    ]);
-
-    const incidentDofs = [];
-    for (const inc of incidents) {
-      for (const d of (inc.dofs || [])) {
-        incidentDofs.push({
-          key: `i-${d.id}`,
-          source: 'Olay',
-          code: d.dof_no,
-          title: d.finding,
-          action: d.corrective_action,
-          responsible: d.responsible_person,
-          term: d.term_date,
-          status: d.status,
-          priority: d.priority,
-          parent: inc.form_no,
-          parentSummary: inc.short_summary,
-        });
-      }
-    }
-    const riskDofs = [];
-    for (const r of risks) {
-      for (const d of (r.dofs || [])) {
-        riskDofs.push({
-          key: `r-${d.id}`,
-          source: 'Risk',
-          code: d.dof_code,
-          title: d.description,
-          action: d.description,
-          responsible: d.responsible_person,
-          term: d.term_date,
-          status: d.is_completed ? 'Tamamlandı' : (d.status || 'Açık'),
-          priority: '—',
-          parent: r.risk_code,
-          parentSummary: r.activity,
-        });
-      }
-    }
-    setRows([...incidentDofs, ...riskDofs]);
-  };
-
-  useEffect(() => {
-    load().catch((e) => setErr(e.message));
-  }, [companyId]);
-
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter((r) =>
-      [r.code, r.title, r.responsible, r.parent, r.parentSummary, r.source]
-        .filter(Boolean)
-        .some((x) => String(x).toLowerCase().includes(s)),
-    );
-  }, [rows, q]);
-
-  const openCount = filtered.filter((r) => r.status !== 'Tamamlandı').length;
+  const filtered = rows.filter((row) => {
+    if (statusFilter === 'open' && row.is_completed) return false;
+    if (statusFilter === 'overdue' && !row.is_overdue) return false;
+    if (statusFilter === 'completed' && !row.is_completed) return false;
+    const search = q.trim().toLocaleLowerCase('tr-TR');
+    return !search || [row.code, row.title, row.responsible, row.parent, row.parentSummary, row.source]
+      .some((value) => String(value || '').toLocaleLowerCase('tr-TR').includes(search));
+  });
 
   return (
     <>
       <div className="page-title">
-        <h3>DÖF Yönetimi</h3>
-        <button type="button" className="secondary" disabled={dlBusy} onClick={downloadExcel}>
+        <div>
+          <h3>DÖF Yönetimi</h3>
+          <p>{company?.name || (companyId ? 'Seçili firmanın DÖF kayıtları' : 'Firma / işyeri seçiniz')}</p>
+        </div>
+        <button type="button" className="secondary" disabled={dlBusy || busy || !companyId || !result} onClick={downloadExcel}>
           <Download size={16} /> {dlBusy ? 'Excel…' : 'Excel Rapor'}
         </button>
       </div>
       <section className="panel">
-        <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>
-          Açık düzeltici faaliyetler <strong>olay</strong> ve <strong>risk</strong> kayıtlarından birleştirilir.
-          Yeni DÖF eklemek için ilgili olay veya risk detayına gidin.
+        <div style={{marginBottom: 12, padding: '10px 12px', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>
+          Seçili firmanın <strong>olay</strong> ve <strong>risk</strong> DÖF kayıtları birlikte gösterilir.
+          Belgenin yenileme tarihi ile DÖF’lerin tamamlanma terminleri ayrı takip edilir.
         </div>
         <div className="search" style={{marginBottom: 12, flexWrap: 'wrap'}}>
-          <Search size={19} />
-          <input
-            placeholder="DÖF no, tespit, sorumlu ara..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
           {!user.company_id && (
-            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} style={{minWidth: 180}}>
-              <option value="">Firma (risk DÖF)</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <select aria-label="DÖF firma / işyeri seçiniz" data-global-company-selector="true" value={companyId} onChange={(event) => chooseCompany(event.target.value)} style={{minWidth: 180}}>
+              <option value="">Firma / işyeri seçiniz</option>
+              {companyId && !company && <option value={companyId}>Firma {companyId}</option>}
+              {companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
             </select>
           )}
-          <button className="secondary" type="button" onClick={() => load().catch((e) => setErr(e.message))}>Yenile</button>
+          <Search size={19} />
+          <input placeholder="DÖF no, tespit, sorumlu ara..." value={q} onChange={(event) => setQ(event.target.value)} />
+          <select aria-label="DÖF durumu" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="all">Tüm DÖF’ler</option>
+            <option value="open">Açık</option>
+            <option value="overdue">Gecikmiş</option>
+            <option value="completed">Tamamlanan</option>
+          </select>
+          <button className="secondary" type="button" disabled={!companyId || busy} onClick={() => setRevision((value) => value + 1)}>Yenile</button>
         </div>
-        {err && <div className="error">{err}</div>}
-        <p style={{fontSize: 14, color: '#64748b', marginBottom: 10}}>
-          Toplam {filtered.length} DÖF · açık {openCount}
-        </p>
+        {err && <div className="error" role="alert">{err}</div>}
+        {busy && <p role="status">DÖF kayıtları yükleniyor…</p>}
+        {summary && <p style={{fontSize: 14, marginBottom: 10}}>
+          Toplam {summary.total} DÖF · açık {summary.open} · gecikmiş {summary.overdue} · tamamlanan {summary.completed}
+          {(q || statusFilter !== 'all') && ` · gösterilen ${filtered.length}`}
+        </p>}
         <div className="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>Kaynak</th>
-                <th>DÖF No</th>
-                <th>Bağlı kayıt</th>
-                <th>Tespit / iş</th>
-                <th>Sorumlu</th>
-                <th>Termin</th>
-                <th>Durum</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>Kaynak</th><th>DÖF No</th><th>Bağlı kayıt</th><th>Tespit / iş</th><th>Sorumlu</th><th>Termin</th><th>Durum</th>
+            </tr></thead>
             <tbody>
-              {filtered.length ? filtered.map((r) => (
-                <tr key={r.key}>
-                  <td>{r.source}</td>
-                  <td>{r.code}</td>
-                  <td>
-                    <div>{r.parent}</div>
-                    <div style={{fontSize: 12, color: '#64748b'}}>{r.parentSummary}</div>
-                  </td>
-                  <td>{r.title}</td>
-                  <td>{r.responsible || '—'}</td>
-                  <td>{r.term || '—'}</td>
-                  <td>
-                    <span className={'badge ' + (r.status === 'Tamamlandı' ? 'ok' : 'off')}>{r.status}</span>
-                  </td>
+              {filtered.length ? filtered.map((row) => (
+                <tr key={row.key}>
+                  <td>{row.source}</td><td>{row.code}</td>
+                  <td><div>{row.parent}</div><div style={{fontSize: 12}}>{row.parentSummary}</div></td>
+                  <td>{row.title}</td><td>{row.responsible || '—'}</td><td>{row.term || '—'}</td>
+                  <td><span className={'badge ' + (row.is_completed ? 'ok' : 'off')}>{row.is_overdue ? 'Gecikmiş' : row.status}</span></td>
                 </tr>
               )) : (
-                <tr><td colSpan={7} className="empty">Açık veya kayıtlı DÖF yok. Olay / Risk detayından ekleyin.</td></tr>
+                <tr><td colSpan={7} className="empty">
+                  {!companyId ? 'DÖF listesini görüntülemek için firma / işyeri seçiniz.'
+                    : busy ? 'Yükleniyor…'
+                    : err ? 'DÖF kayıtları gösterilemiyor. Lütfen tekrar deneyin.'
+                    : q || statusFilter !== 'all' ? 'Filtreye uygun DÖF bulunamadı.'
+                    : 'Bu firmada kayıtlı DÖF bulunmuyor.'}
+                </td></tr>
               )}
             </tbody>
           </table>

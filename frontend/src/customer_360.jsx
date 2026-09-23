@@ -109,6 +109,7 @@ function SimpleTable({cols, rows, empty = 'Kayıt yok.'}) {
 
 export function Customer360Page({
   companyId,
+  canOpenModule: canOpenModuleForUser,
   onBack,
   onNavigate,
   user = null,
@@ -169,7 +170,7 @@ export function Customer360Page({
   const workplaceModules = workplaceModulesForUser(user);
 
   function canOpenModule(moduleId) {
-    return !workplaceModules || workplaceModules.includes(moduleId);
+    return canOpenModuleForUser ? canOpenModuleForUser(moduleId) : (!workplaceModules || workplaceModules.includes(moduleId));
   }
 
   function goToModule(moduleId, target = null) {
@@ -618,11 +619,12 @@ export function Customer360Page({
   );
 }
 
-export function WorkplaceStatusPage({user, onNavigate}) {
+export function WorkplaceStatusPage({user, onNavigate, companyId: selectedCompanyId, onCompanyChange, canOpenModule}) {
   const [companies, setCompanies] = useState([]);
-  const [companyId, setCompanyId] = useState(
+  const [localCompanyId, setCompanyId] = useState(
     user?.company_id ? String(user.company_id) : (readPersistedCompanyId() || '')
   );
+  const companyId = String(user?.company_id || selectedCompanyId || (selectedCompanyId === undefined ? localCompanyId : '') || '');
   const [err, setErr] = useState('');
   const fixedCompanyId = Number(user?.company_id) > 0 ? Number(user.company_id) : null;
 
@@ -657,8 +659,10 @@ export function WorkplaceStatusPage({user, onNavigate}) {
             <strong>Firma / işyeri seçiniz</strong>
             <select
               value={companyId}
+              data-global-company-selector="true"
               onChange={(e) => {
                 const next = String(e.target.value || '');
+                if(onCompanyChange){ onCompanyChange(next); return; }
                 const company = companies.find((row) => String(row.id) === next);
                 setCompanyId(next);
                 persistSelectedCompanyId(next);
@@ -681,7 +685,7 @@ export function WorkplaceStatusPage({user, onNavigate}) {
         </section>
       )}
       {companyId ? (
-        <Customer360Page companyId={Number(companyId)} onNavigate={onNavigate} user={user} />
+        <Customer360Page key={companyId} companyId={Number(companyId)} onNavigate={onNavigate} user={user} canOpenModule={canOpenModule} />
       ) : (
         <section className="panel">
           <p className="empty">

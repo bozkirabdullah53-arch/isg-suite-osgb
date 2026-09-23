@@ -68,16 +68,23 @@ def test_validity_unknown_states():
     assert no_date["assessment_date_source"] == "missing"
 
 
-def test_validity_falls_back_to_first_risk_record():
+def test_upload_date_never_proves_document_validity():
     body = build_validity(
         hazard_class="Tehlikeli",
         assessment_date=None,
         fallback_date=date(2025, 3, 1),
         today=date(2026, 7, 28),
     )
-    assert body["assessment_date_source"] == "estimated"
-    assert body["valid_until"] == "2029-03-01"
-    assert "tahmin" in body["message"]
+    assert body["assessment_date_source"] == "missing"
+    assert body["status"] == "unknown"
+    assert body["assessment_date"] is None
+    assert body["valid_until"] is None
+    assert body["days_left"] is None
+    assert body["first_record_date"] == "2025-03-01"
+    assert "belge geçerliliğini doğrulamaz" in body["message"]
+    rows = dict(document_meta_rows(validity=body))
+    assert rows["Değerlendirme Tarihi"] == "—"
+    assert rows["Geçerlilik / Yenileme Tarihi"] == "—"
 
 
 def test_document_meta_rows_carry_method_and_team():

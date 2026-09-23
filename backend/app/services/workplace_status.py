@@ -36,6 +36,7 @@ from app.models.entities import (
 )
 from app.models.remote_training import RemoteTrainingAssignment
 from app.services.company_overview import build_company_overview
+from app.services.capa_board import build_capa_board, capa_summary, incident_dof_completed
 from app.services.notifications import (
     SPECIALIST_ONLY_NOTIFICATION_ENTITY_TYPES,
     SPECIALIST_ONLY_NOTIFICATION_TITLE_PREFIXES,
@@ -65,12 +66,13 @@ def _item(
     count: int | None = None,
     critical: bool = False,
     required: bool = True,
+    status_label: str | None = None,
 ) -> dict:
     return {
         "code": code,
         "title": title,
         "status": status,
-        "status_label": STATUS_LABELS[status],
+        "status_label": status_label or STATUS_LABELS[status],
         "detail": detail,
         "module": module,
         "responsible_role": responsible_role,
@@ -420,12 +422,14 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
     items.append(
         _item(
             code="risk_assessment",
-            title="Risk değerlendirmesi",
+            title="Risk değerlendirmesi kaydı",
             status=risk_status,
+            status_label="Kayıtlı" if risk_total else None,
             detail=(
                 "Risk değerlendirmesi kaydı bulunamadı."
                 if not risk_total
-                else f"{risk_total} risk kaydı; {open_risks} açık risk kaydı, {risk_overdue} geçmiş termin tarihi."
+                else (f"{risk_total} risk kaydı; {open_risks} açık risk kaydı, {risk_overdue} geçmiş termin tarihi. "
+                      "Kaydın bulunması, önlemlerin ve DÖF’lerin tamamlandığı anlamına gelmez.")
             ),
             module="risk",
             responsible_role="İş Güvenliği Uzmanı",
@@ -439,13 +443,18 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         "expired": "overdue",
         "due_soon": "due_soon",
         "ok": "completed",
-        "unknown": "missing",
+        "unknown": "attention" if risk_total else "missing",
     }.get(risk_validity.get("status"), "attention")
     items.append(
         _item(
             code="risk_assessment_validity",
             title="Risk değerlendirmesi yenileme süresi",
             status=risk_validity_status,
+            status_label=(
+                "Geçerli" if risk_validity_status == "completed"
+                else "Tarih eksik" if not company.risk_assessment_date
+                else None
+            ),
             detail=risk_validity.get("message") or "Yenileme durumu hesaplanamadı.",
             module="risk",
             responsible_role="İş Güvenliği Uzmanı / İşveren",
@@ -555,35 +564,12 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         )
     )
 
-    risk_ids = select(RiskAssessment.id).where(RiskAssessment.company_id == cid)
-    risk_dofs = list(db.scalars(select(RiskDof).where(RiskDof.risk_id.in_(risk_ids))).all())
-    incident_ids = select(IncidentEvent.id).where(IncidentEvent.company_id == cid)
-    incident_dofs = list(
-        db.scalars(select(IncidentDof).where(IncidentDof.incident_id.in_(incident_ids))).all()
-    )
-    incident_completed_statuses = {
-        "tamamlandı",
-        "tamamlandi",
-        "completed",
-        "closed",
-        "kapatıldı",
-        "kapatildi",
-        "kapalı",
-        "kapali",
-    }
-    open_risk_dofs = [row for row in risk_dofs if not row.is_completed]
-    open_incident_dofs = [
-        row
-        for row in incident_dofs
-        if str(row.status or "").strip().casefold() not in incident_completed_statuses
-    ]
-    dof_total = len(risk_dofs) + len(incident_dofs)
-    open_dofs = len(open_risk_dofs) + len(open_incident_dofs)
-    overdue_dofs = sum(
-        1
-        for row in (*open_risk_dofs, *open_incident_dofs)
-        if row.term_date and row.term_date < today
-    )
+    dof_summary = capa_summary(build_capa_board(db, [cid]))
+    dof_total = dof_summary["total"]
+    open_dofs = dof_summary["open"]
+    overdue_dofs = dof_summary["overdue"]
+    counts["open_dofs"] = open_dofs
+    counts["overdue_dofs"] = overdue_dofs
     capa_status = (
         "informational"
         if not dof_total
@@ -1064,12 +1050,13 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         select(IncidentDof)
         .where(
             IncidentDof.incident_id.in_(incident_ids),
-            IncidentDof.status != "Tamamlandı",
             IncidentDof.term_date.is_not(None),
         )
         .order_by(IncidentDof.term_date, IncidentDof.id)
         .limit(25)
     ).all():
+        if incident_dof_completed(row.status):
+            continue
         deadlines.append(
             _deadline(
                 source="DÖF",

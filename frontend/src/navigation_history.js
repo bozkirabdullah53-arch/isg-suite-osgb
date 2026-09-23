@@ -1,3 +1,5 @@
+import {COMPANY_CONTEXT_MODULES} from './company_module_navigation';
+
 export const NAVIGATION_STATE_KEY = '__isg_suite_navigation_v1';
 
 function objectState(value) {
@@ -57,7 +59,7 @@ export function createNavigationState(
     module: module || '',
     navigationIndex: Number.isInteger(index) && index >= 0 ? index : 0,
   };
-  if (module === 'customer_360' && String(companyId || '').trim()) {
+  if (COMPANY_CONTEXT_MODULES.has(module) && String(companyId || '').trim()) {
     next.companyId = String(companyId);
   } else {
     delete next.companyId;

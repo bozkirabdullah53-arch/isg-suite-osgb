@@ -74,13 +74,13 @@ def build_validity(
 ) -> dict:
     """Belge geçerlilik durumu.
 
-    `assessment_date` kayıtlı belge tarihi; yoksa `fallback_date` (ilk risk
-    kaydının tarihi) tahmini olarak kullanılır ve kaynak "estimated" olur.
+    Yalnız kayıtlı belge tarihi geçerlilik hesabına esas olur. İlk risk kaydının
+    yükleme tarihi belge tarihi değildir; eksik tarih otomatik tamamlanmaz.
     """
     now = today or date.today()
     years = renewal_years(hazard_class)
-    effective = assessment_date or fallback_date
-    source = "recorded" if assessment_date else ("estimated" if fallback_date else "missing")
+    effective = assessment_date
+    source = "recorded" if assessment_date else "missing"
     method = method_label(method_code) if method_code else METHOD_LABEL
 
     out: dict = {
@@ -89,6 +89,7 @@ def build_validity(
         "renewal_years": years,
         "assessment_date": effective.isoformat() if effective else None,
         "assessment_date_source": source,
+        "first_record_date": fallback_date.isoformat() if fallback_date else None,
         "valid_until": None,
         "days_left": None,
         "status": "unknown",
@@ -109,6 +110,11 @@ def build_validity(
             f"Risk değerlendirmesi tarihi girilmemiş. Bu işyeri {years} yılda bir "
             "yenileme kapsamındadır; belge tarihini girince yenileme takibi başlar."
         )
+        if fallback_date:
+            out["message"] += (
+                f" İlk risk kaydının oluşturulma tarihi {fallback_date.strftime('%d.%m.%Y')}; "
+                "yükleme/kayıt tarihi belge geçerliliğini doğrulamaz."
+            )
         return out
 
     valid_until = add_years(effective, years)
@@ -134,8 +140,6 @@ def build_validity(
             f"Risk değerlendirmesi {pretty} tarihine kadar geçerli "
             f"(tehlike sınıfı: {out['hazard_class']}, {years} yıl)."
         )
-    if source == "estimated":
-        out["message"] += " Tarih, ilk risk kaydından tahmin edildi; belge tarihini girmeniz önerilir."
     return out
 
 
