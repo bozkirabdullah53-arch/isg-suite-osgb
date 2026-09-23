@@ -115,6 +115,7 @@ import {
   persistSelectedCompanyId,
   readPersistedCompanyId,
 } from './nace_context';
+import {filterCompanyDirectoryRows} from './company_directory_scope';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const EMPLOYEE_SELF_SERVICE_ENABLED=selfServiceFeatureEnabled(import.meta.env.VITE_EMPLOYEE_SELF_SERVICE_V1);
 const WORKPLACE_BACKUPS_ENABLED=workplaceBackupsEnabled(import.meta.env.VITE_WORKPLACE_BACKUPS_ENABLED);
@@ -666,9 +667,9 @@ function Table({cols,rows,empty='Kayıt bulunamadı.',className=''}){return <div
 
 /* Firma listesi: tüm firma bilgilerini yatay kaydırma gerektirmeden tek kartta
    gösterir. İşlem callback'leri mevcut tabloyla aynı tutulur. */
-function CompanyDirectory({rows,canEdit,isIndividual,onOpen360,busy,onEdit,onAct,onResetKiosk,onToggleVisitQr,onOpenSiteQr,siteQrBusy,naceCatalog}){
+function CompanyDirectory({rows,canEdit,isIndividual,onOpen360,busy,onEdit,onAct,onResetKiosk,onToggleVisitQr,onOpenSiteQr,siteQrBusy,naceCatalog,emptyTitle='Kayıt bulunamadı.',emptyHint='Arama ölçütünü değiştirip tekrar deneyin.'}){
   if(!rows.length){
-    return <div className="company-directory company-directory--empty"><div className="company-directory__empty-icon"><Building2 size={22}/></div><strong>Kayıt bulunamadı.</strong><span>Arama ölçütünü değiştirip tekrar deneyin.</span></div>;
+    return <div className="company-directory company-directory--empty" role="status"><div className="company-directory__empty-icon"><Building2 size={22}/></div><strong>{emptyTitle}</strong><span>{emptyHint}</span></div>;
   }
   return <div className="company-directory" role="list" aria-label="Firma listesi">
     {rows.map((row)=>{
@@ -860,7 +861,7 @@ function SiteQrKioskPage({user,onLogout,embedded=false}){
   );
 }
 
-function Companies({canEdit, canAdd, isIndividual, onOpen360}){
+function Companies({canEdit, canAdd, isIndividual, onOpen360, canSelectCompany=false, companyOptions=[], selectedCompanyId='', onCompanyChange, companySelectionLoading=false, companySelectionError='', onRetryCompanyOptions}){
   const[data,setData]=useState([]);
   const[open,setOpen]=useState(false);
   const[editing,setEditing]=useState(null);
@@ -875,6 +876,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   const[naceCatalog,setNaceCatalog]=useState([]);
   const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:''};
   const[form,setForm]=useState(emptyForm);
+  const directoryRows=filterCompanyDirectoryRows(data,{selectedCompanyId,selectionRequired:canSelectCompany});
   const naceMatch=findNaceRecord(naceCatalog,form.nace_code);
   useEffect(()=>{
     let cancelled=false;
@@ -1042,7 +1044,26 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     }catch(ex){setErr(ex.message||'Kiosk şifresi sıfırlanamadı.')}
     finally{setBusy(false)}
   }
-  return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={openCreate}><Plus/>Firma Ekle</button>}>
+  return <Page title="Firma Yönetimi" action={
+    <div className="actions" style={{alignItems:'flex-end',flexWrap:'wrap'}}>
+      {canSelectCompany&&<div style={{display:'grid',gap:4,minWidth:250,maxWidth:340}}>
+        <label className="field" style={{margin:0}}>
+          <span>Firma / İşyeri</span>
+          <select
+            value={selectedCompanyId||''}
+            onChange={(event)=>onCompanyChange?.(event.target.value)}
+            disabled={companySelectionLoading||Boolean(companySelectionError)||!companyOptions.length}
+            aria-label="Firma seçiniz"
+          >
+            <option value="">{companySelectionLoading?'Firmalar yükleniyor…':companySelectionError?'Firma listesi yüklenemedi':companyOptions.length?'Firma seçiniz':'Erişilebilir firma bulunamadı'}</option>
+            {companyOptions.map((company)=><option key={company.id} value={company.id}>{company.name}</option>)}
+          </select>
+        </label>
+        {companySelectionError&&<small role="alert" style={{color:'#b91c1c'}}>Firma listesi yüklenemedi. <button type="button" className="mini secondary" onClick={onRetryCompanyOptions}>Tekrar dene</button></small>}
+      </div>}
+      {canAdd&&<button type="button" disabled={busy} onClick={openCreate}><Plus/>Firma Ekle</button>}
+    </div>
+  }>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
     {onOpen360&&(
@@ -1059,7 +1080,9 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     )}
 
     <CompanyDirectory
-      rows={data}
+      rows={directoryRows}
+      emptyTitle={canSelectCompany&&!selectedCompanyId?'Firma seçiniz':canSelectCompany?'Seçili firmaya ait kayıt bulunamadı.':'Kayıt bulunamadı.'}
+      emptyHint={canSelectCompany&&!selectedCompanyId?'İşyeri kartlarını görüntülemek için üst bölümden bir firma seçin.':'Arama ölçütünü değiştirip tekrar deneyin.'}
       canEdit={canEdit}
       isIndividual={isIndividual}
       onOpen360={onOpen360}
@@ -3167,7 +3190,7 @@ function App(){
     contracts:<ContractsPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
-    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'||Boolean(user.is_individual)} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)||Boolean(user.is_individual)} isIndividual={Boolean(user.is_individual)} onOpen360={user.role==='company_admin'?openCustomer360:undefined}/>,
+    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'||Boolean(user.is_individual)} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)||Boolean(user.is_individual)} isIndividual={Boolean(user.is_individual)} onOpen360={user.role==='company_admin'?openCustomer360:undefined} canSelectCompany={canSelectGlobalCompany} companyOptions={contextCompanies} selectedCompanyId={selectedContextCompanyId} onCompanyChange={chooseGlobalContextCompany} companySelectionLoading={contextCompaniesLoading} companySelectionError={contextCompaniesError} onRetryCompanyOptions={()=>setContextCompaniesRetry((value)=>value+1)}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user} onNavigate={goModule}/>,
