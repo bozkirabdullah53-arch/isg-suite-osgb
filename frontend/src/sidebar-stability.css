@@ -1,103 +1,173 @@
-/* Sidebar stability hotfix — desktop/tablet.
-   Amaç: menüde mouse hover sırasında yatay hareket ve scrollbar kaynaklı görsel kaymayı önlemek.
-   Mobil alt navigasyon davranışına dokunmaz. */
+/* Readable desktop navigation with stable sizing and scrolling.
+   Keep these screen-only rules separate from the mobile bar and print layout. */
 
-@media (min-width: 901px) {
-  .app-shell {
-    grid-template-columns: 214px minmax(0, 1fr);
+@media screen and (min-width: 901px) {
+  html .app-shell {
+    --sidebar-width: 280px;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   }
 
   .app-shell > aside {
-    width: 214px;
-    min-width: 214px;
-    max-width: 214px;
-    padding: 16px 11px;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    max-width: var(--sidebar-width);
+    height: 100dvh;
+    padding: 18px 14px;
     overflow: hidden;
   }
 
-  /* Compact desktop navigation: denser hierarchy without touching routes or permissions. */
   .app-shell > aside .logo {
-    gap: 3px;
-    padding: 2px 6px 13px;
+    gap: 4px;
+    padding: 2px 8px 18px;
   }
 
   .app-shell > aside .sidebar-logo.eisa-logo-icon {
-    width: 58px;
-    max-width: 58px;
-    margin-bottom: 5px;
-    border-radius: 15px;
+    width: 64px;
+    max-width: 64px;
+    margin-bottom: 6px;
   }
 
   .app-shell > aside .logo-caption {
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: .1em;
-    line-height: 1.2;
+    line-height: 1.4;
   }
 
   .app-shell > aside .nav-desktop {
-    gap: 2px;
-    padding-right: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 3px 5px 6px 3px;
+    scrollbar-gutter: stable;
+    scroll-padding-block: 6px;
+    overscroll-behavior-y: contain;
   }
 
-  .app-shell > aside .nav-desktop > button {
-    gap: 8px;
-    min-height: 36px;
-    padding: 8px 9px;
-    border-radius: 10px;
-    font-size: 13px;
-    line-height: 1.2;
+  .app-shell > aside .nav-desktop > button,
+  .app-shell > aside > .logout {
+    flex: 0 0 auto;
+    gap: 12px;
+    min-height: 48px;
+    height: auto;
+    padding: 11px 12px;
+    border: 1px solid #e0eaed;
+    border-radius: 12px;
+    background: #f7fafb;
+    color: #3d5864;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0;
+    transition: background .16s ease, border-color .16s ease, color .16s ease;
   }
 
   .app-shell > aside .nav-desktop > button > svg,
   .app-shell > aside > .logout > svg {
-    width: 17px;
-    height: 17px;
-    flex: 0 0 17px;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
   }
 
-  .app-shell > aside .nav-desktop > button > span {
+  .app-shell > aside .nav-desktop > button > span,
+  .app-shell > aside > .logout > span {
     flex: 1 1 auto;
     min-width: 0;
     overflow: visible;
-    overflow-wrap: normal;
+    overflow-wrap: anywhere;
     text-overflow: clip;
     white-space: normal;
-    line-height: 1.2;
+    font-size: inherit;
+    line-height: 1.4;
   }
 
-  /* Keep the long workplace oversight label fully readable in the compact
-     sidebar without widening the navigation or changing other labels. */
-  .app-shell > aside .nav-desktop > button[data-nav="employer_oversight"] > span {
-    font-size: 12px;
-    letter-spacing: -.02em;
-    overflow: visible;
-    text-overflow: clip;
+  .app-shell > aside .nav-desktop > button:hover {
+    border-color: #a4d8d2;
+    background: #e8f6f4;
+    color: #0f605b;
   }
 
-  /* Keep the long workplace oversight label fully readable in the compact
-     sidebar without widening the navigation or changing other labels. */
-  .app-shell > aside .nav-desktop > button[data-nav="employer_oversight"] > span {
-    font-size: 12px;
-    letter-spacing: -.02em;
-    overflow: visible;
-    text-overflow: clip;
+  .app-shell > aside .nav-desktop > button.active {
+    border-color: #8acdc3;
+    background: #dcf4ee;
+    color: #0d5953;
+    font-weight: 700;
+    box-shadow: inset 3px 0 0 #0f766e;
+  }
+
+  .app-shell > aside .nav-desktop > button:focus-visible,
+  .app-shell > aside > .logout:focus-visible {
+    outline: 2px solid #0f766e;
+    outline-offset: 1px;
   }
 
   .app-shell > aside .nav-section-label {
-    margin: 9px 6px 1px;
-    padding-top: 6px;
-    font-size: 9px;
+    flex: 0 0 auto;
+    margin: 14px 9px 3px;
+    padding-top: 13px;
+    color: #607880;
+    font-size: 11px;
+    line-height: 1.5;
+    letter-spacing: .07em;
+  }
+
+  .app-shell > aside .nav-section-label:first-child {
+    margin-top: 0;
+    padding-top: 2px;
+    border-top: 0;
   }
 
   .app-shell > aside .global-nace-context-desktop {
-    margin-top: 8px;
+    margin-top: 12px;
   }
 
   .app-shell > aside > .logout {
-    gap: 8px;
-    margin-top: 8px;
-    padding: 8px 9px;
-    font-size: 13px;
+    margin-top: 12px;
+    color: #9f2d27;
+  }
+
+  .app-shell > aside > .logout:hover {
+    border-color: #f0c0bd;
+    background: #fff1f0;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button,
+  html[data-ui-theme="modern"] .app-shell > aside > .logout {
+    border-color: rgba(166, 208, 216, .12);
+    background: rgba(255, 255, 255, .035);
+    color: #c4d8df;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button:hover {
+    border-color: rgba(94, 234, 212, .3);
+    background: rgba(94, 234, 212, .09);
+    color: #f0fdfa;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button.active {
+    border-color: rgba(94, 234, 212, .48);
+    background: linear-gradient(110deg, rgba(45, 212, 191, .22), rgba(14, 116, 144, .15));
+    color: #99f6e4;
+    box-shadow: inset 3px 0 0 #5eead4, 0 4px 12px rgba(0, 0, 0, .12);
+    animation: none;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button:focus-visible,
+  html[data-ui-theme="modern"] .app-shell > aside > .logout:focus-visible {
+    outline-color: #5eead4;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside .nav-section-label {
+    color: #93b3bd;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside > .logout {
+    color: #f1b5b5;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside > .logout:hover {
+    border-color: rgba(248, 113, 113, .3);
+    background: rgba(248, 113, 113, .12);
+    color: #fecaca;
   }
 
   .workspace {
@@ -105,24 +175,15 @@
     min-width: 0;
   }
 
-  .nav-desktop {
-    scrollbar-gutter: stable;
-  }
-
-  html[data-ui-theme="modern"] nav button,
-  html[data-ui-theme="modern"] .logout {
-    transition: background .16s ease, color .16s ease;
-  }
-
-  html[data-ui-theme="modern"] nav button:hover,
-  html[data-ui-theme="modern"] nav button.active {
-    transform: none !important;
+  html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button,
+  html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button > svg {
+    transform: none;
   }
 }
 
 /* 621–900 px aralığında mevcut 80 px kompakt menü genişliğini sabit tut. */
-@media (min-width: 621px) and (max-width: 900px) {
-  .app-shell {
+@media screen and (min-width: 621px) and (max-width: 900px) {
+  html .app-shell {
     grid-template-columns: 80px minmax(0, 1fr);
   }
 
