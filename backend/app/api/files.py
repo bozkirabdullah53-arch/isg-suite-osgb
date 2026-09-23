@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,6 +26,13 @@ ALLOWED_MIME_TYPES = {
     "image/png",
     "image/jpeg",
 }
+_STORED_MARKER_RE = re.compile(r"\[stored:([^\]]+)\]")
+
+
+def _stored_file_name(description: str | None) -> str | None:
+    """Return the newest storage reference embedded in a document note."""
+    matches = list(_STORED_MARKER_RE.finditer(description or ""))
+    return matches[-1].group(1).strip() if matches else None
 
 
 def safe_upload_root() -> Path:
@@ -86,7 +94,14 @@ async def upload_document_file(
             await out.write(content)
 
     document.file_name = original.name
-    document.description = ((document.description or "") + f"\n[stored:{stored_name}]").strip()
+    # A document can be re-uploaded. Replace the old marker so subsequent
+    # downloads always resolve to the newest file and the description does not
+    # grow beyond its database limit.
+    clean_description = _STORED_MARKER_RE.sub("", document.description or "").strip()
+    marker = f"[stored:{stored_name}]"
+    available = max(0, 1500 - len(marker) - 1)
+    clean_description = clean_description[:available].rstrip()
+    document.description = f"{clean_description}\n{marker}".strip()
     add_audit_log(
         db,
         user=user,
@@ -110,11 +125,9 @@ def download_document_file(
         raise HTTPException(status_code=404, detail="Doküman bulunamadı.")
     _assert_document_access(db, user, document)
 
-    marker = "[stored:"
-    description = document.description or ""
-    if marker not in description:
+    raw_name = _stored_file_name(document.description)
+    if not raw_name:
         raise HTTPException(status_code=404, detail="Bu kayda bağlı dosya bulunmuyor.")
-    raw_name = description.split(marker, 1)[1].split("]", 1)[0].strip()
     # Cross-tenant path traversal engeli: yalnızca dosya adı, ayırıcı/`..` yok
     stored_name = Path(raw_name).name
     if (

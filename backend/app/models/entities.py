@@ -558,6 +558,18 @@ class DocumentRecord(Base):
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    @property
+    def has_file(self) -> bool:
+        """Whether a physical file is linked to this document record.
+
+        The document registry predates the file-upload endpoint and keeps the
+        storage reference in the description marker. Exposing this as a
+        derived property keeps the existing database schema and old records
+        backward compatible while allowing the UI to distinguish a typed file
+        name from an actually uploaded file.
+        """
+        return "[stored:" in (self.description or "")
+
 
 class AnnualPlanStatus(str, enum.Enum):
     PLANNED = "planned"

@@ -15,7 +15,7 @@ import {createRoot} from 'react-dom/client';
 })();
 
 import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,ClipboardList,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Mail,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
-import {API_URL, api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
+import {API_URL, api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, uploadFile, wakeApi} from './api';
 import {clearAccessToken, clearMfaSetupToken, getAccessToken, getMfaSetupToken, setAccessToken, setMfaSetupToken} from './auth_session';
 import {clearOfflineQueue} from './field_offline';
 import {clearFieldInspectionCache} from './field_inspection_offline';
@@ -1776,13 +1776,64 @@ function IsgModulePage({user,module}){
 const documentNames={general:'Genel',risk:'Risk',training:'Eğitim',health:'Sağlık',emergency:'Acil Durum',legal:'Mevzuat',annual_plan:'Yıllık Plan'};
 
 function DocumentsPage({user}){
-  const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[busy,setBusy]=useState(false);
+  const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[busy,setBusy]=useState(false),[selectedFile,setSelectedFile]=useState(null);
   const canEdit=['global_admin','company_admin','safety_specialist'].includes(user.role);
   const empty={company_id:user.company_id||'',branch_id:'',category:'general',title:'',file_name:'',description:'',valid_from:'',valid_until:'',version:'1.0'};
   const[form,setForm]=useState(empty);
   const load=()=>Promise.all([api('/companies'),api(`/documents${q?`?q=${encodeURIComponent(q)}`:''}`)]).then(([c,r])=>{setCompanies(c);setRows(r)});
   useEffect(()=>{load()},[]);
-  async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),branch_id:null,valid_from:form.valid_from||null,valid_until:form.valid_until||null};await api('/documents',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm(empty);load()}
+  function resetForm(){setForm({...empty});setSelectedFile(null)}
+  function chooseFile(event){
+    const file=event.target.files?.[0]||null;
+    event.target.value='';
+    setSelectedFile(file);
+    if(file) setForm(current=>({...current,file_name:file.name}));
+  }
+  async function save(e){
+    e.preventDefault();
+    if(busy) return;
+    setBusy(true);
+    const pendingFile=selectedFile;
+    let recordCreated=false;
+    let fileUploaded=!pendingFile;
+    try{
+      const payload={...form,company_id:Number(form.company_id),branch_id:null,file_name:pendingFile?.name||form.file_name||null,valid_from:form.valid_from||null,valid_until:form.valid_until||null};
+      const record=await api('/documents',{method:'POST',body:JSON.stringify(payload)});
+      recordCreated=true;
+      if(pendingFile){
+        await uploadFile(`/files/documents/${record.id}`,pendingFile);
+        fileUploaded=true;
+      }
+      setOpen(false);
+      resetForm();
+      await load();
+    }catch(error){
+      if(recordCreated){
+        setOpen(false);
+        resetForm();
+        await load().catch(()=>{});
+        window.alert(fileUploaded ? 'Doküman kaydedildi; liste yenilenemedi. Yenile ile tekrar deneyin.' : `Doküman kaydı oluşturuldu ancak dosya yüklenemedi. Kayıt üzerinden tekrar deneyebilirsiniz.\n\n${error.message||'Dosya yüklenemedi.'}`);
+      }else{
+        window.alert(error.message||'Doküman kaydı oluşturulamadı.');
+      }
+    }finally{setBusy(false)}
+  }
+  async function uploadForRow(row,event){
+    const file=event.target.files?.[0]||null;
+    event.target.value='';
+    if(!file||busy) return;
+    setBusy(true);
+    try{await uploadFile(`/files/documents/${row.id}`,file);await load()}
+    catch(error){window.alert(error.message||'Dosya yüklenemedi.')}
+    finally{setBusy(false)}
+  }
+  async function openFile(row){
+    if(!row.has_file) return;
+    setBusy(true);
+    try{await downloadFile(`/files/documents/${row.id}/download`,row.file_name||`dokuman-${row.id}`)}
+    catch(error){window.alert(error.message||'Dosya açılamadı.')}
+    finally{setBusy(false)}
+  }
   async function deactivate(id){
     if(!window.confirm('Doküman pasife alınsın mı?\n\nBağlı dosya merkezi arşive kopyalanır; EİSA erişebilir.')) return;
     setBusy(true);
@@ -1795,16 +1846,16 @@ function DocumentsPage({user}){
   const cols=[
     {key:'title',label:'Doküman'},
     {key:'category',label:'Kategori',render:r=>documentNames[r.category]},
-    {key:'file_name',label:'Dosya Adı'},
+    {key:'file_name',label:'Dosya Adı',render:r=><div className="document-file-cell">{r.has_file?<><span title={r.file_name}>{r.file_name}</span><button type="button" className="mini secondary" disabled={busy} onClick={()=>openFile(r)}><Download size={13}/> Aç / İndir</button></>:<span className="muted">{r.file_name||'Dosya yüklenmedi'}</span>}</div>},
     {key:'version',label:'Versiyon'},
     {key:'valid_until',label:'Geçerlilik Sonu'},
     {key:'is_active',label:'Durum',render:r=>r.is_active===false?'Pasif':'Aktif'},
-    ...(canEdit?[{key:'act',label:'',render:r=>r.is_active===false?null:<button type="button" className="mini secondary" disabled={busy} onClick={()=>deactivate(r.id)}>Pasife Al</button>}]:[]),
+    ...(canEdit?[{key:'act',label:'İşlem',render:r=>r.is_active===false?null:<div className="document-row-actions"><label className="mini secondary document-upload-control"><Upload size={13}/>{r.has_file?'Değiştir':'Dosya yükle'}<input type="file" accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg" disabled={busy} onChange={event=>void uploadForRow(r,event)}/></label><button type="button" className="mini secondary" disabled={busy} onClick={()=>deactivate(r.id)}>Pasife Al</button></div>}]:[]),
   ];
   return <Page title="Doküman Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" onClick={()=>downloadFile(`/documents/export.xlsx${q?`?q=${encodeURIComponent(q)}`:''}`,`dokuman-kayitlari-${new Date().toISOString().slice(0,10)}.xlsx`)}><Download/>Excel Rapor</button>
-    {canEdit?<button onClick={()=>setOpen(true)}><Plus/>Yeni Doküman</button>:null}
-  </div>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Doküman Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Doküman Başlığı" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya Adı" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="Başlangıç Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="Geçerlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><Submit/></form></Modal>}</Page>
+    {canEdit?<button onClick={()=>{resetForm();setOpen(true)}}><Plus/>Yeni Doküman</button>:null}
+  </div>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Doküman Kaydı" close={()=>{if(!busy){setOpen(false);resetForm()}}}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Doküman Başlığı" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya Adı (isteğe bağlı)" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><label className="field document-upload-field"><span>İlgili doküman dosyası</span><input type="file" accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg" disabled={busy} onChange={chooseFile}/><small>{selectedFile?`Seçilen dosya: ${selectedFile.name}`:'PDF, DOCX, XLSX, XLS, PNG veya JPG seçebilirsiniz. Dosya güvenlik kontrolünden geçirilir.'}</small></label><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="Başlangıç Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="Geçerlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor…':'Dokümanı Kaydet'}</button></div></form></Modal>}</Page>
 }
 
 function ReportsPage({user, onNavigate}){

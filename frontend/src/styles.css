@@ -92,6 +92,69 @@
   }
 }
 
+/* Doküman kayıt defteri: dosya adı ve yükleme aksiyonları. */
+.document-file-cell,
+.document-row-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.document-file-cell {
+  flex-direction: column;
+  min-width: 150px;
+}
+
+.document-file-cell > span {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+}
+
+.document-file-cell .mini,
+.document-row-actions .mini {
+  white-space: nowrap;
+}
+
+.document-upload-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.document-upload-control input {
+  display: none;
+}
+
+.document-upload-field {
+  grid-column: 1 / -1;
+}
+
+.document-upload-field input[type='file'] {
+  cursor: pointer;
+  border-style: dashed;
+  background: #f8fbfb;
+}
+
+.document-upload-field small,
+.document-file-cell .muted {
+  color: #71858d;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 620px) {
+  .document-row-actions {
+    flex-direction: column;
+  }
+
+  .document-row-actions .mini {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Doğrulama sonucunun yazdırılabilir belge görünümü. */
 .training-verify-print-certificate {
   display: none;

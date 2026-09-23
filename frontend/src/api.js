@@ -686,6 +686,8 @@ export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
     type.includes("spreadsheet") ||
     type.includes("excel") ||
     type.includes("ms-excel") ||
+    type.includes("word") ||
+    type.includes("officedocument") ||
     type.includes("zip") ||
     type.includes("text/plain") ||
     type.includes("text/");

@@ -196,7 +196,7 @@ def deactivate_document(
     marker = "[stored:"
     desc = record.description or ""
     if marker in desc:
-        stored_name = desc.split(marker, 1)[1].split("]", 1)[0]
+        stored_name = desc.rsplit(marker, 1)[1].split("]", 1)[0]
         path = (Path(settings.upload_dir).resolve() / str(record.company_id) / stored_name)
         try:
             archive_file_before_delete(

@@ -20,5 +20,6 @@ class DocumentResponse(DocumentCreate):
     is_active: bool
     created_by_id: int
     created_at: datetime
+    has_file: bool = False
 
     model_config = ConfigDict(from_attributes=True)
