@@ -11,7 +11,7 @@ from io import BytesIO
 from pathlib import Path
 from zipfile import BadZipFile
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from openpyxl.utils.exceptions import InvalidFileException
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import and_, func, or_, select
@@ -93,7 +93,8 @@ from app.services.risk_reports import (
 )
 from app.services.virtual_inspector import inspect_company
 from app.services.risk_nace_roadmap import build_risk_nace_roadmap
-from app.services.risk_analytics import build_risk_analytics
+from app.services.risk_analytics import build_risk_analytics, RISK_TYPE_META
+from app.services.risk_exposure_roster import build_exposure_roster
 from app.services.training_nace_classification import resolve_exact_nace
 from app.models.training_nace import TrainingNaceSnapshot
 from app.services.risk_methods import DEFAULT_METHOD, METHOD_CATALOG, resolve_method
@@ -1243,22 +1244,7 @@ def risk_nace_roadmap(
     )
 
 
-@router.get("/analytics")
-def risk_analytics(
-    company_id: int | None = None,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*ANALYTICS_ROLES)),
-):
-    """NACE aday tehlikeleri + işyeri risk değerlendirmesi analitiği.
-
-    Bu uç yalnızca mevcut kayıtları toplar; NACE profili risk kaydı oluşturmaz,
-    sağlık/klinik veri döndürmez ve erişimi seçili işyeri kapsamıyla sınırlar.
-    """
-    effective = effective_company_id(db, user, company_id)
-    company = db.get(Company, effective)
-    if not company:
-        raise HTTPException(404, "Firma bulunamadı.")
-
+def _analytics_records(db: Session, effective: int):
     risks = list(
         db.scalars(
             select(RiskAssessment)
@@ -1278,8 +1264,8 @@ def risk_analytics(
         if category_ids
         else {}
     )
-    # Personel kapsamı aynı etkin işyeri sınırıyla okunur. Analitik servisi
-    # yalnızca sayıyı döndürür; isim/kimlik bilgisi dışarı taşınmaz.
+    # Both views read the same active workforce inside the effective company.
+    # The aggregate serializer still returns no names; the roster has its own role guard.
     active_employees = list(
         db.scalars(
             select(Employee)
@@ -1287,6 +1273,26 @@ def risk_analytics(
             .order_by(Employee.id)
         ).all()
     )
+    return risks, hazard_map, category_map, active_employees
+
+
+@router.get("/analytics")
+def risk_analytics(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ANALYTICS_ROLES)),
+):
+    """NACE aday tehlikeleri + işyeri risk değerlendirmesi analitiği.
+
+    Bu uç yalnızca mevcut kayıtları toplar; NACE profili risk kaydı oluşturmaz,
+    sağlık/klinik veri döndürmez ve erişimi seçili işyeri kapsamıyla sınırlar.
+    """
+    effective = effective_company_id(db, user, company_id)
+    company = db.get(Company, effective)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+
+    risks, hazard_map, category_map, active_employees = _analytics_records(db, effective)
     active_employee_count = len(active_employees)
     nace_code, nace_source = _resolve_company_nace(db, company)
     roadmap = build_risk_nace_roadmap(
@@ -1304,6 +1310,46 @@ def risk_analytics(
         nace_roadmap=roadmap,
         active_employee_count=active_employee_count,
     )
+
+
+def require_exposure_reader(user: User = Depends(get_current_user)) -> User:
+    if user.role in {UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN}:
+        return user
+    if user.role == UserRole.COMPANY_ADMIN and user.company_id:
+        return user
+    raise HTTPException(403, "Çalışan risk listesi yalnız yetkili uzman, hekim ve işyeri hesabına açıktır.")
+
+
+@router.get("/analytics/exposures")
+def risk_exposure_people(
+    response: Response,
+    company_id: int = Query(gt=0),
+    hazard_type: str | None = Query(default=None, max_length=32),
+    risk_id: int | None = Query(default=None, gt=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_exposure_reader),
+):
+    if hazard_type is not None and hazard_type not in RISK_TYPE_META:
+        raise HTTPException(422, "Geçersiz tehlike türü.")
+    if user.role == UserRole.COMPANY_ADMIN and company_id != user.company_id:
+        raise HTTPException(403, "Yalnız kendi işyerinizin çalışanlarını görebilirsiniz.")
+    effective = effective_company_id(db, user, company_id)
+    ensure_company_access(db, user, effective)
+    company = db.get(Company, effective)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    risks, hazards, categories, employees = _analytics_records(db, effective)
+    if risk_id is not None and not any(row.id == risk_id for row in risks):
+        raise HTTPException(404, "Risk kaydı bu işyeri kapsamında bulunamadı.")
+    result = build_exposure_roster(company, risks=risks, employees=employees,
+        hazard_map=hazards, category_map=categories, hazard_type=hazard_type, risk_id=risk_id)
+    if risk_id is not None and not result["risks"]:
+        raise HTTPException(404, "Aktif risk kaydı seçili kapsamda bulunamadı.")
+    result["can_assign_training"] = user.role in {
+        UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST, UserRole.COMPANY_ADMIN,
+    }
+    response.headers["Cache-Control"] = "private, no-store"
+    return result
 
 
 @router.put("/assessment-info")
