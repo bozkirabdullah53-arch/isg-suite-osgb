@@ -311,6 +311,59 @@ def test_status_combines_workplace_deadlines_without_cross_company_data(client):
     })
 
 
+def test_risk_assessment_status_is_separate_from_overdue_risk_terms(client):
+    seed = _seed()
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, Hazard, HazardCategory, RiskAssessment
+
+    today = date.today()
+    with SessionLocal() as db:
+        company = db.get(Company, seed["company_1"])
+        company.risk_assessment_date = today - timedelta(days=10)
+        category = HazardCategory(name="Durum testi", sort_order=1)
+        db.add(category)
+        db.flush()
+        hazard = Hazard(category_id=category.id, code="H-STATUS-01", name="Test tehlikesi")
+        db.add(hazard)
+        db.flush()
+        db.add(
+            RiskAssessment(
+                risk_code="R-STATUS-01",
+                company_id=seed["company_1"],
+                hazard_id=hazard.id,
+                activity="Test faaliyeti",
+                risk_definition="Termin tarihi geçmiş açık risk",
+                probability=2,
+                severity=2,
+                risk_score=4,
+                risk_level="Düşük",
+                status="Açık",
+                term_date=today - timedelta(days=1),
+                created_by_id=seed["admin_id"],
+            )
+        )
+        db.commit()
+
+    headers = {"Authorization": f"Bearer {_token(client, seed['users'][0], seed['password'])}"}
+    response = client.get(f"/api/v1/companies/{seed['company_1']}/status", headers=headers)
+    assert response.status_code == 200, response.text
+    items = {row["code"]: row for row in response.json()["status_center"]["items"]}
+    assert items["risk_assessment"]["status"] == "completed"
+    assert items["risk_assessment"]["count"] == 1
+    assert "1 geçmiş termin tarihi" in items["risk_assessment"]["detail"]
+    assert items["risk_assessment_validity"]["status"] == "completed"
+
+    obligations = client.get(
+        f"/api/v1/companies/{seed['company_1']}/status/obligations",
+        params={"category": "risk", "status": "overdue"},
+        headers=headers,
+    )
+    assert obligations.status_code == 200, obligations.text
+    overdue_risks = [row for row in obligations.json()["items"] if row["source"] == "Risk"]
+    assert len(overdue_risks) == 1
+    assert overdue_risks[0]["status"] == "overdue"
+
+
 def test_obligations_are_paginated_filterable_and_keep_renewals_separate(client):
     seed = _seed()
     from app.core.database import SessionLocal

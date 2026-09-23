@@ -412,7 +412,11 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
     )
 
     open_risks = int(counts.get("open_risks") or 0)
-    risk_status = "missing" if not risk_total else "overdue" if risk_overdue else "attention" if open_risks else "completed"
+    # This row reports whether the workplace has a risk assessment on record.
+    # Open risk treatments and their deadlines are tracked separately in the
+    # obligation feed; they must not make an uploaded assessment look missing
+    # or overdue. Document renewal is reported by risk_assessment_validity.
+    risk_status = "missing" if not risk_total else "completed"
     items.append(
         _item(
             code="risk_assessment",
@@ -421,13 +425,13 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
             detail=(
                 "Risk değerlendirmesi kaydı bulunamadı."
                 if not risk_total
-                else f"{risk_total} risk kaydı; {open_risks} açık, {risk_overdue} gecikmiş."
+                else f"{risk_total} risk kaydı; {open_risks} açık risk kaydı, {risk_overdue} geçmiş termin tarihi."
             ),
             module="risk",
             responsible_role="İş Güvenliği Uzmanı",
             source="risk_assessments",
             count=risk_total,
-            critical=(not risk_total or risk_overdue > 0),
+            critical=not risk_total,
         )
     )
 
