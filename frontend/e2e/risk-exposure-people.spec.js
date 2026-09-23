@@ -76,7 +76,7 @@ test('opens named reasons, filters a risk, builds a reviewed training list and p
   await dialog.getByText('Eğitim listesine manuel eklemek', {exact: false}).click();
   await dialog.getByLabel('Bakım Çalışanı eğitim için seç').check();
   await dialog.getByRole('button', {name: 'Eğitime hazırla', exact: true}).click();
-  await dialog.getByLabel('Eğitim paketi', {exact: true}).selectOption('5');
+  await dialog.getByRole('combobox', {name: 'Eğitim paketi', exact: true}).selectOption('5');
   const assign = dialog.getByRole('button', {name: 'Seçilen 2 kişiye eğitimi ata'});
   await expect(assign).toBeDisabled();
   await dialog.getByText('Seçilen 2 çalışanı ve eğitim içeriğinin').click();
