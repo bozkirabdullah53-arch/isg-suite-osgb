@@ -69,21 +69,15 @@ export function PwaShortcutPrompt() {
   }, []);
 
   /**
-   * İstem ilk boyamada değil, kullanıcı sayfayla etkileşime girdikten sonra açılır.
-   *
-   * Sayfa açılır açılmaz ekranı kaplayan bir pencere hem işi keser hem de
-   * otomatik akışlarda tıklamaları yutar. Kısayol sorusu, kullanıcı uygulamayı
-   * kullanmaya başladıktan sonra sorulur; yeniden sorma politikası değişmez.
+   * Kısayol istemini kullanıcı etkileşimine bağlamak yerine, uygulama ilk
+   * boyamadan sonra kısa bir gecikmeyle açıyoruz. Böylece kullanıcı ilk
+   * dokunuşu yapmak zorunda kalmaz ve istem belirgin biçimde daha hızlı görünür.
+   * Otomasyon oturumları shouldAskShortcutPrompt tarafından zaten engellenir.
    */
   useEffect(() => {
     if (!pending || open) return undefined;
-    const engage = () => setOpen(true);
-    window.addEventListener('pointerdown', engage, {once: true});
-    window.addEventListener('keydown', engage, {once: true});
-    return () => {
-      window.removeEventListener('pointerdown', engage);
-      window.removeEventListener('keydown', engage);
-    };
+    const timer = window.setTimeout(() => setOpen(true), 350);
+    return () => window.clearTimeout(timer);
   }, [open, pending]);
 
   const close = useCallback((value) => {
