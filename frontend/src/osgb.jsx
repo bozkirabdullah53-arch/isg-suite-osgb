@@ -10,7 +10,6 @@ import {
  canUseVisitCheckInOutQrForCompany,
 } from './visit_qr_policy';
 import {effectiveAssignmentStatus} from './assignment_status';
-import {persistSelectedCompanyId} from './nace_context';
 import {
  osgbDashboardCompanyOptions,
  osgbDashboardInitialOrganizationId,
@@ -168,11 +167,17 @@ async function copyText(text){
   }catch(_){return false}
 }
 
-export function OsgbDashboard({user, onNavigate}){
- const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState(()=>String(user?.osgb_id||''));
- const[companies,setCompanies]=useState([]),[companyId,setCompanyId]=useState('');
- const[companiesLoading,setCompaniesLoading]=useState(true),[companiesError,setCompaniesError]=useState('');
- const[companyReloadAttempt,setCompanyReloadAttempt]=useState(0);
+export function OsgbDashboard({
+ user,onNavigate,selectedCompanyId='',companies=[],companiesLoading=false,
+ companiesError='',onCompanyChange,onRetryCompanies,
+}){
+ const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[organizationId,setOrganizationId]=useState(()=>String(user?.osgb_id||''));
+ // The page boundary is remounted when the sidebar scope changes. Read the
+ // selection from App so a remount cannot lose it or miss a selection event.
+ const companyId=String(selectedCompanyId||'');
+ const selectedCompany=companies.find((row)=>String(row.id)===companyId)||null;
+ const oid=selectedCompany?String(selectedCompany.osgb_id||''):organizationId;
+ const[dashboardError,setDashboardError]=useState('');
  const[ops,setOps]=useState(null);
  const[kpis,setKpis]=useState(null);
  const[csgb,setCsgb]=useState(null);
@@ -220,25 +225,25 @@ export function OsgbDashboard({user, onNavigate}){
   setData(null);setOps(null);setKpis(null);setCsgb(null);setInteg(null);setAdapterStatus(null);
  }
 
- async function load(id=oid,cid=companyId){
-  if(!id||!cid){clearDashboardData();return}
+ async function load(id,cid,signal){
   const scopeQuery=`?osgb_id=${encodeURIComponent(id)}&company_id=${encodeURIComponent(cid)}`;
-  setData(await api(`/operations/dashboard${scopeQuery}`));
-  try{
-   setOps(await api(`/osgb/oversight${scopeQuery}`));
-  }catch(_){setOps(null)}
-  try{
-   setKpis(await api(`/operations/module-kpis${scopeQuery}`));
-  }catch(_){setKpis(null)}
-  try{
-   setCsgb(await api(`/osgb/csgb-audit-pack/summary${scopeQuery}`));
-  }catch(_){setCsgb(null)}
-  try{
-   setInteg(await api(`/osgb/integration-readiness${scopeQuery}`));
-  }catch(_){setInteg(null)}
-  try{
-   setAdapterStatus(await api(`/osgb/integrations/status?osgb_id=${encodeURIComponent(id)}`));
-  }catch(_){setAdapterStatus(null)}
+  await Promise.all([
+   [`/operations/dashboard${scopeQuery}`,setData],
+   [`/osgb/oversight${scopeQuery}`,setOps],
+   [`/operations/module-kpis${scopeQuery}`,setKpis],
+   [`/osgb/csgb-audit-pack/summary${scopeQuery}`,setCsgb],
+   [`/osgb/integration-readiness${scopeQuery}`,setInteg],
+   [`/osgb/integrations/status?osgb_id=${encodeURIComponent(id)}`,setAdapterStatus],
+  ].map(async([path,setResult])=>{
+   try{
+    const result=await api(path,{signal});
+    if(!signal.aborted) setResult(result);
+   }catch(error){
+    if(signal.aborted) return;
+    setResult(null);
+    if(setResult===setData) setDashboardError(error?.message||'Firma paneli yüklenemedi.');
+   }
+  }));
  }
 
  async function runDryExport(adapter){
@@ -280,33 +285,12 @@ export function OsgbDashboard({user, onNavigate}){
    if(cancelled) return;
    const rows=Array.isArray(o)?o:[];
    setOrgs(rows);
-   setOid((current)=>user?.role==='company_admin'&&!user?.osgb_id
-    ?current
-    :osgbDashboardInitialOrganizationId(user,rows));
+   setOrganizationId((current)=>current||osgbDashboardInitialOrganizationId(user,rows));
   }).catch(()=>{
    if(!cancelled) setOrgs([]);
   });
   return()=>{cancelled=true};
  },[user?.id,user?.osgb_id]);
-
- useEffect(()=>{
-  let cancelled=false;
-  setCompaniesLoading(true);
-  setCompaniesError('');
-  api('/companies').then((rows)=>{
-   if(cancelled) return;
-   setCompanies(Array.isArray(rows)?rows:[]);
-   // Keep any selection received from the sidebar while this request was in flight.
-  }).catch((error)=>{
-   if(!cancelled){
-    setCompanies([]);
-    setCompaniesError(error?.message||'Firma listesi yüklenemedi.');
-   }
-  }).finally(()=>{
-   if(!cancelled) setCompaniesLoading(false);
-  });
-  return()=>{cancelled=true};
- },[user?.id,user?.role,companyReloadAttempt]);
 
  const companyOptions=useMemo(
   ()=>osgbDashboardCompanyOptions(companies,{role:user?.role,osgbId:oid}),
@@ -320,49 +304,21 @@ export function OsgbDashboard({user, onNavigate}){
    : 'Bu hesap için erişilebilir aktif firma bulunamadı. Hesabın OSGB bağlantısını ve işyeri atamalarını kontrol edin.';
 
  useEffect(()=>{
-  if(oid&&companyId) void load(oid,companyId);
-  else clearDashboardData();
- },[oid,companyId]);
+  const controller=new AbortController();
+  clearDashboardData();
+  setDashboardError('');
+  if(oid&&companyId&&selectedCompany) void load(oid,companyId,controller.signal);
+  return()=>controller.abort();
+ },[oid,companyId,selectedCompany]);
 
- const selectedCompany=companyOptions.find((row)=>String(row.id)===String(companyId))||null;
+ useEffect(()=>{
+  if(selectedCompany) setOrganizationId(String(selectedCompany.osgb_id||''));
+ },[selectedCompany]);
 
  function chooseCompany(value){
   const next=String(value||'');
-  const selected=companyOptions.find((row)=>String(row.id)===next);
-  setCompanyId(next);
-  if(selected) setOid(String(selected.osgb_id||''));
-  persistSelectedCompanyId(next);
-  window.dispatchEvent(new CustomEvent('isg:company-selected',{
-   detail:next?{companyId:next,company:selected}: {},
-  }));
+  onCompanyChange?.(next);
  }
-
- useEffect(()=>{
-  function onCompanySelected(event){
-   const detail=event.detail||{};
-   const next=String(detail.companyId??detail.id??detail.company?.id??'');
-   if(!next) return;
-   const selected=companyOptions.find((row)=>String(row.id)===next)
-    || (user?.role==='company_admin'
-     && String(detail.company?.id||'')===next
-     && detail.company?.is_active!==false
-     ?detail.company
-     :null);
-   if(!selected) return;
-   if(selected===detail.company){
-    setCompanies((current)=>current.some((row)=>String(row.id)===next)?current:[...current,selected]);
-   }
-   setCompanyId(next);
-   setOid(String(selected.osgb_id||''));
-  }
-  function onContextReset(){setCompanyId('')}
-  window.addEventListener('isg:company-selected',onCompanySelected);
-  window.addEventListener('isg:nace-context-reset',onContextReset);
-  return()=>{
-   window.removeEventListener('isg:company-selected',onCompanySelected);
-   window.removeEventListener('isg:nace-context-reset',onContextReset);
-  };
- },[companyOptions,oid]);
 
  const byType=data?.professionals_by_type||{};
  const unBy=data?.unassigned_by_type||{};
@@ -395,7 +351,7 @@ export function OsgbDashboard({user, onNavigate}){
 
   {orgs.length>1&&user.role==='global_admin'&&<section className="panel" style={{marginBottom:16}}>
    <label className="field"><span>OSGB</span>
-    <select value={oid} onChange={e=>{const v=e.target.value;setOid(v);setCompanyId('');persistSelectedCompanyId('');window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{detail:{source:'osgb-dashboard'}}))}}>
+    <select value={oid} onChange={e=>{setOrganizationId(e.target.value);onCompanyChange?.('')}}>
      {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
     </select>
    </label>
@@ -407,14 +363,14 @@ export function OsgbDashboard({user, onNavigate}){
      <div style={{display:'flex',alignItems:'center',gap:8,color:'#0f766e',fontSize:12,fontWeight:800,letterSpacing:'.04em'}}>
       <Building2 size={17}/> AKTİF İŞYERİ KAPSAMI
      </div>
-     <h3 style={{margin:'6px 0 4px'}}>Firma seçiniz</h3>
+     <h3 style={{margin:'6px 0 4px'}}>{selectedCompany?.name||'Firma seçiniz'}</h3>
      <p style={{margin:0,color:'#64748b',fontSize:13}}>
       OSGB ana panelindeki tüm sayaçlar, uyarılar ve denetim özeti seçtiğiniz işyerine göre gösterilir.
      </p>
     </div>
     <label className="field" style={{margin:0,minWidth:280,flex:'1 1 340px'}}>
      <span>Firma / işyeri</span>
-     <select value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={companiesLoading||!companyOptions.length}>
+     <select id="osgb-dashboard-company-select" data-global-company-selector="true" value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={companiesLoading||Boolean(companiesError)||!companyOptions.length}>
       <option value="">{companiesLoading?'Firmalar yükleniyor…':companiesError?'Firma listesi yüklenemedi':companyOptions.length?'Firma seçiniz':'Erişilebilir firma bulunamadı'}</option>
       {companyOptions.map((row)=><option key={row.id} value={row.id}>{row.name}</option>)}
      </select>
@@ -422,10 +378,11 @@ export function OsgbDashboard({user, onNavigate}){
    </div>
    {companiesError&&<div role="alert" style={{marginTop:10,color:'#9f1239',fontSize:13}}>
     Firma listesi yüklenemedi: {companiesError}{' '}
-    <button type="button" className="mini secondary" disabled={companiesLoading} onClick={()=>setCompanyReloadAttempt((value)=>value+1)}>Tekrar dene</button>
+    <button type="button" className="mini secondary" disabled={companiesLoading} onClick={onRetryCompanies}>Tekrar dene</button>
    </div>}
    {companyListEmpty&&<p role="status" style={{margin:'10px 0 0',color:'#475569',fontSize:13}}>{companyEmptyMessage}</p>}
    {companyId&&!oid&&<p role="alert" style={{margin:'10px 0 0',color:'#9f1239',fontSize:13}}>Seçilen firmanın bağlı olduğu OSGB bilgisi eksik. Firma kaydındaki OSGB bağlantısı düzeltilmelidir.</p>}
+   {dashboardError&&<p role="alert" style={{margin:'10px 0 0',color:'#9f1239',fontSize:13}}>{dashboardError}</p>}
    {selectedCompany&&(
     <div style={{display:'flex',gap:18,flexWrap:'wrap',marginTop:14,paddingTop:12,borderTop:'1px solid #d6e8eb',fontSize:13,color:'#475569'}}>
      <span><strong style={{color:'#123b5d'}}>Seçili firma:</strong> {selectedCompany.name}</span>

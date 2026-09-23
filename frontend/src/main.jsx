@@ -3198,7 +3198,16 @@ function App(){
     eisa_audit_logs:<EisaAuditLogsPage/>,
     eisa_system_settings:<EisaSystemSettingsPage/>,
     eisa_question_bank:<EisaQuestionBankPage user={user}/>,
-    osgb_dashboard:<OsgbDashboard user={user} onNavigate={goModule}/>,
+    osgb_dashboard:<OsgbDashboard
+      user={user}
+      onNavigate={goModule}
+      selectedCompanyId={selectedContextCompanyId}
+      companies={contextCompanies}
+      companiesLoading={contextCompaniesLoading}
+      companiesError={contextCompaniesError}
+      onCompanyChange={chooseGlobalContextCompany}
+      onRetryCompanies={()=>setContextCompaniesRetry((value)=>value+1)}
+    />,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     capacity_engine:<CapacityEnginePage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user} onNavigate={goModule}/>,
