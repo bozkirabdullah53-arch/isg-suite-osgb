@@ -1,0 +1,200 @@
+/* Keep the public OSGB form compact even when the shared login theme changes. */
+:root .login-shell.login-shell--osgb-apply {
+  padding: 20px 16px 28px;
+  align-items: flex-start;
+}
+
+:root .login-shell--osgb-apply::after,
+:root .login-shell--osgb-apply .login-card::before {
+  display: none;
+}
+
+:root .login-shell--osgb-apply .login-wrap--apply {
+  width: min(560px, 100%);
+  gap: 12px;
+}
+
+:root .login-shell--osgb-apply .login-brand--apply {
+  margin: 0;
+}
+
+:root .login-shell--osgb-apply .login-eisa-logo {
+  width: 200px;
+  max-width: 70vw;
+  max-height: 36px;
+}
+
+:root .login-shell--osgb-apply .login-card--apply {
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: #fff;
+  backdrop-filter: none;
+  box-shadow: 0 18px 48px rgba(0, 24, 30, .2);
+}
+
+:root .login-shell--osgb-apply .login-card h1 {
+  margin: 0 0 5px;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+:root .login-shell--osgb-apply .login-card > p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+:root .login-shell--osgb-apply .apply-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+:root .login-shell--osgb-apply .field {
+  min-width: 0;
+  gap: 4px;
+  margin: 0;
+}
+
+:root .login-shell--osgb-apply .field > span {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+:root .login-shell--osgb-apply .field input,
+:root .login-shell--osgb-apply .field textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #cadbdd;
+  border-radius: 9px;
+  background: #fbfdfd;
+  color: #173042;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+:root .login-shell--osgb-apply .field textarea {
+  height: 48px;
+  min-height: 48px;
+  resize: vertical;
+}
+
+:root .login-shell--osgb-apply .apply-legal {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  padding: 9px 10px;
+  background: #f3f9f8;
+  border-color: #d9e9e6;
+  border-radius: 10px;
+}
+
+:root .login-shell--osgb-apply .apply-legal > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+:root .login-shell--osgb-apply .apply-check {
+  min-width: 0;
+  min-height: 36px;
+  margin: 0;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+/* Checkboxes must not inherit the text fields' padding and minimum height. */
+:root .login-shell--osgb-apply .apply-check input[type='checkbox'] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: #0f766e;
+}
+
+:root .login-shell--osgb-apply .apply-check .linkish {
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+:root .login-shell--osgb-apply .apply-form-actions {
+  flex-direction: row;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 12px;
+  background: transparent;
+  border-color: #e2eceb;
+}
+
+:root .login-shell--osgb-apply .apply-form-actions button {
+  width: auto;
+  min-height: 38px;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  body:has(.login-shell--osgb-apply) .global-contact-help {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    bottom: auto;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  body:has(.login-shell--osgb-apply) .global-contact-help__text {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  :root .login-shell.login-shell--osgb-apply {
+    padding-top: 14px;
+    padding-inline: 12px;
+  }
+
+  :root .login-shell--osgb-apply .login-card--apply {
+    padding: 16px;
+  }
+
+  :root .login-shell--osgb-apply .apply-form,
+  :root .login-shell--osgb-apply .apply-legal {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root .login-shell--osgb-apply .field > span {
+    font-size: 13px;
+  }
+
+  :root .login-shell--osgb-apply .field input,
+  :root .login-shell--osgb-apply .field textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  :root .login-shell--osgb-apply .apply-check,
+  :root .login-shell--osgb-apply .apply-form-actions button {
+    min-height: 44px;
+  }
+
+  :root .login-shell--osgb-apply .apply-form-actions button[type='submit'] {
+    flex: 1;
+  }
+}
