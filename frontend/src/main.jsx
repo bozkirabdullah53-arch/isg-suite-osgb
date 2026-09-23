@@ -733,21 +733,21 @@ function CompanyDirectory({rows,canEdit,isIndividual,onOpen360,busy,onEdit,onAct
           </div>
         </div>
 
-        {canEdit&&<div className="company-card__footer">
+        {(canEdit||onOpen360)&&<div className="company-card__footer">
           <div className="company-card__actions" aria-label={`${row.name||'Firma'} işlemleri`}>
             {onOpen360&&<button type="button" className="mini company-report-button" disabled={busy} onClick={()=>onOpen360(row.id)} title="Firma 360 / Tam Firma Dosyası">
               <FileText size={14}/>Firma Raporları
             </button>}
-            <button type="button" className="mini secondary" disabled={busy} onClick={()=>onEdit(row)} title="İşyeri bilgilerini düzenle">
+            {canEdit&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>onEdit(row)} title="İşyeri bilgilerini düzenle">
               <Pencil size={14}/>Düzenle
-            </button>
-            {row.is_active
+            </button>}
+            {canEdit&& (row.is_active
               ? <button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'deactivate')}>Pasife Al</button>
-              : <button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'activate')}>Aktifleştir</button>}
-            {!isIndividual&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>onResetKiosk(row)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>}
-            <button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'delete')}>Sil</button>
+              : <button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'activate')}>Aktifleştir</button>)}
+            {canEdit&&!isIndividual&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>onResetKiosk(row)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>}
+            {canEdit&&<button type="button" className="mini" disabled={busy} onClick={()=>onAct(row,'delete')}>Sil</button>}
           </div>
-          <div className="company-card__quick-actions" aria-label={`${row.name||'Firma'} hızlı erişimleri`}>
+          {canEdit&&<div className="company-card__quick-actions" aria-label={`${row.name||'Firma'} hızlı erişimleri`}>
             {!isIndividual&&<button type="button" className={`mini ${row.visit_qr_enabled===false?'secondary':''}`} disabled={busy} onClick={()=>onToggleVisitQr(row)} title="Bu işyerinde uzman ve işyeri hekimi QR giriş-çıkışını aç/kapat">
               {row.visit_qr_enabled===false?'Pasif · Aç':'Aktif · Kapat'}
             </button>}
@@ -757,7 +757,7 @@ function CompanyDirectory({rows,canEdit,isIndividual,onOpen360,busy,onEdit,onAct
             {!isIndividual&&<button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>onOpenSiteQr(row)} title="İşyeri QR kodu">
               <QrCode size={14}/>Saha QR
             </button>}
-          </div>
+          </div>}
         </div>}
       </article>;
     })}
@@ -3295,7 +3295,7 @@ function App(){
     contracts:<ContractsPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
-    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'||Boolean(user.is_individual)} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)||Boolean(user.is_individual)} isIndividual={Boolean(user.is_individual)} onOpen360={user.role==='company_admin'?openCustomer360:undefined} canSelectCompany={canSelectGlobalCompany} companyOptions={contextCompanies} selectedCompanyId={selectedContextCompanyId} onCompanyChange={chooseGlobalContextCompany} companySelectionLoading={contextCompaniesLoading} companySelectionError={contextCompaniesError} onRetryCompanyOptions={()=>setContextCompaniesRetry((value)=>value+1)}/>,
+     companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'||Boolean(user.is_individual)} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)||Boolean(user.is_individual)} isIndividual={Boolean(user.is_individual)} onOpen360={['global_admin','company_admin','safety_specialist','workplace_physician','other_health_personnel'].includes(user.role)?openCustomer360:undefined} canSelectCompany={canSelectGlobalCompany} companyOptions={contextCompanies} selectedCompanyId={selectedContextCompanyId} onCompanyChange={chooseGlobalContextCompany} companySelectionLoading={contextCompaniesLoading} companySelectionError={contextCompaniesError} onRetryCompanyOptions={()=>setContextCompaniesRetry((value)=>value+1)}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user} onNavigate={goModule}/>,
