@@ -558,6 +558,11 @@ class DocumentRecord(Base):
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    @property
+    def has_file(self) -> bool:
+        """Whether a physical file is linked to this document record."""
+        return "[stored:" in (self.description or "")
+
 
 class AnnualPlanStatus(str, enum.Enum):
     PLANNED = "planned"
