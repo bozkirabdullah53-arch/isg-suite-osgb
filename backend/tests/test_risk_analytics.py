@@ -154,15 +154,15 @@ def test_missing_exposure_count_is_explicit_and_does_not_drop_risk():
 def test_missing_exposure_count_uses_active_personnel_scope_not_company_total():
     company = SimpleNamespace(id=1, name="Personel kapsamı", hazard_class=None)
     risk = _risk(1, 11, 8, None)
-    risk.department_name = "Üretim"
+    risk.department_name = "Oksit Üretim"
     risk.activity = "Kurşun oksit üretimi"
     risk.risk_source = "Üretim hattı"
     risk.hazard_detail = "Kurşun maruziyeti"
     employees = [
-        _employee(1, department="Üretim", job_title="Operatör"),
-        _employee(2, department="Üretim Hattı", job_title="Üretim operatörü"),
+        _employee(1, department="Oksit Üretim", job_title="Operatör"),
+        _employee(2, department="Oksit Üretim Hattı", job_title="Üretim operatörü"),
         _employee(3, department="Bakım", job_title="Bakım teknisyeni"),
-        _employee(4, department="Üretim", job_title="Operatör", is_active=False),
+        _employee(4, department="Oksit Üretim", job_title="Operatör", is_active=False),
     ]
 
     result = build_risk_analytics(
@@ -204,12 +204,12 @@ def test_unmatched_personnel_scope_is_not_filled_with_company_total():
 def test_summary_deduplicates_workers_across_multiple_risk_rows():
     company = SimpleNamespace(id=1, name="Tekrarlı maruziyet", hazard_class=None)
     first = _risk(1, 11, 8, None)
-    first.department_name = "Üretim"
+    first.department_name = "Oksit Üretim"
     second = _risk(2, 11, 6, None)
-    second.department_name = "Üretim"
+    second.department_name = "Oksit Üretim"
     employees = [
-        _employee(1, department="Üretim", job_title="Operatör"),
-        _employee(2, department="Üretim", job_title="Operatör"),
+        _employee(1, department="Oksit Üretim", job_title="Operatör"),
+        _employee(2, department="Oksit Üretim", job_title="Operatör"),
     ]
 
     result = build_risk_analytics(

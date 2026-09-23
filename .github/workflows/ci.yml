@@ -88,6 +88,7 @@ jobs:
           tests/test_company_access.py
           tests/test_risk_analytics.py
           tests/test_risk_exposure_people.py
+          tests/test_risk_matching_evidence.py
           tests/test_workplace_manager_access.py
           tests/test_personnel_profile_readonly.py
           tests/test_personnel_profile_core.py

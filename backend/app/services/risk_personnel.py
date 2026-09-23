@@ -13,10 +13,21 @@ from typing import Any, Iterable
 _GENERIC = frozenset({
     "ve", "veya", "ile", "icin", "olan", "olarak", "calisan", "calisanlar",
     "personel", "ekip", "is", "isi", "isci", "islem", "faaliyet", "proses",
-    "alan", "bolum", "risk", "tehlike", "kaynak", "maruziyet", "maruz",
+    "alan", "bolum", "risk", "tehlike", "maruziyet", "maruz",
     "uretim", "imalat", "eleman", "operator", "destek", "sorumlu", "teknisyen",
     "teknik", "genel", "tesis", "hat", "calisma", "gorev", "yardimci",
+    "ortak", "tum", "her", "diger", "uzman", "kontrol", "bakim", "hijyen",
 })
+
+# Explicit occupational variants, not arbitrary shared prefixes (halk/halkla).
+# These aliases only produce candidates; they never confirm an exposure.
+_TOKEN_ALIASES = {
+    "kaynakci": "kaynak", "kaynakcilik": "kaynak",
+    "elektrikci": "elektrik", "elektrikcilik": "elektrik",
+    "temizlikci": "temizlik", "supurme": "temizlik",
+    "sarjhane": "sarj", "desarjhane": "desarj",
+}
+_TASK_PHRASES = {("zemin", "yikama"): "temizlik", ("zemin", "temizligi"): "temizlik"}
 
 
 def fold(value: object) -> str:
@@ -31,21 +42,29 @@ def words(value: object) -> tuple[str, ...]:
 
 def specific_tokens(value: object) -> set[str]:
     # Turkish suffixes must not make generic titles informative again.
-    return {w for w in words(value) if len(w) >= 3 and not any(
+    return {_TOKEN_ALIASES.get(w, w) for w in words(value) if len(w) >= 3 and not any(
         w == generic or (len(generic) >= 4 and w.startswith(generic))
         for generic in _GENERIC
     )}
 
 
 def overlap(left: set[str], right: set[str]) -> list[str]:
-    return sorted({a for a in left for b in right if a == b or (
-        min(len(a), len(b)) >= 4 and (a.startswith(b) or b.startswith(a))
-    )})
+    return sorted(left & right)
+
+
+def task_tokens(value: object) -> set[str]:
+    tokens = specific_tokens(value)
+    parts = words(value)
+    for phrase, token in _TASK_PHRASES.items():
+        if any(parts[i:i + len(phrase)] == phrase for i in range(len(parts) - len(phrase) + 1)):
+            tokens.add(token)
+    return tokens
 
 
 def same_department(left: object, right: object) -> bool:
-    a, b = words(left), words(right)
-    if not a or not b:
+    a = tuple(_TOKEN_ALIASES.get(w, w) for w in words(left))
+    b = tuple(_TOKEN_ALIASES.get(w, w) for w in words(right))
+    if not specific_tokens(left) or not specific_tokens(right):
         return False
     small, large = (a, b) if len(a) <= len(b) else (b, a)
     # Whole words: Şarj must never match Deşarj by substring.
@@ -62,7 +81,7 @@ def employee_scope(employee: Any) -> dict:
         "employee": employee,
         "department": getattr(employee, "department", None),
         "department_tokens": specific_tokens(getattr(employee, "department", None)),
-        "job_tokens": specific_tokens(getattr(employee, "job_title", None)),
+        "job_tokens": task_tokens(getattr(employee, "job_title", None)),
     }
 
 
@@ -71,10 +90,8 @@ def risk_scope(row: Any) -> dict:
         "row": row,
         "department": getattr(row, "department_name", None),
         "department_tokens": specific_tokens(getattr(row, "department_name", None)),
-        "activity_tokens": specific_tokens(getattr(row, "activity", None)),
-        "scope_tokens": specific_tokens(" ".join(str(getattr(row, field, None) or "") for field in (
-            "risk_source", "hazard_detail", "risk_definition",
-        ))),
+        # Sources, hazards and consequences do not establish who performs a task.
+        "activity_tokens": task_tokens(getattr(row, "activity", None)),
     }
 
 
@@ -92,18 +109,14 @@ def match_reasons(scope: dict, person: dict) -> list[str]:
     reasons = []
     if same_department(scope["department"], person["department"]):
         reasons.append("Bölüm bilgisi eşleşiyor: " + str(scope["department"]))
-    else:
-        tokens = overlap(scope["department_tokens"], person["department_tokens"])
-        if tokens:
-            reasons.append("Bölüm terimi eşleşiyor: " + ", ".join(tokens))
-    for key, label in (("activity_tokens", "Görev–faaliyet"), ("scope_tokens", "Görev–risk açıklaması")):
-        tokens = overlap(person["job_tokens"], scope[key])
-        if tokens:
-            reasons.append(label + " eşleşmesi: " + ", ".join(tokens))
+    tokens = overlap(person["job_tokens"], scope["activity_tokens"])
+    if tokens:
+        reasons.append("Görev–faaliyet adayı: " + ", ".join(tokens))
     return reasons
 
 
-def personnel_exposure_match(row: Any, employees: Iterable[Any]) -> tuple[int, str, set]:
+def personnel_exposure_match(row: Any, employees: Iterable[Any], *, prepared_employees=None) -> tuple[int, str, set]:
     scope = risk_scope(row)
-    matched = {employee_key(e) for e in employees if match_reasons(scope, employee_scope(e))}
+    people = prepared_employees if prepared_employees is not None else (employee_scope(e) for e in employees)
+    matched = {employee_key(person["employee"]) for person in people if match_reasons(scope, person)}
     return len(matched), "personnel_match" if matched else "unmatched", matched

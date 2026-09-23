@@ -8,13 +8,14 @@ kaydı üretmez veya saha değerlendirmesinin yerine geçmez.
 from __future__ import annotations
 
 from collections import defaultdict
+from functools import lru_cache
 from math import isfinite
 import re
 from typing import Any, Iterable, Mapping
 import unicodedata
 
 
-ANALYTICS_SCHEMA_VERSION = "risk-nace-analytics-v2"
+ANALYTICS_SCHEMA_VERSION = "risk-nace-analytics-v3"
 
 RISK_TYPE_ORDER = ("physical", "chemical", "biological", "ergonomic", "psychosocial", "other")
 
@@ -31,7 +32,7 @@ RISK_TYPE_META: dict[str, dict[str, str]] = {
     },
     "biological": {
         "label": "Biyolojik",
-        "description": "Biyolojik etken, enfeksiyon, kan/vücut sıvısı, hijyen ve zoonotik kaynaklar.",
+        "description": "Biyolojik etken, enfeksiyon, kan/vücut sıvısı ve zoonotik kaynaklar.",
         "color": "#7c3aed",
     },
     "ergonomic": {
@@ -45,17 +46,15 @@ RISK_TYPE_META: dict[str, dict[str, str]] = {
         "color": "#db2777",
     },
     "other": {
-        "label": "Diğer",
-        "description": "Ana risk türlerine güvenli biçimde sınıflandırılamayan diğer tehlike kayıtları.",
+        "label": "İnceleme bekleyen",
+        "description": "Türü belirsiz veya kaynak kategorisiyle tehlike tanımı çelişen kayıtlar; uzman incelemesi gerekir.",
         "color": "#64748b",
     },
 }
 
 
-# Sınıflandırma yalnızca açıklanabilir katalog metni ve risk kaydı alanlarıyla
-# yapılır. Öncelik sırası, örneğin "kimyasal ve biyolojik" gibi birleşik
-# kategori adlarında daha özel biyolojik/kimyasal/psikososyal/ergonomik
-# anlamı korur.
+# Category and hazard evidence are evaluated separately. Conflicts are visible
+# review items; an incidental word must not silently override a source category.
 _BIOLOGICAL_TERMS = (
     "biyolojik",
     "biolojik",
@@ -64,8 +63,9 @@ _BIOLOGICAL_TERMS = (
     "infectious",
     "zoonot",
     "biyogüven",
-    "hijyen",
-    "hayvan",
+    "bakteri",
+    "virüs",
+    "parazit",
     "sharps",
     "kan ve vücut",
 )
@@ -73,6 +73,7 @@ _CHEMICAL_TERMS = (
     "kimyasal",
     "chemical",
     "solvent",
+    "kurşun",
     "boya",
     "vernik",
     "yapıştır",
@@ -143,12 +144,9 @@ _PHYSICAL_TERMS = (
     "soğuk",
     "soguk",
     "radyasyon",
-    "toz",
     "makine",
     "yüksekte",
     "yuksekte",
-    "kaldır",
-    "kaldir",
     "trafik",
     "forklift",
     "iskele",
@@ -176,7 +174,7 @@ _PHYSICAL_TERMS = (
 )
 
 # Counts and the named roster use the same explainable matcher.
-from app.services.risk_personnel import personnel_exposure_match as _personnel_exposure_match
+from app.services.risk_personnel import employee_scope, personnel_exposure_match as _personnel_exposure_match
 
 
 def _fold(value: object) -> str:
@@ -186,20 +184,61 @@ def _fold(value: object) -> str:
 
 
 def classify_hazard_type(*values: object) -> str:
-    """Map a controlled category/label to a displayable hazard type."""
+    """Compatibility wrapper; all callers share the conflict-aware policy."""
+    return classify_hazard_details(*values)["hazard_type"]
 
-    text = _fold(" ".join(str(value or "") for value in values if value))
-    if any(term in text for term in _BIOLOGICAL_TERMS):
-        return "biological"
-    if any(term in text for term in _CHEMICAL_TERMS):
-        return "chemical"
-    if any(term in text for term in _PSYCHOSOCIAL_TERMS):
-        return "psychosocial"
-    if any(term in text for term in _ERGONOMIC_TERMS):
-        return "ergonomic"
-    if any(term in text for term in _PHYSICAL_TERMS):
-        return "physical"
-    return "other"
+
+def _term_pattern(term: str) -> str:
+    normalized = _fold(term)
+    stems = {"enfeks", "zoonot", "biyoguven", "yapistir", "zehir", "tukenmis",
+             "ergonom", "tekrarl", "gurult", "carpis"}
+    suffix = r"[a-z]*" if normalized in stems else r"(?:i|in|ini|inin|a|e|da|de|dan|den|ta|te|tan|ten|li|lu|le|la|ler|lar|leri|lari|nin|nun|si|su)?"
+    return r"(?<![a-z0-9])" + re.escape(normalized) + suffix + r"(?![a-z0-9])"
+
+
+_TYPE_PATTERNS = {
+    kind: re.compile("|".join(_term_pattern(term) for term in terms))
+    for kind, terms in (
+        ("biological", _BIOLOGICAL_TERMS), ("chemical", _CHEMICAL_TERMS),
+        ("psychosocial", _PSYCHOSOCIAL_TERMS), ("ergonomic", _ERGONOMIC_TERMS),
+        ("physical", _PHYSICAL_TERMS),
+    )
+}
+
+
+def _text_types(value: object) -> frozenset[str]:
+    return _cached_text_types(_fold(value))
+
+
+@lru_cache(maxsize=4096)
+def _cached_text_types(text: str) -> frozenset[str]:
+    # Strip labelled consequences, including imported multiline risk definitions.
+    text = re.split(r"\b(?:olasi\s+sonuc\w*|sonuc\w*|consequences?)\s*:", text, maxsplit=1)[0]
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return frozenset(kind for kind, pattern in _TYPE_PATTERNS.items() if pattern.search(text))
+
+
+def classify_hazard_details(category=None, hazard=None, activity=None, definition=None) -> dict:
+    category_types = _text_types(category)
+    # A named hazard is more specific than the operation in which it occurs.
+    # Activity/definition are fallback evidence, never a reason to override it.
+    hazard_types = _text_types(hazard)
+    evidence_types = hazard_types or (_text_types(activity) | _text_types(definition))
+    candidates = category_types | evidence_types
+    ordered = [kind for kind in RISK_TYPE_ORDER if kind in candidates]
+    conflict = len(candidates) > 1
+    kind = ordered[0] if len(ordered) == 1 else "other"
+    status = "review_required" if conflict else ("category" if category_types else "inferred" if ordered else "unclassified")
+    if conflict:
+        note = f"Kaynak kategori: {category or 'Belirtilmemiş'}. Metinde birden fazla tür işareti var: {', '.join(RISK_TYPE_META[k]['label'] for k in ordered)}. Kaynak kaydı ve tehlike etkenini kontrol edin; tür kesinleştirilmedi."
+    elif not ordered:
+        note = "Tehlike türünü belirlemek için yeterli etken/kategori bilgisi yok; kaynak kaydı kontrol edin."
+    elif category_types:
+        note = "Kaynak kategorisi esas alındı; saha doğrulaması yerine geçmez."
+    else:
+        note = "Tehlike/faaliyet metninden tür önerisi; kaynak kategorisini doğrulayın."
+    return {"hazard_type": kind, "classification_status": status,
+            "classification_candidates": ordered, "classification_note": note}
 
 
 def _safe_float(value: object, default: float = 0.0) -> float:
@@ -321,6 +360,7 @@ def build_risk_analytics(
         else None
     )
     observed_rows: list[dict[str, Any]] = []
+    prepared_people = [employee_scope(employee) for employee in employee_rows or []]
     type_buckets = {
         key: _type_payload(key)
         for key in RISK_TYPE_ORDER
@@ -353,12 +393,13 @@ def build_risk_analytics(
         category_name = str(getattr(category, "name", None) or "").strip() or "Kategorisiz"
         hazard_name = str(getattr(hazard, "name", None) or "").strip() or "Tehlike kaynağı"
         hazard_code = str(getattr(hazard, "code", None) or "").strip() or None
-        hazard_type = classify_hazard_type(
+        classification = classify_hazard_details(
             category_name,
             hazard_name,
             getattr(row, "activity", None),
             getattr(row, "risk_definition", None),
         )
+        hazard_type = classification["hazard_type"]
         score = max(0.0, _safe_float(getattr(row, "risk_score", None)))
         raw_exposed = getattr(row, "exposed_worker_count", None)
         matched_employee_keys: set[tuple[str, object, object]] = set()
@@ -367,14 +408,14 @@ def build_risk_analytics(
             exposure_source = "reported"
             reported_exposure_count += exposed
         elif employee_rows is not None:
-            exposed, exposure_source, matched_employee_keys = _personnel_exposure_match(row, employee_rows)
+            exposed, exposure_source, matched_employee_keys = _personnel_exposure_match(row, employee_rows, prepared_employees=prepared_people)
         else:
             exposed = 0
             exposure_source = "unmatched"
-        # Çalışan sayısı bulunamayan riskler sıralamada kaybolmasın. Bu
-        # durumda tek risk ağırlığı kullanılır; açık sayı veya güvenilir
-        # personel eşleşmesi varsa etkisi doğrudan ağırlığa yansır.
-        dominance_score = max(score, 1.0) * max(exposed, 1)
+        # Unverified automatic candidates must not amplify risk priority.
+        # Weight 1 retains an unknown/zero-count risk; it is not a person count.
+        dominance_weight = max(exposed, 1) if exposure_source == "reported" else 1
+        dominance_score = max(score, 1.0) * dominance_weight
         bucket = type_buckets[hazard_type]
         bucket["risk_count"] += 1
         type_assignment_counts[hazard_type] += exposed
@@ -410,6 +451,7 @@ def build_risk_analytics(
                 "hazard_code": hazard_code,
                 "hazard": hazard_name,
                 "hazard_type": hazard_type,
+                **classification,
                 "hazard_type_label": RISK_TYPE_META[hazard_type]["label"],
                 "activity": str(getattr(row, "activity", None) or "").strip() or None,
                 "risk_definition": str(getattr(row, "risk_definition", None) or "").strip() or None,
@@ -422,6 +464,7 @@ def build_risk_analytics(
                 "exposure_count_source": exposure_source,
                 "status": getattr(row, "status", None),
                 "dominance_score": round(dominance_score, 2),
+                "dominance_weight": dominance_weight,
             }
         )
 
@@ -555,6 +598,7 @@ def build_risk_analytics(
         },
         "summary": {
             "risk_record_count": len(observed_rows),
+            "classification_review_count": sum(row["hazard_type"] == "other" for row in observed_rows),
             "potential_hazard_count": len(potential_hazards),
             "exposed_worker_count_total": unique_exposed_worker_count,
             "unique_exposed_worker_count": unique_exposed_worker_count,
@@ -581,10 +625,11 @@ def build_risk_analytics(
         "risk_types": risk_types,
         "dominant_risks": dominant_risks[:20],
         "observed_risks": observed_rows[:50],
+        "classification_reviews": [row for row in observed_rows if row["hazard_type"] == "other"],
         "potential_hazards": potential_hazards,
         "nace_warnings": list(roadmap.get("warnings") or []),
         "methodology": {
-            "dominance_basis": "Risk skoru × max(açık kişi sayısı veya personel eşleşmesi, 1)",
+            "dominance_basis": "max(Risk skoru, 1) × max(kayıtlı kişi beyanı, 1); kişi beyanı yoksa yalnızca risk skoru kullanılır. Otomatik çalışan adayları sıralama ağırlığını artırmaz",
             "percentage_note": "Yüzdeler işyerindeki aktif risk kayıtlarının ağırlıklı baskınlık payıdır.",
             "exposure_note": "İsim listeleri bölüm ve görev bilgilerine dayalı otomatik eşleşme önerileridir; saha doğrulaması gerektirir. Eşleşme bulunmaması, maruziyet olmadığı anlamına gelmez. İşyeri toplamı ve tehlike türü özetinde aynı çalışan yalnızca bir kez sayılır; aynı kişi birden fazla risk satırında tekrar görünebilir. Açık kişi sayısı girilmiş ancak çalışan kimliği bulunmayan satırlar çalışan sayısı üst sınırıyla sınırlandırılır.",
             "nace_note": "NACE başlıkları aday tehlike kaynağıdır; saha/risk değerlendirmesi ile doğrulanmadan gerçekleşmiş risk kabul edilmez.",

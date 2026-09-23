@@ -1052,3 +1052,17 @@ html[data-ui-theme="modern"] .ra-page > .ra-hero p {
   .ra-spin { animation: none; }
   .ra-distribution-track span { transition: none; }
 }
+.ra-classification-review {
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid #e5d8ae;
+  border-radius: 16px;
+  background: #fffbef;
+  color: #695321;
+}
+.ra-classification-review > summary { cursor: pointer; font-weight: 700; }
+.ra-classification-review > summary svg { vertical-align: middle; margin-right: 6px; }
+.ra-classification-review > div { max-height: 360px; overflow: auto; }
+.ra-classification-review article { padding: 12px 0; border-top: 1px solid #e5d8ae; overflow-wrap: anywhere; }
+.ra-classification-review p { margin: 8px 0; line-height: 1.5; }
+.ra-classification-review button { padding: 8px 12px; border: 1px solid #aacdca; border-radius: 8px; background: #fff; color: #0f766e; cursor: pointer; }

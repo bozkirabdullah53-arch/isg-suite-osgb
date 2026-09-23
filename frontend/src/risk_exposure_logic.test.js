@@ -22,7 +22,7 @@ describe('risk people and training selection', () => {
   });
   it('shows actual identity matches when the reported estimate differs', () => {
     expect(matchedWorkerCount({matched_worker_count: 0, exposed_worker_count: 25})).toBe(0);
-    expect(matchedWorkerCount({exposed_worker_count: 3})).toBe(3);
+    expect(matchedWorkerCount({exposed_worker_count: 3})).toBe(0);
   });
   it('preserves distinct people with identical names and filters one risk', () => {
     expect(visibleExposurePeople(data)).toHaveLength(2);
@@ -38,6 +38,7 @@ describe('risk people and training selection', () => {
     expect(csv).toContain('Bölüm: Şarj');
     expect(csv).not.toContain('Görev: Depo');
     expect(csv).toContain('Manuel eğitim seçimi');
+    expect(csv).toContain('doğrulanmış maruziyet kaydı değildir');
     expect(csv).toContain("'=HYPERLINK");
     expect(csv.split('\r\n')).toHaveLength(3);
   });

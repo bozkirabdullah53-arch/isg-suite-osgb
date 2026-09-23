@@ -2,7 +2,7 @@
 from collections import Counter
 from typing import Any
 
-from app.services.risk_analytics import RISK_TYPE_META, classify_hazard_type, _is_cancelled, _safe_count
+from app.services.risk_analytics import RISK_TYPE_META, classify_hazard_details, _is_cancelled, _safe_count
 from app.services.risk_personnel import employee_scope, match_reasons, risk_scope, fold
 
 
@@ -22,13 +22,16 @@ def build_exposure_roster(company: Any, *, risks, employees, hazard_map, categor
             continue
         hazard = hazard_map.get(row.hazard_id)
         category = category_map.get(getattr(hazard, "category_id", None))
-        kind = classify_hazard_type(getattr(category, "name", None), getattr(hazard, "name", None), row.activity, row.risk_definition)
+        classification = classify_hazard_details(getattr(category, "name", None), getattr(hazard, "name", None), row.activity, row.risk_definition)
+        kind = classification["hazard_type"]
         if (hazard_type and kind != hazard_type) or (risk_id is not None and row.id != risk_id):
             continue
         item = {
             "id": row.id, "risk_code": row.risk_code,
             "hazard": getattr(hazard, "name", None) or "Tehlike kaynağı",
             "hazard_type": kind, "hazard_type_label": RISK_TYPE_META[kind]["label"],
+            **classification,
+            "category": getattr(category, "name", None),
             "department": getattr(row, "department_name", None), "activity": row.activity,
             "risk_definition": row.risk_definition,
             "matched_worker_count": 0,
@@ -63,6 +66,7 @@ def build_exposure_roster(company: Any, *, risks, employees, hazard_map, categor
         "summary": {
             "matched_worker_count": sum(bool(row["matches"]) for row in rows),
             "risk_count": len(risk_items), "reported_worker_count": reported_count,
+            "classification_review_count": sum(item["hazard_type"] == "other" for item in risk_items),
             "reported_risk_count": sources["reported"], "unmatched_risk_count": sources["unmatched"],
         },
         "employees": rows,
