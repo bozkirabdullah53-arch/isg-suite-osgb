@@ -14,7 +14,7 @@ import {createRoot} from 'react-dom/client';
   }catch{ /* ignore */ }
 })();
 
-import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,ClipboardList,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Mail,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,ArrowLeft,ArrowRight,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,ClipboardList,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Mail,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {API_URL, api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, uploadFile, wakeApi} from './api';
 import {clearAccessToken, clearMfaSetupToken, getAccessToken, getMfaSetupToken, setAccessToken, setMfaSetupToken} from './auth_session';
 import {clearOfflineQueue} from './field_offline';
@@ -647,14 +647,26 @@ function Login({done,onApply,onSpecialistApply}){
             </div>
           )}
           {mode==='login'&&(
-            <div className="login-application-actions" style={{marginTop:14,display:'grid',gap:8}}>
+            <div className="login-application-actions">
               <p className="login-application-heading">Başvuru seçenekleri</p>
-              <button type="button" className="secondary login-application-button login-application-button--specialist" onClick={onSpecialistApply} style={{width:'100%',justifyContent:'center'}}>
-                İş Güvenliği Uzmanı Bireysel Başvuru
-              </button>
-              <p className="login-application-note" style={{margin:0,fontSize:12,color:'#64748b',textAlign:'center'}}>
-                OSGB merkezi misiniz? <button type="button" className="linkish login-application-button--osgb" onClick={onApply}>OSGB başvurusu</button>
-              </p>
+              <div className="login-application-buttons">
+                <button type="button" className="login-application-button login-application-button--specialist" onClick={onSpecialistApply}>
+                  <span className="login-application-icon" aria-hidden="true"><HardHat size={20}/></span>
+                  <span className="login-application-label">
+                    <span className="login-application-title">İş Güvenliği Uzmanı</span>
+                    <span className="login-application-description">Bireysel Başvuru</span>
+                  </span>
+                  <ArrowRight size={18} className="login-application-arrow" aria-hidden="true"/>
+                </button>
+                <button type="button" className="login-application-button login-application-button--osgb" onClick={onApply}>
+                  <span className="login-application-icon" aria-hidden="true"><Building2 size={20}/></span>
+                  <span className="login-application-label">
+                    <span className="login-application-title">OSGB Başvurusu</span>
+                    <span className="login-application-description">Ortak Sağlık Güvenlik Birimi</span>
+                  </span>
+                  <ArrowRight size={18} className="login-application-arrow" aria-hidden="true"/>
+                </button>
+              </div>
             </div>
           )}
         </section>

@@ -211,8 +211,6 @@ button, input { font: inherit; }
 
 .login-application-actions { border-top: 1px solid rgba(148,163,184,.28); padding-top: 12px; }
 .login-application-heading { margin: 0; color: #526c78; font-size: 12px; font-weight: 800; text-align: left; }
-.login-application-button--specialist { border: 1px solid rgba(15,118,110,.3) !important; background: rgba(15,118,110,.08) !important; color: #0f5f5a !important; box-shadow: none !important; }
-.login-application-button--osgb { font-weight: 800; }
 
 .brand-mark {
   width: 48px;

@@ -1,4 +1,21 @@
-/* EİSA giriş ekranı başvuru aksiyonları: ana login eyleminden daha düşük ağırlık. */
+/* Her iki başvuru seçeneği aynı ölçüleri ve etkileşim stilini kullanır. */
+
+/* Uzayan kart, küçük ekranlarda ve yakınlaştırmada kesilmeden kaydırılabilsin. */
+:root .login-shell:has(.login-application-actions) {
+  height: auto;
+  max-height: none;
+  overflow-y: auto;
+}
+
+.login-shell:has(.login-application-actions) .login-wrap {
+  max-height: none;
+}
+
+.login-card .login-application-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
 
 .login-application-actions > .login-application-heading {
   margin: 0 !important;
@@ -7,12 +24,83 @@
   font-weight: 800 !important;
 }
 
-.login-application-actions > .login-application-button--specialist {
-  border: 1px solid rgba(15, 118, 110, .3) !important;
-  border-radius: 12px !important;
-  color: #0f5f5a !important;
-  background: rgba(15, 118, 110, .08) !important;
-  box-shadow: none !important;
+.login-application-buttons {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 10px;
+}
+
+.login-card .login-application-actions .login-application-buttons .login-application-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 64px;
+  margin: 0;
+  padding: 11px 14px;
+  border: 1px solid rgba(15, 118, 110, .24);
+  border-radius: 12px;
+  color: #134e4a;
+  background: linear-gradient(135deg, #f8fffe, #eaf8f5);
+  box-shadow: 0 2px 6px rgba(15, 118, 110, .05);
+  text-align: left;
+  white-space: normal;
+  filter: none;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.login-card .login-application-actions .login-application-buttons .login-application-button:hover {
+  border-color: #0f766e;
+  background: linear-gradient(135deg, #f0fdfa, #dff6f1);
+  box-shadow: 0 5px 14px rgba(15, 118, 110, .12);
+  transform: translateY(-1px);
+}
+
+.login-card .login-application-actions .login-application-buttons .login-application-button:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 3px;
+}
+
+.login-card .login-application-actions .login-application-buttons .login-application-button:active {
+  transform: translateY(0);
+}
+
+.login-application-icon {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  color: #0f766e;
+  background: #d9f3ec;
+}
+
+.login-application-label {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.login-application-title {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.login-application-description {
+  color: #526c78;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.login-application-arrow {
+  flex: 0 0 18px;
+  color: #0f766e;
 }
 
 .password-input-wrap { position: relative; }
@@ -36,7 +124,22 @@
 }
 .password-toggle:hover { color: #0f766e !important; background: rgba(15,118,110,.08) !important; }
 
+@media (max-width: 1279px) and (min-height: 761px) {
+  :root .login-shell:has(.login-application-actions) {
+    padding-bottom: 160px;
+  }
+}
+
 @media (max-width: 420px) {
-  .login-application-button--specialist { min-height: 46px !important; font-size: 12.5px !important; }
-  .login-application-button--osgb { min-height: 44px !important; }
+  .login-card .login-application-actions .login-application-buttons .login-application-button {
+    gap: 10px;
+    padding: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card .login-application-actions .login-application-buttons .login-application-button {
+    transition: none;
+    transform: none;
+  }
 }
