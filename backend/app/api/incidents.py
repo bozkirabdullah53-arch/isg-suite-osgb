@@ -35,6 +35,7 @@ from app.schemas.incident import (
 from app.services.assigned_team import team_names
 from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.business_days import add_turkish_business_days
+from app.services.capa_board import build_capa_board, capa_summary
 from app.services.change_guard import (
     archive_records_before_delete,
     require_delete_reason,
@@ -261,6 +262,17 @@ def export_incidents_xlsx(
     )
 
 
+@router.get("/capa-board")
+def get_capa_board(
+    company_id: int = Query(..., gt=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    company_ids = company_ids_for_query(db, user, company_id)
+    rows = build_capa_board(db, company_ids)
+    return {"company_id": company_id, "items": rows, "summary": capa_summary(rows)}
+
+
 @router.get("/capa-board.xlsx")
 def export_capa_board_xlsx(
     company_id: int | None = None,
@@ -268,64 +280,8 @@ def export_capa_board_xlsx(
     user: User = Depends(get_current_user),
 ):
     """Olay + risk DÖF birleşik panosu (DÖF Yönetimi ekranı ile aynı kaynak)."""
-    from app.models.entities import RiskAssessment
-
     company_ids = company_ids_for_query(db, user, company_id)
-    board: list[dict] = []
-
-    inc_stmt = (
-        select(IncidentEvent)
-        .options(selectinload(IncidentEvent.dofs))
-        .order_by(IncidentEvent.event_date.desc())
-    )
-    if company_ids == []:
-        incidents = []
-        risks = []
-    else:
-        if company_ids is not None:
-            inc_stmt = inc_stmt.where(IncidentEvent.company_id.in_(company_ids))
-        incidents = list(db.scalars(inc_stmt.limit(2000)).unique().all())
-        risk_stmt = (
-            select(RiskAssessment)
-            .options(selectinload(RiskAssessment.dofs))
-            .order_by(RiskAssessment.id.desc())
-        )
-        if company_ids is not None:
-            risk_stmt = risk_stmt.where(RiskAssessment.company_id.in_(company_ids))
-        risks = list(db.scalars(risk_stmt.limit(2000)).unique().all())
-
-    for inc in incidents:
-        for d in inc.dofs or []:
-            board.append(
-                {
-                    "source": "Olay",
-                    "code": d.dof_no,
-                    "title": d.finding,
-                    "action": d.corrective_action,
-                    "responsible": d.responsible_person,
-                    "term": d.term_date.isoformat() if d.term_date else "",
-                    "status": d.status,
-                    "priority": d.priority or "—",
-                    "parent": inc.form_no,
-                    "parentSummary": inc.short_summary,
-                }
-            )
-    for r in risks:
-        for d in r.dofs or []:
-            board.append(
-                {
-                    "source": "Risk",
-                    "code": d.dof_code,
-                    "title": d.description,
-                    "action": d.description,
-                    "responsible": d.responsible_person,
-                    "term": d.term_date.isoformat() if getattr(d, "term_date", None) else "",
-                    "status": "Tamamlandı" if d.is_completed else (d.status or "Açık"),
-                    "priority": "—",
-                    "parent": r.risk_code,
-                    "parentSummary": r.activity,
-                }
-            )
+    board = build_capa_board(db, company_ids)
 
     xlsx = build_capa_board_excel(rows=board)
     stamp = datetime.now().strftime("%Y%m%d")

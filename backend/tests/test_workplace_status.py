@@ -349,9 +349,11 @@ def test_risk_assessment_status_is_separate_from_overdue_risk_terms(client):
     assert response.status_code == 200, response.text
     items = {row["code"]: row for row in response.json()["status_center"]["items"]}
     assert items["risk_assessment"]["status"] == "completed"
+    assert items["risk_assessment"]["status_label"] == "Kayıtlı"
     assert items["risk_assessment"]["count"] == 1
     assert "1 geçmiş termin tarihi" in items["risk_assessment"]["detail"]
     assert items["risk_assessment_validity"]["status"] == "completed"
+    assert items["risk_assessment_validity"]["status_label"] == "Geçerli"
 
     obligations = client.get(
         f"/api/v1/companies/{seed['company_1']}/status/obligations",
@@ -614,3 +616,88 @@ def test_report_exports_neutralize_excel_formula_and_escape_pdf_markup():
 
     pdf = build_workplace_status_pdf(payload)
     assert pdf.startswith(b"%PDF")
+
+
+def test_capa_board_status_and_excel_share_full_company_scope(client):
+    seed = _seed()
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, Hazard, HazardCategory, RiskAssessment, RiskDof, IncidentEvent, IncidentDof
+
+    today = date.today()
+    with SessionLocal() as db:
+        own_company = db.get(Company, seed["company_1"])
+        sibling = Company(name="Aynı OSGB farklı firma", osgb_id=own_company.osgb_id, is_active=True)
+        category = HazardCategory(name="DÖF kapsam testi", sort_order=1)
+        db.add_all([sibling, category])
+        db.flush()
+        sibling_id = sibling.id
+        hazard = Hazard(category_id=category.id, code="H-CAPA", name="Test tehlikesi")
+        db.add(hazard)
+        db.flush()
+        risks = [RiskAssessment(
+            risk_code=f"R-CAPA-{index}", company_id=seed["company_1"], hazard_id=hazard.id,
+            activity="Test faaliyeti", risk_definition="Test riski", probability=2, severity=2,
+            risk_score=4, risk_level="Düşük", created_by_id=seed["admin_id"],
+        ) for index in range(1016)]
+        foreign_risk = RiskAssessment(
+            risk_code="R-SIBLING", company_id=sibling_id, hazard_id=hazard.id,
+            activity="Diğer firma", risk_definition="Kapsam dışı", probability=2, severity=2,
+            risk_score=4, risk_level="Düşük", created_by_id=seed["admin_id"],
+        )
+        db.add_all([*risks, foreign_risk])
+        db.flush()
+        for index, risk in enumerate([*risks, foreign_risk]):
+            db.add(RiskDof(
+                dof_code=f"D-CAPA-{index}", risk_id=risk.id, description="Test önlemi",
+                term_date=today-timedelta(days=1), is_completed=index==1015,
+                created_by_id=seed["admin_id"],
+            ))
+        for index, (cid, status, term) in enumerate([
+            (seed["company_1"], "Açık", today-timedelta(days=1)),
+            (seed["company_1"], "closed", today-timedelta(days=1)),
+            (seed["company_1"], "Açık", None),
+            (sibling_id, "Açık", today-timedelta(days=1)),
+            (seed["company_2"], "Açık", today-timedelta(days=1)),
+        ]):
+            incident = IncidentEvent(
+                form_no=f"I-CAPA-{index}", company_id=cid, event_type="ramak_kala",
+                event_date=today, short_summary="Test olayı", created_by_id=seed["admin_id"],
+            )
+            db.add(incident)
+            db.flush()
+            db.add(IncidentDof(
+                dof_no=f"ID-CAPA-{index}", incident_id=incident.id, finding="Test bulgusu",
+                status=status, term_date=term, created_by_id=seed["admin_id"],
+            ))
+        db.commit()
+
+    headers = {"Authorization": f"Bearer {_token(client, seed['users'][0], seed['password'])}"}
+    response = client.get(f"/api/v1/incidents/capa-board?company_id={seed['company_1']}", headers=headers)
+    assert response.status_code == 200, response.text
+    board = response.json()
+    assert board["summary"] == {"total": 1019, "open": 1017, "completed": 2, "overdue": 1016}
+    assert len(board["items"]) == 1019
+    assert {row["company_id"] for row in board["items"]} == {seed["company_1"]}
+    assert "D-CAPA-1015" in {row["code"] for row in board["items"]}
+    assert not {"D-CAPA-1016", "ID-CAPA-3", "ID-CAPA-4"}.intersection(row["code"] for row in board["items"])
+
+    status = client.get(f"/api/v1/companies/{seed['company_1']}/status", headers=headers).json()
+    items = {row["code"]: row for row in status["status_center"]["items"]}
+    assert items["capa"]["count"] == board["summary"]["open"]
+    assert items["capa"]["detail"] == "1019 DÖF kaydı; 1017 açık DÖF; 1016 gecikmiş."
+    assert status["counts"]["open_dofs"] == 1017
+    assert status["counts"]["overdue_dofs"] == 1016
+    assert items["risk_assessment_validity"]["status"] == "attention"
+    assert items["risk_assessment_validity"]["status_label"] == "Tarih eksik"
+    assert not any(row["source"] == "Risk Değerlendirmesi" for row in status["status_center"]["deadlines"])
+
+    exported = client.get(f"/api/v1/incidents/capa-board.xlsx?company_id={seed['company_1']}", headers=headers)
+    assert exported.status_code == 200
+    workbook = load_workbook(BytesIO(exported.content), read_only=True)
+    exported_codes = {row[1] for row in workbook.active.iter_rows(values_only=True) if row[0] in ("Risk", "Olay")}
+    assert exported_codes == {row["code"] for row in board["items"]}
+    assert client.get("/api/v1/incidents/capa-board", headers=headers).status_code == 422
+    assert client.get(f"/api/v1/incidents/capa-board?company_id={seed['company_2']}", headers=headers).status_code == 403
+    workplace_headers = {"Authorization": f"Bearer {_token(client, seed['users'][2], seed['password'])}"}
+    assert client.get(f"/api/v1/incidents/capa-board?company_id={sibling_id}", headers=workplace_headers).status_code == 403
+    assert client.get(f"/api/v1/incidents/capa-board.xlsx?company_id={sibling_id}", headers=workplace_headers).status_code == 403

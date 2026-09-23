@@ -37,6 +37,7 @@ from app.models.entities import (
     WorkplaceMeasurement,
 )
 from app.models.remote_training import RemoteTrainingAssignment
+from app.services.capa_board import incident_dof_completed
 from app.services.risk_validity import add_years, build_validity
 
 
@@ -621,7 +622,7 @@ def collect_workplace_obligations(db: Session, company, *, today: date | None = 
         select(IncidentDof).where(IncidentDof.incident_id.in_(list(incident_by_id) or [-1]))
     ).all():
         incident = incident_by_id.get(int(dof.incident_id))
-        is_completed = dof.status == "Tamamlandı"
+        is_completed = incident_dof_completed(dof.status)
         _append(
             rows,
             company_id=cid,

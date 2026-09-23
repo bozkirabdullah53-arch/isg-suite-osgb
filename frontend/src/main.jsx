@@ -62,6 +62,7 @@ import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {EmployeeSelfServicePage} from './employee_self_service';
 import {rememberEmployeeTrainingAssignment, selfServiceFeatureEnabled} from './employee_self_service_logic';
 import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
+import {COMPANY_CONTEXT_MODULES, canOpenCompanyCapa} from './company_module_navigation';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {SpecialistReportCenterPage} from './specialist_report_center';
 import {AppModal} from './ui_modal';
@@ -2547,18 +2548,18 @@ function readNavigationFromLocation(){
 function readModuleFromLocation(){
   return readNavigationFromLocation().module;
 }
-function writeModuleToLocation(id,{replace=false,companyId=''}={}){
+function writeModuleToLocation(id,{replace=false,companyId}={}){
   try{
     const u=new URL(window.location.href);
     u.searchParams.delete('m');
     const current=readNavigationFromLocation();
     const preserveRiskView=id==='risk' && current.module==='risk' && replace;
-    const nextCompany=id==='customer_360'
-      ? String(companyId || current.companyId || '')
+    const nextCompany=COMPANY_CONTEXT_MODULES.has(id)
+      ? String(companyId ?? (current.module===id ? current.companyId : '') ?? '')
       : '';
     const hashParams=new URLSearchParams();
     if(id) hashParams.set('m',id);
-    if(id==='customer_360' && nextCompany) hashParams.set('company',nextCompany);
+    if(COMPANY_CONTEXT_MODULES.has(id) && nextCompany) hashParams.set('company',nextCompany);
     if(preserveRiskView){
       try{
         const currentHash=new URLSearchParams(String(window.location.hash||'').replace(/^#/,'' )).toString();
@@ -2659,7 +2660,7 @@ function App(){
       setNaceCatalog(sectors);
       setContextCompaniesLoading(false);
       const persisted=readPersistedCompanyId();
-      const routeCompanyId=active==='customer_360'
+      const routeCompanyId=COMPANY_CONTEXT_MODULES.has(active)
         ? String(readNavigationFromLocation().companyId||'')
         : '';
       const preferredId=user.company_id
@@ -2722,6 +2723,7 @@ function App(){
         setSelectedContextCompanyId('');
         setNaceDraft('');
         persistCompanyId('');
+        if(active==='capa'||active==='workplace_status') writeModuleToLocation(active,{replace:true,companyId:''});
         if(active==='customer_360'){
           setC360Id(null);
           setActive('companies');
@@ -2734,6 +2736,9 @@ function App(){
       setSelectedContextCompanyId(String(id));
       setNaceDraft('');
       persistCompanyId(id);
+      if((active==='capa'||active==='workplace_status')&&!user?.company_id){
+        writeModuleToLocation(active,{replace:true,companyId:String(id)});
+      }
       if(active==='customer_360'&&!isWorkplaceAccountUser(user)){
         const nextCompanyId=Number(id);
         if(Number.isFinite(nextCompanyId)&&nextCompanyId>0){
@@ -2756,6 +2761,7 @@ function App(){
     }
     function onContextReset(){
       cancelPendingNaceDraft();
+      if(active==='capa'||active==='workplace_status') writeModuleToLocation(active,{replace:true,companyId:''});
       setSelectedContextCompanyId('');
       setNaceDraft('');
       persistCompanyId('');
@@ -2802,7 +2808,7 @@ function App(){
 
   useEffect(()=>{
     if(!logged||!user) return;
-    const shouldReset=active!=='customer_360'
+    const shouldReset=!COMPANY_CONTEXT_MODULES.has(active)
       && (requiresPageCompanySelection||active==='osgb_dashboard');
     if(!shouldReset) return;
     setSelectedContextCompanyId('');
@@ -2914,7 +2920,7 @@ function App(){
 
   function goModule(id,{replace=false,companyId=''}={}){
     setMobileMoreOpen(false);
-    if(requiresPageCompanySelection && id!==active && id!=='customer_360'){
+    if(requiresPageCompanySelection && id!==active && id!=='customer_360' && !(COMPANY_CONTEXT_MODULES.has(id)&&companyId)){
       setSelectedContextCompanyId('');
       setNaceDraft('');
       persistSelectedCompanyId('');
@@ -2933,7 +2939,7 @@ function App(){
       return;
     }
     const allowed=modulesForUser(user);
-    if(id && id!=='customer_360' && !allowed.includes(id)){
+    if(id && id!=='customer_360' && !allowed.includes(id) && !canOpenCompanyCapa(user,id,companyId)){
       // Yetkisiz / menüde olmayan modül — ana panele düş
       const home=homeModuleForUser(user);
       if(home){
@@ -2947,9 +2953,13 @@ function App(){
       const nextCompanyId=Number(companyId);
       if(Number.isFinite(nextCompanyId) && nextCompanyId>0) setC360Id(nextCompanyId);
     }
+    if(COMPANY_CONTEXT_MODULES.has(id)&&companyId){
+      setSelectedContextCompanyId(String(user?.company_id||companyId));
+      persistSelectedCompanyId(user?.company_id||companyId);
+    }
     setActive(id);
     try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
-    writeModuleToLocation(id,{replace,companyId:id==='customer_360'?companyId:''});
+    writeModuleToLocation(id,{replace,companyId:COMPANY_CONTEXT_MODULES.has(id)?companyId:''});
   }
 
   function openCustomer360(companyId){
@@ -3057,7 +3067,7 @@ function App(){
         let next='';
         if(verifyCode && allowed.includes('training')) next='training';
         else if(validCustomerRoute) next=fromUrl;
-        else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
+        else if(fromUrl && (allowed.includes(fromUrl)||canOpenCompanyCapa(u,fromUrl,locationCompanyId))) next=fromUrl;
         else next=homeModuleForUser(u);
         setActive(next);
         if(next==='customer_360' && validCustomerRoute) setC360Id(locationCompanyId);
@@ -3065,7 +3075,7 @@ function App(){
         try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
         if(next) writeModuleToLocation(next,{
           replace:true,
-          companyId:next==='customer_360' && validCustomerRoute ? locationCompanyId : '',
+          companyId:COMPANY_CONTEXT_MODULES.has(next) ? (u.company_id||locationNavigation.companyId) : '',
         });
       }catch(_){
         if(cancelled) return;
@@ -3092,7 +3102,11 @@ function App(){
         try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
         return;
       }
-      if(id && allowed.includes(id)){
+      if(id && (allowed.includes(id)||canOpenCompanyCapa(user,id,customerId))){
+        if(COMPANY_CONTEXT_MODULES.has(id)){
+          setSelectedContextCompanyId(String(user.company_id||locationNavigation.companyId||''));
+          persistSelectedCompanyId(user.company_id||locationNavigation.companyId||'');
+        }
         setActive(id);
         setC360Id(null);
         try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
@@ -3225,7 +3239,7 @@ function App(){
     workplace_backups:<WorkplaceBackupsPage user={user}/>,
     change_requests:<ChangeRequestsPage user={user}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
-    workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
+    workplace_status:<WorkplaceStatusPage user={user} companyId={selectedContextCompanyId} onNavigate={goModule} onCompanyChange={chooseGlobalContextCompany} canOpenModule={(id)=>modulesForUser(user).includes(id)||canOpenCompanyCapa(user,id,selectedContextCompanyId)}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout} embedded/>,
     crm:<CrmPage user={user} onNavigate={goModule}/>,
     contracts:<ContractsPage user={user}/>,
@@ -3238,7 +3252,7 @@ function App(){
     risk_analytics:<RiskAnalyticsPage user={user} onNavigate={goModule}/>,
     near_miss:<IncidentsPage user={user} menuKey="near_miss"/>,
     accident:<IncidentsPage user={user} menuKey="accident"/>,
-    capa:<CapaPage user={user}/>,
+    capa:<CapaPage user={user} companyId={selectedContextCompanyId} onCompanyChange={chooseGlobalContextCompany}/>,
     ppe:<PpePage user={user}/>,
     sds:<SdsRegisterPage user={user}/>,
     tatbikat:<DrillsPage user={user}/>,
@@ -3446,6 +3460,7 @@ function App(){
                 companyId={c360Id}
                 onBack={closeCustomer360}
                 onNavigate={goModule}
+                canOpenModule={(id)=>modulesForUser(user).includes(id)||canOpenCompanyCapa(user,id,c360Id)}
                 user={user}
                 companyOptions={contextCompanies}
                 canSelectCompany={canSelectGlobalCompany}
