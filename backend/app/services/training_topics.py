@@ -259,12 +259,16 @@ SEKTOR_TEHLIKE.update({
     for code in PROFIL_KONULARI
 })
 
-# Eski NACE yayımlarında kullanılan kodlar. Güncel katalogdaki 41.00.xx
-# satırlarını değiştirmeden, eski işyeri kayıtlarının da aynı faaliyet ve
-# tehlike sınıfına çözümlenmesini sağlar. Bu harita tek bir kod için özel
-# davranış eklemez; bilinen eski yapı kodlarının tamamı için geriye uyumluluk
-# katmanıdır.
+# Eski NACE yayımlarındaki kodlar, güncel katalogda faaliyet tanımı ve
+# tehlike sınıfı doğrulanmış tam karşılıklarına bağlanır. Eski kod kimliği
+# korunur; risk/tehlike eşleşmesi güncel karşılık üzerinden çözülür.
 LEGACY_NACE_ALIASES: dict[str, dict[str, str]] = {
+    # Eski NACE Rev.2 dağıtım kodu; güncel NACE Rev.2.1 karşılığı 35.14.06.
+    "35.13.01": {
+        "current_nace": "35.14.06",
+        "name": "Elektrik enerjisinin dağıtımı (üretim kaynağından veya iletim sisteminden son kullanıcıya iletim sistemiyle taşınan elektrik enerjisi dağıtım sisteminin işletilmesi)",
+        "hazard_class": "Çok Tehlikeli",
+    },
     "41.20.01": {
         "current_nace": "41.00.02",
         "name": "İkamet amaçlı olmayan binaların inşaatı (fabrika, atölye, hastane, okul, otel, işyeri ve benzeri binaların inşaatı)",

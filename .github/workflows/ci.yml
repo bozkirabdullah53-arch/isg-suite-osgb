@@ -61,6 +61,8 @@ jobs:
           tests/test_workplace_backups.py
           tests/test_training_runtime_patches.py
           tests/test_training_nace_classification.py
+          tests/test_nace_hazard_binding.py
+          tests/test_risk_validity.py::test_nace_roadmap_endpoint_uses_assigned_company_and_fails_closed
           tests/test_training_question_bank.py
           tests/test_training_exact_question_factory.py
           tests/test_training_question_selection_v2.py

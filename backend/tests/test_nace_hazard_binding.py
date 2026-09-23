@@ -13,8 +13,9 @@ def test_all_catalog_rows_keep_the_official_count_and_legacy_aliases_are_additiv
     public = sectors_list_for_api(include_legacy_nace_aliases=True)
 
     assert len(official) == 2142
-    assert len(public) == len(official) + 5
+    assert len(public) == len(official) + 6
     assert {row["nace"] for row in public if row.get("is_legacy_alias")} == {
+        "35.13.01",
         "41.20.01",
         "41.20.02",
         "41.20.03",
@@ -30,6 +31,19 @@ def test_legacy_nace_resolves_to_its_exact_activity_and_hazard_class():
     assert "İkamet amaçlı binaların inşaatı" in result.nace_description
     assert result.hazard_class == "Çok Tehlikeli"
     assert len(result.training_topics) == 5
+
+
+def test_legacy_electricity_distribution_code_resolves_to_current_catalog_entry():
+    result = resolve_exact_nace("35.13.01")
+
+    assert result.nace_code == "35.13.01"
+    assert result.nace_description.startswith("Elektrik enerjisinin dağıtımı")
+    assert result.hazard_class == "Çok Tehlikeli"
+    assert result.source_snapshot["catalog_row"]["source_nace"] == "35.14.06"
+    assert result.classification_status == "verified"
+    assert {"electrical", "high_voltage", "energy_isolation"}.issubset(
+        set(result.technical_risk_tags)
+    )
 
 
 def test_company_hazard_class_is_derived_for_any_exact_nace_code():
