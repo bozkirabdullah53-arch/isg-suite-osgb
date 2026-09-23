@@ -312,7 +312,7 @@ export function Customer360Page({
           </section>
 
           {(data.alerts || []).length > 0 && (
-            <section className="panel" style={{marginBottom: 16, borderLeft: '4px solid #dc2626'}}>
+            <section className="panel customer-360-alerts" style={{marginBottom: 16, borderLeft: '4px solid #dc2626'}}>
               <h3 style={{margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8}}>
                 <AlertTriangle size={18} color="#b91c1c" />
                 Dikkat gerektiren

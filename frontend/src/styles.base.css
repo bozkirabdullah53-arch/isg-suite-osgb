@@ -483,6 +483,40 @@ nav button.active {
   color: #b91c1c;
   font-size: 12px;
 }
+
+/* Pulse the warning decoration while keeping its text fully visible. */
+.customer-360-alerts {
+  position: relative;
+  isolation: isolate;
+}
+.customer-360-alerts::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(220, 38, 38, .14), rgba(220, 38, 38, .02) 70%);
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, .35), 0 0 18px rgba(220, 38, 38, .16);
+  opacity: .4;
+}
+@keyframes customer-360-alert-pulse {
+  0%, 100% { opacity: .18; }
+  50% { opacity: .8; }
+}
+@media screen and (prefers-reduced-motion: no-preference) {
+  .customer-360-alerts::before {
+    animation: customer-360-alert-pulse 3.2s ease-in-out infinite;
+  }
+  .customer-360-alerts:hover::before,
+  .customer-360-alerts:focus-within::before {
+    animation-play-state: paused;
+  }
+}
+@media print {
+  .customer-360-alerts::before { display: none; }
+}
+
 @media (max-width: 650px) {
   .customer-360-company-picker { grid-template-columns: minmax(0, 1fr); }
   .customer-360-company-picker > small { grid-column: 1; }
