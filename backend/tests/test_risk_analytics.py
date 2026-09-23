@@ -199,3 +199,30 @@ def test_unmatched_personnel_scope_is_not_filled_with_company_total():
     assert result["summary"]["exposed_worker_count_total"] == 0
     assert result["summary"]["exposure_records_unmatched"] == 1
     assert result["observed_risks"][0]["exposure_count_source"] == "unmatched"
+
+
+def test_summary_deduplicates_workers_across_multiple_risk_rows():
+    company = SimpleNamespace(id=1, name="Tekrarlı maruziyet", hazard_class=None)
+    first = _risk(1, 11, 8, None)
+    first.department_name = "Üretim"
+    second = _risk(2, 11, 6, None)
+    second.department_name = "Üretim"
+    employees = [
+        _employee(1, department="Üretim", job_title="Operatör"),
+        _employee(2, department="Üretim", job_title="Operatör"),
+    ]
+
+    result = build_risk_analytics(
+        company,
+        risks=[first, second],
+        employees=employees,
+        hazard_map={11: SimpleNamespace(id=11, code="F-1", name="Gürültü", category_id=1)},
+        category_map={1: SimpleNamespace(id=1, name="Fiziksel Riskler")},
+        active_employee_count=2,
+    )
+
+    assert result["summary"]["exposure_assignments_total"] == 4
+    assert result["summary"]["unique_exposed_worker_count"] == 2
+    assert result["summary"]["exposed_worker_count_total"] == 2
+    assert result["risk_types"][0]["exposed_worker_count"] == 2
+    assert [row["exposed_worker_count"] for row in result["observed_risks"]] == [2, 2]

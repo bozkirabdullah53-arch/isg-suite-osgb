@@ -14,7 +14,7 @@ from typing import Any, Iterable, Mapping
 import unicodedata
 
 
-ANALYTICS_SCHEMA_VERSION = "risk-nace-analytics-v1"
+ANALYTICS_SCHEMA_VERSION = "risk-nace-analytics-v2"
 
 RISK_TYPE_ORDER = ("physical", "chemical", "biological", "ergonomic", "psychosocial", "other")
 
@@ -233,7 +233,20 @@ def _same_scope_text(left: object, right: object) -> bool:
     return bool(left_text and right_text and (left_text == right_text or left_text in right_text or right_text in left_text))
 
 
-def _personnel_exposure_match(row: Any, employees: Iterable[Any]) -> tuple[int, str]:
+def _employee_scope_key(employee: Any) -> tuple[str, object, object]:
+    """Return a non-sensitive identity key for in-memory de-duplication."""
+
+    employee_id = getattr(employee, "id", None)
+    branch_id = getattr(employee, "branch_id", None)
+    if employee_id is not None:
+        return ("employee", branch_id, employee_id)
+    return ("object", None, id(employee))
+
+
+def _personnel_exposure_match(
+    row: Any,
+    employees: Iterable[Any],
+) -> tuple[int, str, set[tuple[str, object, object]]]:
     """Count active employees whose stored scope matches one risk.
 
     The application has two structured personnel fields today: ``department``
@@ -258,7 +271,7 @@ def _personnel_exposure_match(row: Any, employees: Iterable[Any]) -> tuple[int, 
         return 0, "unmatched"
 
     risk_branch_id = getattr(row, "branch_id", None)
-    matched = 0
+    matched_keys: set[tuple[str, object, object]] = set()
     for employee in employees:
         employee_branch_id = getattr(employee, "branch_id", None)
         if risk_branch_id and employee_branch_id and risk_branch_id != employee_branch_id:
@@ -283,9 +296,9 @@ def _personnel_exposure_match(row: Any, employees: Iterable[Any]) -> tuple[int, 
         # böylece “Elektrik Trafosu” alanındaki elektrik teknisyeni gibi
         # kayıtlar yalnızca bölüm adı birebir aynı değil diye kaybolmaz.
         if department_match or department_token_match or job_activity_match or job_scope_match:
-            matched += 1
+            matched_keys.add(_employee_scope_key(employee))
 
-    return matched, "personnel_match" if matched else "unmatched"
+    return len(matched_keys), "personnel_match" if matched_keys else "unmatched", matched_keys
 
 
 def _fold(value: object) -> str:
@@ -324,6 +337,32 @@ def _safe_count(value: object) -> int:
         return max(0, int(value or 0))
     except (TypeError, ValueError):
         return 0
+
+
+def _unique_exposure_count(
+    matched_keys: set[tuple[str, object, object]],
+    reported_count: int,
+    assignment_count: int,
+    *,
+    personnel_available: bool,
+    employee_cap: int,
+) -> int:
+    """Estimate a de-duplicated count without ever exceeding the workforce.
+
+    Risk rows do not store employee IDs for manually reported counts, so those
+    rows cannot be perfectly de-duplicated. When personnel rows are available,
+    the known employee set is preferred and an explicit count is used only as
+    a conservative lower-information fallback. The visible result is always
+    bounded by the active workforce.
+    """
+
+    if personnel_available:
+        estimate = max(len(matched_keys), _safe_count(reported_count))
+    else:
+        estimate = _safe_count(assignment_count)
+    if employee_cap > 0:
+        estimate = min(estimate, employee_cap)
+    return estimate
 
 
 def _percentage(value: float, total: float) -> float:
@@ -408,10 +447,19 @@ def build_risk_analytics(
         key: _type_payload(key)
         for key in RISK_TYPE_ORDER
     }
+    type_matched_employee_keys: dict[str, set[tuple[str, object, object]]] = defaultdict(set)
+    type_reported_counts: dict[str, int] = defaultdict(int)
+    type_assignment_counts: dict[str, int] = defaultdict(int)
+    all_matched_employee_keys: set[tuple[str, object, object]] = set()
+    reported_exposure_count = 0
+    assignment_exposure_count = 0
     grouped: dict[tuple[str, str, str], dict[str, Any]] = defaultdict(
         lambda: {
             "risk_count": 0,
             "exposed_worker_count": 0,
+            "reported_exposure_count": 0,
+            "assignment_exposure_count": 0,
+            "matched_employee_keys": set(),
             "dominance_score": 0.0,
             "max_risk_score": 0.0,
             "risk_codes": [],
@@ -435,11 +483,13 @@ def build_risk_analytics(
         )
         score = max(0.0, _safe_float(getattr(row, "risk_score", None)))
         raw_exposed = getattr(row, "exposed_worker_count", None)
+        matched_employee_keys: set[tuple[str, object, object]] = set()
         if raw_exposed is not None:
             exposed = _safe_count(raw_exposed)
             exposure_source = "reported"
+            reported_exposure_count += exposed
         elif employee_rows is not None:
-            exposed, exposure_source = _personnel_exposure_match(row, employee_rows)
+            exposed, exposure_source, matched_employee_keys = _personnel_exposure_match(row, employee_rows)
         else:
             exposed = 0
             exposure_source = "unmatched"
@@ -449,13 +499,24 @@ def build_risk_analytics(
         dominance_score = max(score, 1.0) * max(exposed, 1)
         bucket = type_buckets[hazard_type]
         bucket["risk_count"] += 1
-        bucket["exposed_worker_count"] += exposed
+        type_assignment_counts[hazard_type] += exposed
+        assignment_exposure_count += exposed
+        if exposure_source == "reported":
+            type_reported_counts[hazard_type] += exposed
+        else:
+            type_matched_employee_keys[hazard_type].update(matched_employee_keys)
+            all_matched_employee_keys.update(matched_employee_keys)
         bucket["dominance_score"] += dominance_score
 
         group_key = (hazard_type, category_name, hazard_name)
         group = grouped[group_key]
         group["risk_count"] += 1
         group["exposed_worker_count"] += exposed
+        group["assignment_exposure_count"] += exposed
+        if exposure_source == "reported":
+            group["reported_exposure_count"] += exposed
+        else:
+            group["matched_employee_keys"].update(matched_employee_keys)
         group["dominance_score"] += dominance_score
         group["max_risk_score"] = max(group["max_risk_score"], score)
         if len(group["risk_codes"]) < 5 and getattr(row, "risk_code", None):
@@ -482,6 +543,19 @@ def build_risk_analytics(
                 "status": getattr(row, "status", None),
                 "dominance_score": round(dominance_score, 2),
             }
+        )
+
+    employee_cap = _safe_count(active_employee_count)
+    if employee_cap <= 0 and employee_rows is not None:
+        employee_cap = len(employee_rows)
+    personnel_available = employee_rows is not None
+    for key, item in type_buckets.items():
+        item["exposed_worker_count"] = _unique_exposure_count(
+            type_matched_employee_keys[key],
+            type_reported_counts[key],
+            type_assignment_counts[key],
+            personnel_available=personnel_available,
+            employee_cap=employee_cap,
         )
 
     total_dominance = sum(float(item["dominance_score"]) for item in type_buckets.values())
@@ -512,7 +586,13 @@ def build_risk_analytics(
                 "hazard_type_label": RISK_TYPE_META[hazard_type]["label"],
                 "color": RISK_TYPE_META[hazard_type]["color"],
                 "risk_count": int(group["risk_count"]),
-                "exposed_worker_count": int(group["exposed_worker_count"]),
+                "exposed_worker_count": _unique_exposure_count(
+                    group["matched_employee_keys"],
+                    group["reported_exposure_count"],
+                    group["assignment_exposure_count"],
+                    personnel_available=personnel_available,
+                    employee_cap=employee_cap,
+                ),
                 "dominance_score": round(float(group["dominance_score"]), 2),
                 "percentage": _percentage(float(group["dominance_score"]), total_dominance),
                 "max_risk_score": round(float(group["max_risk_score"]), 2),
@@ -558,6 +638,13 @@ def build_risk_analytics(
         default=None,
     )
     dominant_risk = dominant_risks[0] if dominant_risks else None
+    unique_exposed_worker_count = _unique_exposure_count(
+        all_matched_employee_keys,
+        reported_exposure_count,
+        assignment_exposure_count,
+        personnel_available=personnel_available,
+        employee_cap=employee_cap,
+    )
     nace_identity = roadmap.get("identity") or {}
     workplace = roadmap.get("workplace") or {}
     company_id = getattr(company, "id", None)
@@ -585,7 +672,9 @@ def build_risk_analytics(
         "summary": {
             "risk_record_count": len(observed_rows),
             "potential_hazard_count": len(potential_hazards),
-            "exposed_worker_count_total": sum(int(row["exposed_worker_count"]) for row in observed_rows),
+            "exposed_worker_count_total": unique_exposed_worker_count,
+            "unique_exposed_worker_count": unique_exposed_worker_count,
+            "exposure_assignments_total": assignment_exposure_count,
             "exposure_records_reported": sum(1 for row in observed_rows if row["exposure_count_reported"]),
             "exposure_records_matched": sum(
                 1 for row in observed_rows if row["exposure_count_source"] == "personnel_match"
@@ -611,7 +700,7 @@ def build_risk_analytics(
         "methodology": {
             "dominance_basis": "Risk skoru × max(açık kişi sayısı veya personel eşleşmesi, 1)",
             "percentage_note": "Yüzdeler işyerindeki aktif risk kayıtlarının ağırlıklı baskınlık payıdır.",
-            "exposure_note": "Maruz kişi hesabında önce risk kaydındaki açık sayı, sonra aktif personelin bölüm/görev-faaliyet eşleşmesi kullanılır. Eşleşmeyen kayıtta firma toplamı varsayılmaz; aynı çalışan birden fazla riskte tekrar sayılabilir.",
+            "exposure_note": "Risk satırındaki kişi sayısı o satıra eşleşen çalışanları gösterir. İşyeri toplamı ve tehlike türü özetinde aynı çalışan yalnızca bir kez sayılır; aynı kişi birden fazla risk satırında tekrar görünebilir. Açık kişi sayısı girilmiş ancak çalışan kimliği bulunmayan satırlar çalışan sayısı üst sınırıyla sınırlandırılır.",
             "nace_note": "NACE başlıkları aday tehlike kaynağıdır; saha/risk değerlendirmesi ile doğrulanmadan gerçekleşmiş risk kabul edilmez.",
         },
     }
