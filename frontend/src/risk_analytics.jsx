@@ -15,6 +15,8 @@ import {
 import {api} from './api';
 import {persistSelectedCompanyId, readPersistedCompanyId} from './nace_context';
 import './risk_analytics.css';
+import {RiskExposurePeople} from './risk_exposure_people';
+import {canViewExposurePeople, matchedWorkerCount} from './risk_exposure_logic';
 
 const TYPE_ICONS = {
   physical: Activity,
@@ -89,7 +91,12 @@ function DistributionBar({item, rank}) {
   );
 }
 
-function RiskTypeCard({item}) {
+function ExposureCount({item, label, onOpen}) {
+  const value = number(matchedWorkerCount(item));
+  return <><span>{onOpen ? <button type="button" className="ra-exposure-link" title="Çalışanları ve eşleşme gerekçelerini göster" aria-label={`${label}: ${value} çalışanı göster`} onClick={onOpen}>{value}<Users size={14} /></button> : value}</span>{Number(item?.reported_worker_count) > 0 && <small className="ra-reported-count">Ayrıca {number(item.reported_worker_count)} kişi beyanı · isim eşleşmesi bekliyor</small>}</>;
+}
+
+function RiskTypeCard({item, onOpen}) {
   return (
     <article className="ra-type-card" style={{'--ra-type-color': item.color || '#64748b'}}>
       <div className="ra-type-card-head">
@@ -98,7 +105,7 @@ function RiskTypeCard({item}) {
       </div>
       <div className="ra-type-card-stats">
         <div><strong>{number(item.risk_count)}</strong><span>Risk kaydı</span></div>
-        <div><strong>{number(item.exposed_worker_count)}</strong><span>Maruz kalan çalışan sayısı</span></div>
+        <div><strong><ExposureCount item={item} label={item.label} onOpen={onOpen} /></strong><span>Maruz kalan çalışan sayısı</span></div>
         <div><strong>{percent(item.percentage)}</strong><span>Dominans payı</span></div>
       </div>
     </article>
@@ -147,6 +154,9 @@ export function RiskAnalyticsPage({user, onNavigate}) {
   );
   const companyIdRef = useRef(companyId);
   const [data, setData] = useState(null);
+  const [exposure, setExposure] = useState(null);
+  const canReadPeople = canViewExposurePeople(user);
+  const openPeople = (scope = {}) => setExposure({companyId: String(companyId), ...scope});
   const analyticsRequestRef = useRef(0);
   const [busy, setBusy] = useState(false);
   const [companyBusy, setCompanyBusy] = useState(true);
@@ -194,6 +204,9 @@ export function RiskAnalyticsPage({user, onNavigate}) {
       const detail = event.detail || {};
       const next = String(detail.companyId ?? detail.company?.id ?? '');
       if (!next || (workplaceAccount && next !== String(user?.company_id || ''))) return;
+      analyticsRequestRef.current += 1;
+      setData(null);
+      setExposure(null);
       companyIdRef.current = next;
       setCompanyId(next);
     }
@@ -216,6 +229,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
 
   async function loadAnalytics(id = companyId) {
     const requestId = ++analyticsRequestRef.current;
+    setExposure(null);
     if (!id) {
       setData(null);
       setBusy(false);
@@ -226,7 +240,10 @@ export function RiskAnalyticsPage({user, onNavigate}) {
     setData(null);
     try {
       const result = await api(`/risks/analytics?company_id=${encodeURIComponent(id)}`);
-      if (requestId === analyticsRequestRef.current) setData(result);
+      if (requestId === analyticsRequestRef.current) {
+        if (String(result.company?.id) !== String(id)) throw new Error('İşyeri kapsamı değişti. Yeniden seçim yapın.');
+        setData(result);
+      }
     } catch (loadError) {
       if (requestId === analyticsRequestRef.current) {
         setError(loadError.message || 'Risk analitiği yüklenemedi.');
@@ -237,6 +254,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
   }
 
   useEffect(() => {
+    setExposure(null);
     if (!companyId) {
       analyticsRequestRef.current += 1;
       setData(null);
@@ -333,15 +351,16 @@ export function RiskAnalyticsPage({user, onNavigate}) {
           <section className="ra-metric-grid">
             <MetricCard icon={ShieldCheck} label="Baskın tehlike türü" value={summary.dominant_type || 'Henüz yok'} note={summary.dominant_risk ? `Kaynak: ${summary.dominant_risk}` : 'Risk kaydı oluştuğunda hesaplanır'} tone="teal" />
             <MetricCard icon={AlertTriangle} label="Aday tehlike kaynağı" value={number(summary.potential_hazard_count)} note="NACE profili üzerinden" tone="orange" />
-            <MetricCard icon={Users} label="Riske maruz kalan çalışan sayısı" value={number(summary.unique_exposed_worker_count ?? summary.exposed_worker_count_total)} note={`${number(summary.exposure_assignments_total)} risk eşleşmesi · ${number(summary.exposure_records_matched)} personel eşleşmesi`} tone="purple" />
+            <MetricCard icon={Users} label="Riske maruz kalan çalışan sayısı" value={<ExposureCount item={{...summary, exposed_worker_count: summary.unique_exposed_worker_count ?? summary.exposed_worker_count_total}} label="Tüm riskler" onOpen={canReadPeople ? () => openPeople() : null} />} note={`${number(summary.exposure_assignments_total)} risk eşleşmesi · ${number(summary.exposure_records_matched)} personel eşleşmesi`} tone="purple" />
             <MetricCard icon={Activity} label="Risk değerlendirmesi" value={number(summary.risk_record_count)} note={`${number(summary.exposure_records_unmatched ?? summary.exposure_records_missing)} kayıtta eşleşme bekliyor`} tone="blue" />
           </section>
 
+          <div className="ra-notice"><Info size={17} /><p>Çalışan sayıları bölüm ve görev bilgilerine dayalı eşleşmeleri gösterir. Sayıya tıklayarak isimleri ve gerekçeleri inceleyin; eğitim öncesinde saha kapsamını doğrulayın.</p></div>
           <div className="ra-section-heading"><div><span>RİSK ÖNCELİKLENDİRME</span><h2>Dominant risk görünümü</h2><p>Yüzde sıralaması, risk skoru ile maruz kalan kişi sayısını birlikte dikkate alır.</p></div></div>
           <section className="ra-chart-grid">
             <article className="ra-panel ra-panel--chart">
               <div className="ra-panel-title"><div><h3>Tehlike türleri dağılımı</h3><p>Fiziksel, kimyasal, biyolojik, ergonomik ve psikososyal risklerin ağırlıklı payı</p></div><Activity size={20} /></div>
-              {types.some((item) => item.risk_count > 0) ? <><DonutChart items={types} /><div className="ra-type-card-grid">{types.filter((item) => item.risk_count > 0).map((item) => <RiskTypeCard key={item.key} item={item} />)}</div></> : <div className="ra-chart-empty">Henüz işyerine ait aktif risk değerlendirmesi kaydı bulunmuyor.</div>}
+              {types.some((item) => item.risk_count > 0) ? <><DonutChart items={types} /><div className="ra-type-card-grid">{types.filter((item) => item.risk_count > 0).map((item) => <RiskTypeCard key={item.key} item={item} onOpen={canReadPeople ? () => openPeople({hazardType: item.key}) : null} />)}</div></> : <div className="ra-chart-empty">Henüz işyerine ait aktif risk değerlendirmesi kaydı bulunmuyor.</div>}
             </article>
             <article className="ra-panel ra-panel--chart">
               <div className="ra-panel-title"><div><h3>En yüksek dominant riskler</h3><p>Risk kaynağı bazında ağırlıklı baskınlık sıralaması</p></div><BarChart3 size={20} /></div>
@@ -356,14 +375,15 @@ export function RiskAnalyticsPage({user, onNavigate}) {
 
           <section className="ra-panel">
             <div className="ra-panel-title"><div><h3>İşyeri risk değerlendirmesi özeti</h3><p>Her satır, ilgili tehlike türüne maruz kalan çalışan sayısını gösterir. Aynı çalışan o satırda ve işyeri toplamında yalnızca bir kez sayılır; farklı tehlike türlerinde yer alabilir.</p></div><Users size={20} /></div>
-            <div className="ra-table-wrap"><table className="ra-table"><thead><tr><th>Tehlike türü</th><th>Risk kaydı</th><th>Riske maruz kalan çalışan sayısı</th><th>Dominans skoru</th><th>Pay</th></tr></thead><tbody>{types.map((item) => <tr key={item.key}><td><span className="ra-table-type"><span style={{background: item.color}} />{item.label}</span></td><td>{number(item.risk_count)}</td><td>{number(item.exposed_worker_count)}</td><td>{number(item.dominance_score)}</td><td><strong>{percent(item.percentage)}</strong></td></tr>)}{!types.some((item) => item.risk_count > 0) && <tr><td colSpan="5" className="ra-table-empty">Henüz risk değerlendirmesi kaydı yok.</td></tr>}</tbody></table></div>
+            <div className="ra-table-wrap"><table className="ra-table"><thead><tr><th>Tehlike türü</th><th>Risk kaydı</th><th>Riske maruz kalan çalışan sayısı</th><th>Dominans skoru</th><th>Pay</th></tr></thead><tbody>{types.map((item) => <tr key={item.key}><td><span className="ra-table-type"><span style={{background: item.color}} />{item.label}</span></td><td>{number(item.risk_count)}</td><td><ExposureCount item={item} label={item.label} onOpen={canReadPeople ? () => openPeople({hazardType: item.key}) : null} /></td><td>{number(item.dominance_score)}</td><td><strong>{percent(item.percentage)}</strong></td></tr>)}{!types.some((item) => item.risk_count > 0) && <tr><td colSpan="5" className="ra-table-empty">Henüz risk değerlendirmesi kaydı yok.</td></tr>}</tbody></table></div>
           </section>
 
-          {data.observed_risks?.length > 0 && <section className="ra-panel"><div className="ra-panel-title"><div><h3>En yüksek öncelikli kayıtlar</h3><p>İlk 10 kayıt, ağırlıklı dominantlık skoruna göre sıralanır.</p></div><ShieldCheck size={20} /></div><div className="ra-observed-list">{data.observed_risks.slice(0, 10).map((item, index) => <article key={item.id || item.risk_code || index}><div className="ra-observed-rank">{String(index + 1).padStart(2, '0')}</div><div className="ra-observed-main"><strong>{item.hazard}</strong><span>{item.category} · {item.activity || 'Faaliyet belirtilmemiş'}</span></div><div className="ra-observed-score"><strong>{number(item.risk_score)}</strong><small>risk skoru</small></div><div className="ra-observed-exposure"><strong>{number(item.exposed_worker_count)}</strong><small>{exposureSourceLabel(item.exposure_count_source)}</small></div><div className="ra-observed-percent">{percent(item.percentage)}</div></article>)}</div></section>}
+          {data.observed_risks?.length > 0 && <section className="ra-panel"><div className="ra-panel-title"><div><h3>En yüksek öncelikli kayıtlar</h3><p>İlk 10 kayıt, ağırlıklı dominantlık skoruna göre sıralanır.</p></div><ShieldCheck size={20} /></div><div className="ra-observed-list">{data.observed_risks.slice(0, 10).map((item, index) => <article key={item.id || item.risk_code || index}><div className="ra-observed-rank">{String(index + 1).padStart(2, '0')}</div><div className="ra-observed-main"><strong>{item.hazard}</strong><span>{item.category} · {item.activity || 'Faaliyet belirtilmemiş'}</span></div><div className="ra-observed-score"><strong>{number(item.risk_score)}</strong><small>risk skoru</small></div><div className="ra-observed-exposure"><strong><ExposureCount item={item} label={item.hazard} onOpen={canReadPeople ? () => openPeople({riskId: item.id}) : null} /></strong><small>{exposureSourceLabel(item.exposure_count_source)}</small></div><div className="ra-observed-percent">{percent(item.percentage)}</div></article>)}</div></section>}
 
           <footer className="ra-methodology"><Info size={16} /><span><strong>Hesaplama notu:</strong> {data.methodology?.dominance_basis}. {data.methodology?.exposure_note}</span></footer>
         </>
       )}
+      {exposure && canReadPeople && String(exposure.companyId) === String(companyId) && String(data?.company?.id) === String(companyId) && <RiskExposurePeople key={`${companyId}:${exposure.hazardType || ''}:${exposure.riskId || ''}`} {...exposure} onClose={() => setExposure(null)} />}
     </div>
   );
 }

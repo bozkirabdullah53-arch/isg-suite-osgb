@@ -175,130 +175,8 @@ _PHYSICAL_TERMS = (
     "lifting",
 )
 
-# Personel–risk eşleştirmesinde tek başına anlam taşımayan bağlaç ve rapor
-# kelimeleri. Eşleştirme isim üzerinden değil; bölüm, görev ve faaliyet
-# kapsamındaki anlamlı kelimeler üzerinden yapılır.
-_PERSONNEL_MATCH_STOP_WORDS = frozenset(
-    {
-        "ve",
-        "veya",
-        "ile",
-        "icin",
-        "olan",
-        "olarak",
-        "calisan",
-        "calisanlar",
-        "personel",
-        "ekip",
-        "is",
-        "isi",
-        "islem",
-        "faaliyet",
-        "proses",
-        "alan",
-        "bolum",
-        "risk",
-        "tehlike",
-        "kaynak",
-        "maruziyet",
-        "maruz",
-    }
-)
-
-
-def _meaningful_tokens(value: object) -> set[str]:
-    """Return normalized words suitable for conservative personnel matching."""
-
-    return {
-        token
-        for token in re.findall(r"[a-z0-9]+", _fold(value))
-        if len(token) >= 3 and token not in _PERSONNEL_MATCH_STOP_WORDS
-    }
-
-
-def _token_overlap(left: set[str], right: set[str]) -> bool:
-    """Allow simple Turkish suffix variations without fuzzy overmatching."""
-
-    return any(
-        first == second
-        or (len(first) >= 4 and len(second) >= 4 and (first.startswith(second) or second.startswith(first)))
-        for first in left
-        for second in right
-    )
-
-
-def _same_scope_text(left: object, right: object) -> bool:
-    left_text = _fold(left)
-    right_text = _fold(right)
-    return bool(left_text and right_text and (left_text == right_text or left_text in right_text or right_text in left_text))
-
-
-def _employee_scope_key(employee: Any) -> tuple[str, object, object]:
-    """Return a non-sensitive identity key for in-memory de-duplication."""
-
-    employee_id = getattr(employee, "id", None)
-    branch_id = getattr(employee, "branch_id", None)
-    if employee_id is not None:
-        return ("employee", branch_id, employee_id)
-    return ("object", None, id(employee))
-
-
-def _personnel_exposure_match(
-    row: Any,
-    employees: Iterable[Any],
-) -> tuple[int, str, set[tuple[str, object, object]]]:
-    """Count active employees whose stored scope matches one risk.
-
-    The application has two structured personnel fields today: ``department``
-    and ``job_title``. Risk rows provide ``department_name`` and ``activity``;
-    imported rows additionally carry the source risk/hazard text. A match is
-    deliberately conservative: an exact/contained department match or a
-    meaningful job-to-activity match is required. The company-wide employee
-    count is never copied to every risk.
-    """
-
-    risk_department = str(getattr(row, "department_name", None) or "").strip()
-    risk_activity = str(getattr(row, "activity", None) or "").strip()
-    risk_scope_values = (
-        risk_activity,
-        getattr(row, "risk_source", None),
-        getattr(row, "hazard_detail", None),
-        getattr(row, "risk_definition", None),
-    )
-    activity_tokens = _meaningful_tokens(risk_activity)
-    scope_tokens = _meaningful_tokens(" ".join(str(value or "") for value in risk_scope_values))
-    if not risk_department and not activity_tokens and not scope_tokens:
-        return 0, "unmatched"
-
-    risk_branch_id = getattr(row, "branch_id", None)
-    matched_keys: set[tuple[str, object, object]] = set()
-    for employee in employees:
-        employee_branch_id = getattr(employee, "branch_id", None)
-        if risk_branch_id and employee_branch_id and risk_branch_id != employee_branch_id:
-            continue
-
-        employee_department = str(getattr(employee, "department", None) or "").strip()
-        employee_job = str(getattr(employee, "job_title", None) or "").strip()
-        department_tokens = _meaningful_tokens(employee_department)
-        job_tokens = _meaningful_tokens(employee_job)
-
-        department_match = _same_scope_text(risk_department, employee_department)
-        department_token_match = bool(
-            risk_department
-            and department_tokens
-            and _token_overlap(_meaningful_tokens(risk_department), department_tokens)
-        )
-        job_activity_match = bool(activity_tokens and job_tokens and _token_overlap(job_tokens, activity_tokens))
-        job_scope_match = bool(scope_tokens and job_tokens and _token_overlap(job_tokens, scope_tokens))
-
-        # Bölüm eşleşmesi önceliklidir. Bölüm adı farklı tutulmuşsa görev ile
-        # faaliyet veya tehlike metninin anlamlı bir kesişimi de yeterlidir;
-        # böylece “Elektrik Trafosu” alanındaki elektrik teknisyeni gibi
-        # kayıtlar yalnızca bölüm adı birebir aynı değil diye kaybolmaz.
-        if department_match or department_token_match or job_activity_match or job_scope_match:
-            matched_keys.add(_employee_scope_key(employee))
-
-    return len(matched_keys), "personnel_match" if matched_keys else "unmatched", matched_keys
+# Counts and the named roster use the same explainable matcher.
+from app.services.risk_personnel import personnel_exposure_match as _personnel_exposure_match
 
 
 def _fold(value: object) -> str:
@@ -538,6 +416,8 @@ def build_risk_analytics(
                 "risk_score": round(score, 2),
                 "risk_level": getattr(row, "risk_level", None),
                 "exposed_worker_count": exposed,
+                "matched_worker_count": len(matched_employee_keys),
+                "reported_worker_count": exposed if exposure_source == "reported" else 0,
                 "exposure_count_reported": exposure_source == "reported",
                 "exposure_count_source": exposure_source,
                 "status": getattr(row, "status", None),
@@ -550,6 +430,8 @@ def build_risk_analytics(
         employee_cap = len(employee_rows)
     personnel_available = employee_rows is not None
     for key, item in type_buckets.items():
+        item["matched_worker_count"] = len(type_matched_employee_keys[key])
+        item["reported_worker_count"] = type_reported_counts[key]
         item["exposed_worker_count"] = _unique_exposure_count(
             type_matched_employee_keys[key],
             type_reported_counts[key],
@@ -586,6 +468,8 @@ def build_risk_analytics(
                 "hazard_type_label": RISK_TYPE_META[hazard_type]["label"],
                 "color": RISK_TYPE_META[hazard_type]["color"],
                 "risk_count": int(group["risk_count"]),
+                "matched_worker_count": len(group["matched_employee_keys"]),
+                "reported_worker_count": group["reported_exposure_count"],
                 "exposed_worker_count": _unique_exposure_count(
                     group["matched_employee_keys"],
                     group["reported_exposure_count"],
@@ -674,6 +558,8 @@ def build_risk_analytics(
             "potential_hazard_count": len(potential_hazards),
             "exposed_worker_count_total": unique_exposed_worker_count,
             "unique_exposed_worker_count": unique_exposed_worker_count,
+            "matched_worker_count": len(all_matched_employee_keys),
+            "reported_worker_count": reported_exposure_count,
             "exposure_assignments_total": assignment_exposure_count,
             "exposure_records_reported": sum(1 for row in observed_rows if row["exposure_count_reported"]),
             "exposure_records_matched": sum(
@@ -700,7 +586,7 @@ def build_risk_analytics(
         "methodology": {
             "dominance_basis": "Risk skoru × max(açık kişi sayısı veya personel eşleşmesi, 1)",
             "percentage_note": "Yüzdeler işyerindeki aktif risk kayıtlarının ağırlıklı baskınlık payıdır.",
-            "exposure_note": "Risk satırındaki kişi sayısı o satıra eşleşen çalışanları gösterir. İşyeri toplamı ve tehlike türü özetinde aynı çalışan yalnızca bir kez sayılır; aynı kişi birden fazla risk satırında tekrar görünebilir. Açık kişi sayısı girilmiş ancak çalışan kimliği bulunmayan satırlar çalışan sayısı üst sınırıyla sınırlandırılır.",
+            "exposure_note": "İsim listeleri bölüm ve görev bilgilerine dayalı otomatik eşleşme önerileridir; saha doğrulaması gerektirir. Eşleşme bulunmaması, maruziyet olmadığı anlamına gelmez. İşyeri toplamı ve tehlike türü özetinde aynı çalışan yalnızca bir kez sayılır; aynı kişi birden fazla risk satırında tekrar görünebilir. Açık kişi sayısı girilmiş ancak çalışan kimliği bulunmayan satırlar çalışan sayısı üst sınırıyla sınırlandırılır.",
             "nace_note": "NACE başlıkları aday tehlike kaynağıdır; saha/risk değerlendirmesi ile doğrulanmadan gerçekleşmiş risk kabul edilmez.",
         },
     }
