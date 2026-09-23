@@ -371,6 +371,44 @@ export function Customer360Page({
             <Metric label="Eğitim Kaydı" value={counts.trainings} />
           </div>
 
+          {data.first_aid && (
+            <Panel title="İlkyardımcı Yeterliliği" icon={HeartPulse}>
+              {!data.first_aid.hazard_known ? (
+                <p role="alert" style={{margin: 0, color: '#b45309'}}>Tehlike sınıfı belirlenemedi — ilkyardımcı yeterlilik hesabı yapılamıyor.</p>
+              ) : (
+                <>
+                  <div className="cards osgb-cards">
+                    <Metric label="Tehlike sınıfı" value={data.first_aid.hazard_class || '—'} />
+                    <Metric label="Aktif çalışan" value={data.first_aid.active_employee_count} />
+                    <Metric label="Zorunlu" value={data.first_aid.required_count} />
+                    <Metric label="Geçerli" value={data.first_aid.valid_count} />
+                    <Metric label="Eksik" value={data.first_aid.missing_count} tone={data.first_aid.missing_count ? 'danger' : undefined} />
+                  </div>
+                  <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12, fontSize: 13}}>
+                    <span>Geçerli: <strong>{data.first_aid.valid_count}</strong></span>
+                    <span>Yaklaşan: <strong style={{color: '#b45309'}}>{data.first_aid.expiring_soon_count}</strong></span>
+                    <span>Süresi dolmuş: <strong style={{color: '#b91c1c'}}>{data.first_aid.expired_count}</strong></span>
+                    <span>Bilgi eksik: <strong>{data.first_aid.incomplete_count}</strong></span>
+                  </div>
+                  <div style={{marginTop: 12, padding: '10px 12px', borderRadius: 10, background: data.first_aid.missing_count ? '#fef2f2' : '#f0fdf4', color: data.first_aid.missing_count ? '#991b1b' : '#166534'}} role="status">
+                    <strong>{data.first_aid.missing_count ? 'Mevzuata uygun değil' : 'İlkyardımcı sayısı yeterli'}</strong>
+                    {data.first_aid.future_missing_count > 0 && data.first_aid.missing_count === 0 && <div style={{marginTop: 4}}>Belgeler yenilenmezse 90 gün içinde {data.first_aid.future_missing_count} ilkyardımcı eksik kalacak.</div>}
+                  </div>
+                  {data.first_aid_people?.length > 0 && (
+                    <details style={{marginTop: 12}}>
+                      <summary style={{cursor: 'pointer', fontWeight: 700}}>İlkyardımcıları görüntüle ({data.first_aid_people.length})</summary>
+                      <div className="table-wrap" style={{marginTop: 10}}>
+                        <table><thead><tr><th>İlkyardımcı</th><th>Bölüm / Görev</th><th>Belge No</th><th>Geçerlilik</th><th>Durum</th></tr></thead><tbody>
+                          {data.first_aid_people.map((person) => <tr key={person.employee_id}><td>{person.name}</td><td>{[person.department, person.job_title].filter(Boolean).join(' / ') || '—'}</td><td>{person.certificate_no || '—'}</td><td>{person.end_date || '—'}</td><td>{person.status === 'valid' ? 'Geçerli' : person.status === 'expiring_soon' ? `Yaklaşıyor (${person.days_left} gün)` : person.status === 'expired' ? 'Süresi dolmuş' : 'Bilgi eksik'}</td></tr>)}
+                        </tbody></table>
+                      </div>
+                    </details>
+                  )}
+                </>
+              )}
+            </Panel>
+          )}
+
           <div className="customer-360-columns" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 16}}>
             <Panel title="Profil" icon={Building2}>
               <dl style={{margin: 0, display: 'grid', gap: 8, fontSize: 14}}>

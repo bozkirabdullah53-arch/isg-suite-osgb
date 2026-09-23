@@ -33,6 +33,7 @@ from app.models.entities import (
 )
 from app.services.osgb_oversight import build_oversight
 from app.services.capacity_engine import count_active_employees, compute_company_service_requirements
+from app.services.first_aid_compliance import build_first_aid_compliance, first_aid_alerts
 
 TYPE_LABELS = {
     "safety_specialist": "İSG Uzmanı",
@@ -389,6 +390,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
     }
 
     compliance = _compliance_slice(db, company)
+    first_aid = build_first_aid_compliance(db, company, today=today)
 
     alerts: list[dict] = []
     if compliance.get("worst_status") == "critical":
@@ -408,6 +410,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
                 }
             )
             break
+    alerts.extend(first_aid_alerts(first_aid))
 
     return {
         "company": {
@@ -441,6 +444,8 @@ def build_company_overview(db: Session, company: Company) -> dict:
         "contracts": contract_rows,
         "compliance": compliance,
         "health": health_summary,
+        "first_aid": {key: value for key, value in first_aid.items() if key != "people"},
+        "first_aid_people": first_aid["people"],
         "annual_plan": plan_summary,
         "ppe": {"overdue": ppe_overdue, "due_soon": ppe_due_soon},
         "incidents": incident_rows,
