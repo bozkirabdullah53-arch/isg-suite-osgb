@@ -17,11 +17,15 @@ export function compactNace(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
-// NACE Rev.2'nin önceki yayımlarında 41.20.xx olarak kullanılan yapı
-// faaliyetleri, güncel katalogda 41.00.xx altında yer alır. Bu küçük uyum
-// katmanı yalnızca eski kodları güncel satıra bağlar; tüm diğer NACE'ler
-// katalogdaki kendi tam kodlarıyla çözülür.
+// Eski NACE kodları, güncel katalogdaki faaliyet tanımı ve tehlike sınıfı
+// doğrulanmış tam karşılıklarına bağlanır; eski kod kimliği görünür kalır.
 export const LEGACY_NACE_ALIASES = Object.freeze([
+  Object.freeze({
+    nace: '35.13.01',
+    current_nace: '35.14.06',
+    name: 'Elektrik enerjisinin dağıtımı (üretim kaynağından veya iletim sisteminden son kullanıcıya iletim sistemiyle taşınan elektrik enerjisi dağıtım sisteminin işletilmesi)',
+    hazard_class: 'Çok Tehlikeli',
+  }),
   Object.freeze({
     nace: '41.20.01',
     current_nace: '41.00.02',
