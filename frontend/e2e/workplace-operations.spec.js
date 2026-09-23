@@ -57,6 +57,7 @@ async function setup(page, {
         company_id: company.id,
         items: [{
           key: 'risk-1', id: 1, company_id: company.id, source: 'Risk',
+          source_type: 'risk', parent_id: 1, term_kind: 'date',
           code: 'DÖF-TEST-42', title: 'Seçili firmanın düzeltici faaliyeti',
           parent: 'RSK-TEST-42', parentSummary: 'Firma kapsamı kontrolü',
           responsible: 'İşyeri Yetkilisi', term: '2026-01-01', status: 'Açık',
@@ -472,11 +473,22 @@ test('a fresh-tab DÖF link retains its company after reload', async ({page}) =>
   await page.goto('/#m=capa');
   await expect(page.locator('main.content')).toContainText('DÖF Yönetimi');
   await expect(page).toHaveURL(/m=capa&company=42$/);
-  await expect(page.getByRole('cell', {name: 'DÖF-TEST-42', exact: true})).toBeVisible();
+  const dofButton = page.getByRole('button', {name: 'DÖF-TEST-42 kaydını aç', exact: true});
+  await expect(dofButton).toBeEnabled();
   await page.reload();
   await expect(page).toHaveURL(/m=capa&company=42$/);
   await expect(page.locator('main.content .page-title')).toContainText(company.name);
-  await expect(page.getByRole('cell', {name: 'DÖF-TEST-42', exact: true})).toBeVisible();
+  await expect(dofButton).toBeEnabled();
+  await dofButton.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('heading', {name: 'DÖF · DÖF-TEST-42', exact: true})).toBeVisible();
+  await expect(dialog).toContainText(company.name);
+  await expect(dialog).toContainText('RSK-TEST-42');
+  await expect(dialog.getByRole('textbox', {name: 'DÖF açıklaması', exact: true})).toHaveValue('Seçili firmanın düzeltici faaliyeti');
+  await expect(dialog.getByRole('textbox', {name: 'DÖF açıklaması', exact: true})).toBeEditable();
+  await dialog.getByRole('button', {name: 'Kapat', exact: true}).click();
+  await expect(dialog).toHaveCount(0);
   await expect(page.locator('main.content').getByRole('alert')).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
