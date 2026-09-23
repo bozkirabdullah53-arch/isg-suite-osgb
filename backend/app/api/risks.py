@@ -626,7 +626,10 @@ def _import_hazard(
         )
     )
     if not hazard:
-        digest = hashlib.sha1(f"{category.name}|{name}".encode("utf-8")).hexdigest().upper()
+        digest = hashlib.sha1(
+            f"{category.name}|{name}".encode("utf-8"),
+            usedforsecurity=False,
+        ).hexdigest().upper()
         code = f"XLS-{digest[:12]}"
         suffix = 1
         while db.scalar(select(Hazard).where(Hazard.code == code)):
@@ -1272,14 +1275,16 @@ def risk_analytics(
         if category_ids
         else {}
     )
-    active_employee_count = int(
-        db.scalar(
-            select(func.count())
-            .select_from(Employee)
+    # Personel kapsamı aynı etkin işyeri sınırıyla okunur. Analitik servisi
+    # yalnızca sayıyı döndürür; isim/kimlik bilgisi dışarı taşınmaz.
+    active_employees = list(
+        db.scalars(
+            select(Employee)
             .where(Employee.company_id == effective, Employee.is_active.is_(True))
-        )
-        or 0
+            .order_by(Employee.id)
+        ).all()
     )
+    active_employee_count = len(active_employees)
     nace_code, nace_source = _resolve_company_nace(db, company)
     roadmap = build_risk_nace_roadmap(
         company,
@@ -1290,6 +1295,7 @@ def risk_analytics(
     return build_risk_analytics(
         company,
         risks=risks,
+        employees=active_employees,
         hazard_map=hazard_map,
         category_map=category_map,
         nace_roadmap=roadmap,
@@ -2263,6 +2269,7 @@ async def import_risk_excel(
                 risk_definition=item["risk_definition"],
                 affected_people=None,
                 affected_group="Çalışan",
+                exposed_worker_count=item.get("exposed_worker_count"),
                 existing_measures=item.get("existing_measures"),
                 additional_measures=item.get("additional_measures"),
                 probability=calc["probability"],

@@ -37,6 +37,12 @@ function percent(value) {
   return `${new Intl.NumberFormat('tr-TR', {maximumFractionDigits: 1}).format(parsed)}%`;
 }
 
+function exposureSourceLabel(source) {
+  if (source === 'reported') return 'risk kaydı';
+  if (source === 'personnel_match') return 'personel eşleşmesi';
+  return 'eşleşme bekliyor';
+}
+
 function StatusPill({status, label}) {
   const tone = status === 'verified' ? 'is-success' : status === 'missing' || status === 'invalid' ? 'is-danger' : 'is-warning';
   return <span className={`ra-status-pill ${tone}`}><span />{label || 'NACE durumu'}</span>;
@@ -139,6 +145,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
       ? String(user.company_id)
       : readPersistedCompanyId()
   );
+  const companyIdRef = useRef(companyId);
   const [data, setData] = useState(null);
   const analyticsRequestRef = useRef(0);
   const [busy, setBusy] = useState(false);
@@ -165,9 +172,12 @@ export function RiskAnalyticsPage({user, onNavigate}) {
           ? String(list[0].id)
           : '';
         const nextCompanyId = preferredExists ? preferred : singleAssignedCompany;
-        analyticsRequestRef.current += 1;
-        setData(null);
-        setCompanyId(nextCompanyId);
+        if (String(companyIdRef.current || '') !== String(nextCompanyId || '')) {
+          analyticsRequestRef.current += 1;
+          setData(null);
+          companyIdRef.current = nextCompanyId;
+          setCompanyId(nextCompanyId);
+        }
         if (nextCompanyId && !workplaceAccount) persistSelectedCompanyId(nextCompanyId);
         if (!nextCompanyId && !workplaceAccount) persistSelectedCompanyId('');
       } catch (loadError) {
@@ -184,6 +194,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
       const detail = event.detail || {};
       const next = String(detail.companyId ?? detail.company?.id ?? '');
       if (!next || (workplaceAccount && next !== String(user?.company_id || ''))) return;
+      companyIdRef.current = next;
       setCompanyId(next);
     }
 
@@ -191,6 +202,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
       if (workplaceAccount) return;
       analyticsRequestRef.current += 1;
       setCompanyId('');
+      companyIdRef.current = '';
       setData(null);
     }
 
@@ -243,6 +255,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
     setError('');
     setBusy(false);
     setCompanyId(nextCompanyId);
+    companyIdRef.current = nextCompanyId;
     persistSelectedCompanyId(nextCompanyId);
     if (selected) {
       window.dispatchEvent(new CustomEvent('isg:company-selected', {
@@ -266,7 +279,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
       <header className="ra-hero">
         <div>
           <h1><BarChart3 size={27} aria-hidden="true" /> Tehlike ve Risk Analitiği</h1>
-          <p>NACE kodundan gelen aday tehlike kaynaklarını, işyerinin gerçek risk değerlendirmesi kayıtlarıyla birlikte izleyin; baskın riski ve maruz kalan kişi sayısını tek bakışta görün.</p>
+          <p>NACE kodundan gelen aday tehlike kaynaklarını, işyerinin gerçek risk değerlendirmesi ve personel kapsamıyla birlikte izleyin; baskın riski ve maruz kalan kişi sayısını tek bakışta görün.</p>
         </div>
         <div className="ra-hero-badge"><ShieldCheck size={18} /> Salt okunur karar destek</div>
       </header>
@@ -320,8 +333,8 @@ export function RiskAnalyticsPage({user, onNavigate}) {
           <section className="ra-metric-grid">
             <MetricCard icon={ShieldCheck} label="Baskın tehlike türü" value={summary.dominant_type || 'Henüz yok'} note={summary.dominant_risk ? `Kaynak: ${summary.dominant_risk}` : 'Risk kaydı oluştuğunda hesaplanır'} tone="teal" />
             <MetricCard icon={AlertTriangle} label="Aday tehlike kaynağı" value={number(summary.potential_hazard_count)} note="NACE profili üzerinden" tone="orange" />
-            <MetricCard icon={Users} label="Bildirilen maruz kişi" value={number(summary.exposed_worker_count_total)} note={`${number(summary.exposure_records_reported)} risk kaydı sayı içeriyor`} tone="purple" />
-            <MetricCard icon={Activity} label="Risk değerlendirmesi" value={number(summary.risk_record_count)} note={`${number(summary.exposure_records_missing)} kayıtta kişi sayısı eksik`} tone="blue" />
+            <MetricCard icon={Users} label="Maruz kalan kişi" value={number(summary.exposed_worker_count_total)} note={`${number(summary.exposure_records_reported)} açık sayı · ${number(summary.exposure_records_matched)} personel eşleşmesi`} tone="purple" />
+            <MetricCard icon={Activity} label="Risk değerlendirmesi" value={number(summary.risk_record_count)} note={`${number(summary.exposure_records_unmatched ?? summary.exposure_records_missing)} kayıtta eşleşme bekliyor`} tone="blue" />
           </section>
 
           <div className="ra-section-heading"><div><span>RİSK ÖNCELİKLENDİRME</span><h2>Dominant risk görünümü</h2><p>Yüzde sıralaması, risk skoru ile maruz kalan kişi sayısını birlikte dikkate alır.</p></div></div>
@@ -342,11 +355,11 @@ export function RiskAnalyticsPage({user, onNavigate}) {
           </section>
 
           <section className="ra-panel">
-            <div className="ra-panel-title"><div><h3>İşyeri risk değerlendirmesi özeti</h3><p>Fiziksel, kimyasal, biyolojik, ergonomik ve psikososyal tehlike türlerinde bildirilen kişi sayıları</p></div><Users size={20} /></div>
+            <div className="ra-panel-title"><div><h3>İşyeri risk değerlendirmesi özeti</h3><p>Risk kaydındaki açık sayı veya personel bölüm–görev–faaliyet eşleşmesiyle hesaplanan kişi sayıları</p></div><Users size={20} /></div>
             <div className="ra-table-wrap"><table className="ra-table"><thead><tr><th>Tehlike türü</th><th>Risk kaydı</th><th>Maruz kişi</th><th>Dominans skoru</th><th>Pay</th></tr></thead><tbody>{types.map((item) => <tr key={item.key}><td><span className="ra-table-type"><span style={{background: item.color}} />{item.label}</span></td><td>{number(item.risk_count)}</td><td>{number(item.exposed_worker_count)}</td><td>{number(item.dominance_score)}</td><td><strong>{percent(item.percentage)}</strong></td></tr>)}{!types.some((item) => item.risk_count > 0) && <tr><td colSpan="5" className="ra-table-empty">Henüz risk değerlendirmesi kaydı yok.</td></tr>}</tbody></table></div>
           </section>
 
-          {data.observed_risks?.length > 0 && <section className="ra-panel"><div className="ra-panel-title"><div><h3>En yüksek öncelikli kayıtlar</h3><p>İlk 10 kayıt, ağırlıklı dominantlık skoruna göre sıralanır.</p></div><ShieldCheck size={20} /></div><div className="ra-observed-list">{data.observed_risks.slice(0, 10).map((item, index) => <article key={item.id || item.risk_code || index}><div className="ra-observed-rank">{String(index + 1).padStart(2, '0')}</div><div className="ra-observed-main"><strong>{item.hazard}</strong><span>{item.category} · {item.activity || 'Faaliyet belirtilmemiş'}</span></div><div className="ra-observed-score"><strong>{number(item.risk_score)}</strong><small>risk skoru</small></div><div className="ra-observed-exposure"><strong>{number(item.exposed_worker_count)}</strong><small>maruz kişi</small></div><div className="ra-observed-percent">{percent(item.percentage)}</div></article>)}</div></section>}
+          {data.observed_risks?.length > 0 && <section className="ra-panel"><div className="ra-panel-title"><div><h3>En yüksek öncelikli kayıtlar</h3><p>İlk 10 kayıt, ağırlıklı dominantlık skoruna göre sıralanır.</p></div><ShieldCheck size={20} /></div><div className="ra-observed-list">{data.observed_risks.slice(0, 10).map((item, index) => <article key={item.id || item.risk_code || index}><div className="ra-observed-rank">{String(index + 1).padStart(2, '0')}</div><div className="ra-observed-main"><strong>{item.hazard}</strong><span>{item.category} · {item.activity || 'Faaliyet belirtilmemiş'}</span></div><div className="ra-observed-score"><strong>{number(item.risk_score)}</strong><small>risk skoru</small></div><div className="ra-observed-exposure"><strong>{number(item.exposed_worker_count)}</strong><small>{exposureSourceLabel(item.exposure_count_source)}</small></div><div className="ra-observed-percent">{percent(item.percentage)}</div></article>)}</div></section>}
 
           <footer className="ra-methodology"><Info size={16} /><span><strong>Hesaplama notu:</strong> {data.methodology?.dominance_basis}. {data.methodology?.exposure_note}</span></footer>
         </>

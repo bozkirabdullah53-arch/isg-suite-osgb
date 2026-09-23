@@ -131,6 +131,15 @@ _HEADER_ALIASES: dict[str, str] = {
     "s15": "severity",
     "o": "probability",
     "o15": "probability",
+    "maruzkisisayisi": "exposed_worker_count",
+    "maruzkalankisisayisi": "exposed_worker_count",
+    "maruzcalisansayisi": "exposed_worker_count",
+    "maruzkalancalisansayisi": "exposed_worker_count",
+    "etkilenenkisisayisi": "exposed_worker_count",
+    "etkilencalisansayisi": "exposed_worker_count",
+    "etkilenencalisansayisi": "exposed_worker_count",
+    "calisansayisi": "exposed_worker_count",
+    "personelsayisi": "exposed_worker_count",
 }
 
 
@@ -238,6 +247,11 @@ def _fingerprint(item: dict[str, Any]) -> str:
         "photo_no",
     )
     raw = "\x1f".join(_cell(item.get(field)) for field in fields)
+    # Keep the legacy fingerprint byte-for-byte identical when the source
+    # workbook has no exposure column; this prevents an old upload from being
+    # imported a second time after the parser learns the optional field.
+    if item.get("exposed_worker_count") is not None:
+        raw += "\x1fexposed_worker_count\x1f" + _cell(item.get("exposed_worker_count"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
@@ -255,7 +269,8 @@ def build_import_risk_code(
     of the visible row count and makes retries deterministic.
     """
     digest = hashlib.sha1(
-        f"{company_id}:{source_fingerprint}".encode("utf-8")
+        f"{company_id}:{source_fingerprint}".encode("utf-8"),
+        usedforsecurity=False,
     ).hexdigest().upper()
     if collision_number > 0:
         return f"RSK-{digest[:12]}{collision_number:04d}"
@@ -371,6 +386,7 @@ def parse_risk_workbook(content: bytes, *, filename: str = "") -> dict[str, Any]
                 probability = _number(_value(values, header_mapping, "probability"))
                 severity = _number(_value(values, header_mapping, "severity"))
                 source_score = _number(_value(values, header_mapping, "source_score"))
+                exposed_worker_count = _number(_value(values, header_mapping, "exposed_worker_count"))
                 # Print-ready reports contain signature blocks and page notes
                 # below each table. They can populate one mapped column by
                 # coincidence, but are not candidate risk rows unless the
@@ -394,6 +410,11 @@ def parse_risk_workbook(content: bytes, *, filename: str = "") -> dict[str, Any]
                     )
                 if source_score is None:
                     source_score = float(calculated_score)
+                exposed_worker_count_int = (
+                    max(0, min(1_000_000, int(exposed_worker_count)))
+                    if exposed_worker_count is not None
+                    else None
+                )
                 term_text = _value(values, header_mapping, "term_text")
                 item = {
                     "source_sheet": worksheet.title[:120],
@@ -408,6 +429,7 @@ def parse_risk_workbook(content: bytes, *, filename: str = "") -> dict[str, Any]
                     "probability": probability_int,
                     "severity": severity_int,
                     "source_score": float(source_score),
+                    "exposed_worker_count": exposed_worker_count_int,
                     "existing_measures": _value(values, header_mapping, "existing_measures")[:2000] or None,
                     "additional_measures": _value(values, header_mapping, "additional_measures")[:2000] or None,
                     "term_text": term_text[:250] or None,

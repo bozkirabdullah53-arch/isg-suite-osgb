@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from math import isfinite
+import re
 from typing import Any, Iterable, Mapping
 import unicodedata
 
@@ -174,6 +175,118 @@ _PHYSICAL_TERMS = (
     "lifting",
 )
 
+# Personel–risk eşleştirmesinde tek başına anlam taşımayan bağlaç ve rapor
+# kelimeleri. Eşleştirme isim üzerinden değil; bölüm, görev ve faaliyet
+# kapsamındaki anlamlı kelimeler üzerinden yapılır.
+_PERSONNEL_MATCH_STOP_WORDS = frozenset(
+    {
+        "ve",
+        "veya",
+        "ile",
+        "icin",
+        "olan",
+        "olarak",
+        "calisan",
+        "calisanlar",
+        "personel",
+        "ekip",
+        "is",
+        "isi",
+        "islem",
+        "faaliyet",
+        "proses",
+        "alan",
+        "bolum",
+        "risk",
+        "tehlike",
+        "kaynak",
+        "maruziyet",
+        "maruz",
+    }
+)
+
+
+def _meaningful_tokens(value: object) -> set[str]:
+    """Return normalized words suitable for conservative personnel matching."""
+
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", _fold(value))
+        if len(token) >= 3 and token not in _PERSONNEL_MATCH_STOP_WORDS
+    }
+
+
+def _token_overlap(left: set[str], right: set[str]) -> bool:
+    """Allow simple Turkish suffix variations without fuzzy overmatching."""
+
+    return any(
+        first == second
+        or (len(first) >= 4 and len(second) >= 4 and (first.startswith(second) or second.startswith(first)))
+        for first in left
+        for second in right
+    )
+
+
+def _same_scope_text(left: object, right: object) -> bool:
+    left_text = _fold(left)
+    right_text = _fold(right)
+    return bool(left_text and right_text and (left_text == right_text or left_text in right_text or right_text in left_text))
+
+
+def _personnel_exposure_match(row: Any, employees: Iterable[Any]) -> tuple[int, str]:
+    """Count active employees whose stored scope matches one risk.
+
+    The application has two structured personnel fields today: ``department``
+    and ``job_title``. Risk rows provide ``department_name`` and ``activity``;
+    imported rows additionally carry the source risk/hazard text. A match is
+    deliberately conservative: an exact/contained department match or a
+    meaningful job-to-activity match is required. The company-wide employee
+    count is never copied to every risk.
+    """
+
+    risk_department = str(getattr(row, "department_name", None) or "").strip()
+    risk_activity = str(getattr(row, "activity", None) or "").strip()
+    risk_scope_values = (
+        risk_activity,
+        getattr(row, "risk_source", None),
+        getattr(row, "hazard_detail", None),
+        getattr(row, "risk_definition", None),
+    )
+    activity_tokens = _meaningful_tokens(risk_activity)
+    scope_tokens = _meaningful_tokens(" ".join(str(value or "") for value in risk_scope_values))
+    if not risk_department and not activity_tokens and not scope_tokens:
+        return 0, "unmatched"
+
+    risk_branch_id = getattr(row, "branch_id", None)
+    matched = 0
+    for employee in employees:
+        employee_branch_id = getattr(employee, "branch_id", None)
+        if risk_branch_id and employee_branch_id and risk_branch_id != employee_branch_id:
+            continue
+
+        employee_department = str(getattr(employee, "department", None) or "").strip()
+        employee_job = str(getattr(employee, "job_title", None) or "").strip()
+        department_tokens = _meaningful_tokens(employee_department)
+        job_tokens = _meaningful_tokens(employee_job)
+
+        department_match = _same_scope_text(risk_department, employee_department)
+        department_token_match = bool(
+            risk_department
+            and department_tokens
+            and _token_overlap(_meaningful_tokens(risk_department), department_tokens)
+        )
+        job_activity_match = bool(activity_tokens and job_tokens and _token_overlap(job_tokens, activity_tokens))
+        job_scope_match = bool(scope_tokens and job_tokens and _token_overlap(job_tokens, scope_tokens))
+
+        # Bölüm eşleşmesi önceliklidir. Bölüm adı farklı tutulmuşsa görev ile
+        # faaliyet veya tehlike metninin anlamlı bir kesişimi de yeterlidir;
+        # böylece “Elektrik Trafosu” alanındaki elektrik teknisyeni gibi
+        # kayıtlar yalnızca bölüm adı birebir aynı değil diye kaybolmaz.
+        if department_match or department_token_match or job_activity_match or job_scope_match:
+            matched += 1
+
+    return matched, "personnel_match" if matched else "unmatched"
+
 
 def _fold(value: object) -> str:
     text = unicodedata.normalize("NFKD", str(value or ""))
@@ -267,16 +380,29 @@ def build_risk_analytics(
     company: Any,
     *,
     risks: Iterable[Any] = (),
+    employees: Iterable[Any] | None = None,
     hazard_map: Mapping[int, Any] | None = None,
     category_map: Mapping[int, Any] | None = None,
     nace_roadmap: Mapping[str, Any] | None = None,
     active_employee_count: int = 0,
 ) -> dict[str, Any]:
-    """Build a read-only NACE and workplace risk analytics payload."""
+    """Build a read-only NACE and workplace risk analytics payload.
+
+    ``employees`` is optional for backwards-compatible callers and tests. The
+    API passes only active employees from the already scoped workplace. When a
+    risk has no explicit exposed-worker count, the employee list is used for a
+    conservative department/job/activity match; the company total is kept as
+    context and is not copied to each risk.
+    """
 
     hazard_map = hazard_map or {}
     category_map = category_map or {}
     roadmap = nace_roadmap or {}
+    employee_rows = (
+        [employee for employee in employees if getattr(employee, "is_active", True) is not False]
+        if employees is not None
+        else None
+    )
     observed_rows: list[dict[str, Any]] = []
     type_buckets = {
         key: _type_payload(key)
@@ -308,10 +434,18 @@ def build_risk_analytics(
             getattr(row, "risk_definition", None),
         )
         score = max(0.0, _safe_float(getattr(row, "risk_score", None)))
-        exposed = _safe_count(getattr(row, "exposed_worker_count", None))
-        # Çalışan sayısı kaydedilmemiş riskler de sıralamada kaybolmasın. Bu
-        # durumda tek risk ağırlığı kullanılır; bildirilen sayı varsa etkisi
-        # doğrudan ağırlığa yansır.
+        raw_exposed = getattr(row, "exposed_worker_count", None)
+        if raw_exposed is not None:
+            exposed = _safe_count(raw_exposed)
+            exposure_source = "reported"
+        elif employee_rows is not None:
+            exposed, exposure_source = _personnel_exposure_match(row, employee_rows)
+        else:
+            exposed = 0
+            exposure_source = "unmatched"
+        # Çalışan sayısı bulunamayan riskler sıralamada kaybolmasın. Bu
+        # durumda tek risk ağırlığı kullanılır; açık sayı veya güvenilir
+        # personel eşleşmesi varsa etkisi doğrudan ağırlığa yansır.
         dominance_score = max(score, 1.0) * max(exposed, 1)
         bucket = type_buckets[hazard_type]
         bucket["risk_count"] += 1
@@ -343,7 +477,8 @@ def build_risk_analytics(
                 "risk_score": round(score, 2),
                 "risk_level": getattr(row, "risk_level", None),
                 "exposed_worker_count": exposed,
-                "exposure_count_reported": getattr(row, "exposed_worker_count", None) is not None,
+                "exposure_count_reported": exposure_source == "reported",
+                "exposure_count_source": exposure_source,
                 "status": getattr(row, "status", None),
                 "dominance_score": round(dominance_score, 2),
             }
@@ -452,7 +587,17 @@ def build_risk_analytics(
             "potential_hazard_count": len(potential_hazards),
             "exposed_worker_count_total": sum(int(row["exposed_worker_count"]) for row in observed_rows),
             "exposure_records_reported": sum(1 for row in observed_rows if row["exposure_count_reported"]),
-            "exposure_records_missing": sum(1 for row in observed_rows if not row["exposure_count_reported"]),
+            "exposure_records_matched": sum(
+                1 for row in observed_rows if row["exposure_count_source"] == "personnel_match"
+            ),
+            "exposure_records_unmatched": sum(
+                1 for row in observed_rows if row["exposure_count_source"] == "unmatched"
+            ),
+            # Mevcut frontend sürümleri bu alanı kullanıyor; geriye dönük
+            # uyumluluk için “eşleşmeyen” kayıt sayısını koruyoruz.
+            "exposure_records_missing": sum(
+                1 for row in observed_rows if row["exposure_count_source"] == "unmatched"
+            ),
             "dominance_score_total": round(total_dominance, 2),
             "dominant_type": dominant_type["label"] if dominant_type else None,
             "dominant_type_key": dominant_type["key"] if dominant_type else None,
@@ -464,9 +609,9 @@ def build_risk_analytics(
         "potential_hazards": potential_hazards,
         "nace_warnings": list(roadmap.get("warnings") or []),
         "methodology": {
-            "dominance_basis": "Risk skoru × max(maruz kalan çalışan sayısı, 1)",
+            "dominance_basis": "Risk skoru × max(açık kişi sayısı veya personel eşleşmesi, 1)",
             "percentage_note": "Yüzdeler işyerindeki aktif risk kayıtlarının ağırlıklı baskınlık payıdır.",
-            "exposure_note": "Maruz kalan kişi toplamı risk kaydı bazında bildirilen sayıların toplamıdır; aynı çalışan birden fazla riskte tekrar sayılabilir.",
+            "exposure_note": "Maruz kişi hesabında önce risk kaydındaki açık sayı, sonra aktif personelin bölüm/görev-faaliyet eşleşmesi kullanılır. Eşleşmeyen kayıtta firma toplamı varsayılmaz; aynı çalışan birden fazla riskte tekrar sayılabilir.",
             "nace_note": "NACE başlıkları aday tehlike kaynağıdır; saha/risk değerlendirmesi ile doğrulanmadan gerçekleşmiş risk kabul edilmez.",
         },
     }
