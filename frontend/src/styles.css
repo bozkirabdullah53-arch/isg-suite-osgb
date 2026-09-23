@@ -46,13 +46,14 @@
 }
 
 /* Public training verification pages remain clean when a user prints a QR
-   result from a phone or desktop browser. */
+   result. Scope document-wide cleanup to that route: otherwise normal app
+   reports disappear from print preview too. */
 @media print {
-  body {
+  body:has(.training-verify-shell) {
     background: #fff !important;
   }
 
-  body * {
+  body:where(:has(.training-verify-shell)) * {
     visibility: hidden !important;
   }
 
@@ -166,8 +167,8 @@
     margin: 12mm;
   }
 
-  html,
-  body {
+  html:has(.training-verify-shell),
+  body:has(.training-verify-shell) {
     width: 100% !important;
     min-height: 0 !important;
     height: auto !important;
@@ -306,19 +307,19 @@
 
 /* Print-only cleanup: keep the public verification document on one page. */
 @media print {
-  html,
-  body,
-  #root {
+  html:has(.training-verify-shell),
+  body:has(.training-verify-shell),
+  #root:has(.training-verify-shell) {
     min-height: 0 !important;
     height: auto !important;
     overflow: visible !important;
   }
 
-  #root {
+  #root:has(.training-verify-shell) {
     display: block !important;
   }
 
-  #root > *:not(.training-verify-shell) {
+  #root:has(.training-verify-shell) > *:not(.training-verify-shell) {
     display: none !important;
   }
 
