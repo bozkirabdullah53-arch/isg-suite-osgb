@@ -294,7 +294,7 @@ const menuCatalog={
   ppe:['KKD Takip',HardHat],
   sds:['SDS / PKD',Beaker],
   tatbikat:['Tatbikat Yönetimi',Activity],
-  acil_ekipler:['Acil Durum Ekipleri/Destek Elemanları',Users],
+  acil_ekipler:['Acil Durum Ekipleri / Destek Elemanları',Users],
   acil_plan:['Acil Durum Planı / Kroki',ShieldAlert],
   periyodik_kontrol:['Periyodik Kontrol',ClipboardCheck],
   ortam_olcum:['Ortam Ölçüm',Gauge],
