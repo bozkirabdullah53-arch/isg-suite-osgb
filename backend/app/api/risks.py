@@ -108,7 +108,11 @@ from app.services.risk_scoring import (
 )
 from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
-from app.services.risk_excel_import import infer_category_name, parse_risk_workbook
+from app.services.risk_excel_import import (
+    build_import_risk_code,
+    infer_category_name,
+    parse_risk_workbook,
+)
 from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 
@@ -2189,7 +2193,6 @@ async def import_risk_excel(
         department_cache: dict[str, tuple[int, str]] = {}
         risk_codes = set(db.scalars(select(RiskAssessment.risk_code)).all())
         dof_codes = set(db.scalars(select(RiskDof.dof_code)).all())
-        next_risk_no = int(db.scalar(select(func.count()).select_from(RiskAssessment)) or 0) + 1
         assessment_date = None
         raw_assessment_date = (result.get("metadata") or {}).get("assessment_date")
         if raw_assessment_date:
@@ -2231,11 +2234,21 @@ async def import_risk_excel(
                 base_date=assessment_date,
             )
             client_reference = f"excel:{item['fingerprint']}"
-            while f"RSK-{next_risk_no:04d}" in risk_codes:
-                next_risk_no += 1
-            risk_code = f"RSK-{next_risk_no:04d}"
+            # Do not derive an imported code from a tenant-filtered count.
+            # RiskAssessment.risk_code is globally unique, and RLS can hide
+            # another workplace's RSK-0001 from this session.  A stable code
+            # based on the company + source row is safe across imports and
+            # retries; the collision suffix is only a last-resort guard.
+            collision_number = 0
+            risk_code = build_import_risk_code(company_id, item["fingerprint"])
+            while risk_code in risk_codes:
+                collision_number += 1
+                risk_code = build_import_risk_code(
+                    company_id,
+                    item["fingerprint"],
+                    collision_number,
+                )
             risk_codes.add(risk_code)
-            next_risk_no += 1
             row = RiskAssessment(
                 risk_code=risk_code,
                 company_id=company_id,

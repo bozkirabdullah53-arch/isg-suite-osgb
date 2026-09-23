@@ -4,7 +4,21 @@ from io import BytesIO
 
 from openpyxl import Workbook
 
-from app.services.risk_excel_import import parse_risk_workbook
+from app.services.risk_excel_import import build_import_risk_code, parse_risk_workbook
+
+
+def test_import_risk_code_does_not_depend_on_visible_global_risk_count() -> None:
+    first = build_import_risk_code(174, "a" * 32)
+    same_row = build_import_risk_code(174, "a" * 32)
+    other_company = build_import_risk_code(124, "a" * 32)
+    collision = build_import_risk_code(174, "a" * 32, 1)
+
+    assert first == same_row
+    assert first != other_company
+    assert first != collision
+    assert first.startswith("RSK-")
+    assert len(first) == 20
+    assert len(collision) == 20
 
 
 def _workbook_bytes() -> bytes:

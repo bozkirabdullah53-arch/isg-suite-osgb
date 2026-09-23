@@ -241,6 +241,27 @@ def _fingerprint(item: dict[str, Any]) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
+def build_import_risk_code(
+    company_id: int,
+    source_fingerprint: str,
+    collision_number: int = 0,
+) -> str:
+    """Build a stable, globally unique-looking code for an imported row.
+
+    Risk codes are globally unique, while tenant/RLS filtering can hide codes
+    belonging to other workplaces from the importer.  A count-based code such
+    as ``RSK-0001`` can therefore collide with an existing row.  Deriving the
+    code from the company and normalized source row keeps imports independent
+    of the visible row count and makes retries deterministic.
+    """
+    digest = hashlib.sha1(
+        f"{company_id}:{source_fingerprint}".encode("utf-8")
+    ).hexdigest().upper()
+    if collision_number > 0:
+        return f"RSK-{digest[:12]}{collision_number:04d}"
+    return f"RSK-{digest[:16]}"
+
+
 def _is_support_sheet(title: str) -> bool:
     """Exclude workbook documentation and tracking tabs from risk import."""
     normalized = _norm(title)
