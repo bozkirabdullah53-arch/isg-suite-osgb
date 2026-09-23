@@ -455,6 +455,77 @@ def test_workplace_manager_can_track_own_drills_and_download_report_only(workpla
     assert client.delete(f"/api/v1/drills/{own_id}", headers=headers).status_code == 403
 
 
+@pytest.mark.parametrize("account_key", ["manager_email", "kiosk_email"])
+def test_workplace_manager_can_read_and_download_own_documents_only(
+    workplace_client,
+    account_key,
+    tmp_path,
+    monkeypatch,
+):
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.models.entities import DocumentCategory, DocumentRecord
+
+    client, seed = workplace_client
+    upload_root = tmp_path / "uploads"
+    monkeypatch.setattr(settings, "upload_dir", str(upload_root))
+    own_dir = upload_root / str(seed["own_company_id"])
+    own_dir.mkdir(parents=True)
+    (own_dir / "own-policy.pdf").write_bytes(b"%PDF-1.4\nworkplace document")
+
+    with SessionLocal() as db:
+        own = DocumentRecord(
+            company_id=seed["own_company_id"],
+            category=DocumentCategory.GENERAL,
+            title="İşyeri Politikası",
+            file_name="own-policy.pdf",
+            description="[stored:own-policy.pdf]",
+            version="1.0",
+            created_by_id=seed["manager_id"],
+        )
+        foreign = DocumentRecord(
+            company_id=seed["foreign_company_id"],
+            category=DocumentCategory.GENERAL,
+            title="Başka İşyeri Belgesi",
+            file_name="foreign-policy.pdf",
+            description="[stored:foreign-policy.pdf]",
+            version="1.0",
+            created_by_id=seed["manager_id"],
+        )
+        db.add_all([own, foreign])
+        db.commit()
+        own_id = own.id
+
+    headers = _headers(_token(client, seed[account_key], seed["password"]))
+    listed = client.get("/api/v1/documents", headers=headers)
+    assert listed.status_code == 200, listed.text
+    assert {row["id"] for row in listed.json()} == {own_id}
+
+    downloaded = client.get(f"/api/v1/files/documents/{own_id}/download", headers=headers)
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.content == b"%PDF-1.4\nworkplace document"
+    assert "own-policy.pdf" in downloaded.headers.get("content-disposition", "")
+
+    create_attempt = client.post(
+        "/api/v1/documents",
+        headers=headers,
+        json={
+            "company_id": seed["own_company_id"],
+            "category": "general",
+            "title": "Yetkisiz belge",
+        },
+    )
+    assert create_attempt.status_code == 403
+
+    upload_attempt = client.post(
+        f"/api/v1/files/documents/{own_id}",
+        headers=headers,
+        files={"file": ("new.pdf", b"%PDF-1.4\nnew", "application/pdf")},
+    )
+    assert upload_attempt.status_code == 403
+    assert client.patch(f"/api/v1/documents/{own_id}/deactivate", headers=headers).status_code == 403
+
+
 def test_workplace_health_view_is_own_company_only_for_legacy_qr_account(workplace_client):
     from app.core.database import SessionLocal
     from app.models.entities import (

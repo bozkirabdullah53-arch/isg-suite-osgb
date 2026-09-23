@@ -6,7 +6,11 @@ import aiofiles
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    reject_company_bound_admin_from_osgb_internal,
+    require_roles,
+)
 from app.api.company_access import ensure_company_access
 from app.core.config import settings
 from app.core.database import get_db
@@ -56,6 +60,7 @@ async def upload_document_file(
         UserRole.SAFETY_SPECIALIST,
         UserRole.WORKPLACE_PHYSICIAN,
     )),
+    _workplace_guard: User = Depends(reject_company_bound_admin_from_osgb_internal),
 ):
     document = db.get(DocumentRecord, document_id)
     if not document:

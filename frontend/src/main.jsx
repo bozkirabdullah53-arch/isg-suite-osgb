@@ -1777,7 +1777,9 @@ const documentNames={general:'Genel',risk:'Risk',training:'Eğitim',health:'Sağ
 
 function DocumentsPage({user}){
   const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[busy,setBusy]=useState(false),[selectedFile,setSelectedFile]=useState(null);
-  const canEdit=['global_admin','company_admin','safety_specialist'].includes(user.role);
+  // İşyeri hesabı kendi dokümanlarını görür ve indirir; kayıt/yükleme/pasife alma
+  // işlemleri yalnızca OSGB yönetimi ve saha profesyonellerinde kalır.
+  const canEdit=!isWorkplaceAccountUser(user)&&['global_admin','company_admin','safety_specialist'].includes(user.role);
   const empty={company_id:user.company_id||'',branch_id:'',category:'general',title:'',file_name:'',description:'',valid_from:'',valid_until:'',version:'1.0'};
   const[form,setForm]=useState(empty);
   const load=()=>Promise.all([api('/companies'),api(`/documents${q?`?q=${encodeURIComponent(q)}`:''}`)]).then(([c,r])=>{setCompanies(c);setRows(r)});

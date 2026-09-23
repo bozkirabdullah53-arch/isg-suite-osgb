@@ -10,7 +10,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    reject_company_bound_admin_from_osgb_internal,
+    require_roles,
+)
 from app.core.database import get_db
 from app.models.entities import Company, DocumentRecord, User, UserRole
 from app.schemas.document import DocumentCreate, DocumentResponse
@@ -139,6 +143,7 @@ def create_document(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
+    _workplace_guard: User = Depends(reject_company_bound_admin_from_osgb_internal),
 ):
     ensure_access(db, user, payload.company_id)
     record = DocumentRecord(**payload.model_dump(), created_by_id=user.id)
@@ -181,6 +186,7 @@ def deactivate_document(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
+    _workplace_guard: User = Depends(reject_company_bound_admin_from_osgb_internal),
 ):
     """Dokümanı pasife alır; bağlı dosya merkezi arşive kopyalanır (EİSA erişimi)."""
     from pathlib import Path
