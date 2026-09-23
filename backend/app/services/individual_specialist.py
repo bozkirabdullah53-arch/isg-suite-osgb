@@ -42,7 +42,7 @@ def provision_individual_workspace(
     email: str,
     phone: str | None,
     certificate_class: str | None,
-    certificate_number: str,
+    certificate_number: str | None = None,
 ) -> tuple[OsgbOrganization, IsgProfessional, OsgbSubscription]:
     """Create an active isolated workspace; individual specialists are auto-approved."""
     now = datetime.utcnow()
@@ -82,7 +82,7 @@ def provision_individual_workspace(
         db.flush()
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(409, "Bu e-posta veya sertifika numarası zaten kayıtlı.") from exc
+        raise HTTPException(409, "Kayıt oluşturulamadı. Başvuru bilgilerinizi kontrol edin.") from exc
     return workspace, professional, subscription
 
 
