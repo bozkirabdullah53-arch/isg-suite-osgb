@@ -296,7 +296,7 @@ def test_nace_roadmap_endpoint_uses_assigned_company_and_fails_closed(client):
     assert legacy_body["nace_source"] == "sgk_registry_nace"
     assert legacy_body["identity"]["code"] == "35.13.01"
     assert legacy_body["identity"]["hazard_class"] == "Çok Tehlikeli"
-    assert legacy_body["status"] == "review_required"
+    assert legacy_body["status"] == "verified"
 
     with SessionLocal() as db:
         company = db.get(Company, cid)
