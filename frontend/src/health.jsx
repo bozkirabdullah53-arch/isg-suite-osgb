@@ -289,7 +289,7 @@ export function HealthPage({user}) {
     source: 'Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik, Ek-2',
   };
   const leadCounts = leadSummary?.counts || {};
-  const showLeadTracking = isPhysician || isEmployerView;
+  const showLeadTracking = isPhysician;
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -343,7 +343,7 @@ export function HealthPage({user}) {
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
         isPhysician ? api(`/health-records/analysis?${sumQs}`) : Promise.resolve(null),
-        (isPhysician || isEmployerView) ? api(`/health-records/lead-summary?${leadQs}`) : Promise.resolve(null),
+        isPhysician ? api(`/health-records/lead-summary?${leadQs}`) : Promise.resolve(null),
       ]);
 
       setRows(Array.isArray(r) ? r : []);
@@ -722,6 +722,14 @@ export function HealthPage({user}) {
     ['Akıllı özet', detailRow.smart_summary], ['Tetkik özeti', detailRow.tetkik_summary],
     ['Rapor dosyası', detailRow.report_file_name || (detailRow.has_report ? 'Mevcut' : 'Yok')],
   ] : [];
+  const employerDetail = detail.filter(([label]) => ![
+    'Hekim tanısı / değerlendirme', 'Laboratuvar sonuç özeti', 'Kronik hastalıklar',
+    'Geçmiş hastalık / ameliyat', 'Aile öyküsü', 'Kullanılan ilaçlar', 'Alerjiler',
+    'Sigara', 'Sigara paket-yıl', 'Alkol', 'Mesleki geçmiş', 'Geçmiş maruziyetler',
+    'Güncel yakınmalar', 'Hekim notu', 'Odyometri', 'SFT', 'Akciğer grafisi',
+    'Kan kurşun', 'Kurşun değerlendirme', 'Tıbbi gözetim eşiği', 'Önerilen tetkikler',
+    'Maruziyetler', 'Takip notu', 'Diğer biyolojik tetkik', 'Akıllı özet', 'Tetkik özeti',
+  ].includes(label));
 
   if (!canView) {
     return (
@@ -745,7 +753,7 @@ export function HealthPage({user}) {
         <div className="actions">
           <button type="button" className="secondary" onClick={load} disabled={busy}><RefreshCw size={16} /> Yenile</button>
           {isPhysician && <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>}
-          {(isPhysician || isEmployerView) && (
+          {isPhysician && (
             <button type="button" className="secondary" onClick={exportXlsx}>
               <Download size={16} /> {isEmployerView ? 'Excel İndir' : 'Excel'}
             </button>
@@ -756,10 +764,9 @@ export function HealthPage({user}) {
 
       {isEmployerView && (
         <section className="panel" style={{marginBottom: 16, borderColor: '#99f6e4', background: '#f0fdfa'}}>
-          <strong>İşyeri sağlık takip görünümü — salt okunur</strong>
+          <strong>Çalışma uygunluğu özeti — salt okunur</strong>
           <p style={{margin: '6px 0 0', color: '#115e59', fontSize: 14}}>
-            Tüm çalışanların sağlık kayıtları, tetkik sonuçları, uygunluk bilgileri, hekim notları ve rapor dosyası
-            salt-okunur olarak görüntülenebilir. Kayıtlar değiştirilemez; yalnızca kullanıcının yetkili olduğu işyerleri gösterilir.
+            Bu görünüm yalnızca çalışma uygunluğu, çalışma kısıtları ve takip tarihlerini içerir. Klinik sağlık bilgileri işyeri yöneticisine gösterilmez.
           </p>
         </section>
       )}
@@ -809,14 +816,14 @@ export function HealthPage({user}) {
             <option value="">Tüm kayıtlar</option>
             <option value="1">Yalnız geciken</option>
           </Select>
-          <Select label="Kan kurşunu" value={leadFilter} onChange={(e) => setLeadFilter(e.target.value)}>
+          {isPhysician && <Select label="Kan kurşunu" value={leadFilter} onChange={(e) => setLeadFilter(e.target.value)}>
             <option value="">Kurşun filtresi yok</option>
             <option value="measured">Ölçümü olanlar</option>
             <option value="surveillance">Tıbbi gözetim eşiğini aşanlar (&gt;{leadLimits.medical_surveillance_limit})</option>
             <option value="over_limit">Bağlayıcı sınırı aşanlar (&gt;{leadLimits.binding_limit})</option>
             <option value="critical">Kritik sınır aşımı (&gt;{Number(leadLimits.binding_limit || 70) * 1.5})</option>
             <option value="missing">Maruziyet var, sonuç yok</option>
-          </Select>
+          </Select>}
         </div>
         {message && <p style={{marginTop: 12, color: '#b91c1c'}}>{message}</p>}
       </section>
@@ -836,12 +843,6 @@ export function HealthPage({user}) {
           </article>
         ) : (
           <article className="metric"><span>Kurşun sınırı aşan</span><strong style={{color: '#b91c1c'}}>{summary?.lead_over_limit ?? '—'}</strong></article>
-        )}
-        {isEmployerView && (
-          <article className="metric">
-            <span>Kurşun sınırı aşan</span>
-            <strong style={{color: '#b91c1c'}}>{summary?.lead_over_limit ?? '—'}</strong>
-          </article>
         )}
       </div>
 
@@ -959,8 +960,8 @@ export function HealthPage({user}) {
                   <th>Tarih</th>
                   <th>Sonraki</th>
                   <th>Hekim</th>
-                  <th>{isEmployerView ? 'Sağlık bilgileri' : 'Tetkik'}</th>
-                  <th>Kan kurşunu</th>
+                  <th>{isEmployerView ? 'Uygunluk ve kısıtlar' : 'Tetkik'}</th>
+                  {!isEmployerView && <th>Kan kurşunu</th>}
                   {!isEmployerView && <th>Akıllı özet</th>}
                   <th>Durum</th>
                   <th>İşlem</th>
@@ -982,7 +983,7 @@ export function HealthPage({user}) {
                         ? (r.restrictions || 'Kısıtlama bildirilmemiştir.')
                         : (r.tetkik_summary || '—')}
                     </td>
-                    <td><LeadStatusBadge row={r} /></td>
+                    {!isEmployerView && <td><LeadStatusBadge row={r} /></td>}
                     {!isEmployerView && <td style={{fontSize: 12, maxWidth: 200}}>{r.smart_summary || '—'}</td>}
                     <td>{fitnessBadge(r.fitness_status, r.is_overdue, !isPhysician && !isEmployerView)}</td>
                     <td>
@@ -995,8 +996,8 @@ export function HealthPage({user}) {
                             <Printer size={12} /> İşveren Belgesi
                           </button>
                         )}
-                        {isEmployerView && <button type="button" className="mini" onClick={() => setDetailRow(r)}>Tüm Sağlık Bilgileri</button>}
-                        {(isPhysician || isEmployerView) && r.has_report && (
+                        {isEmployerView && <button type="button" className="mini" onClick={() => setDetailRow(r)}>Çalışma Uygunluğu ve Kısıtlar</button>}
+                        {isPhysician && r.has_report && (
                           <button type="button" className="mini" onClick={() => downloadReport(r)}><FileText size={12} /> Rapor</button>
                         )}
                         {isPhysician && <button type="button" className="mini" onClick={() => remove(r)}>Sil</button>}
@@ -1005,7 +1006,7 @@ export function HealthPage({user}) {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={isEmployerView ? 9 : 10} className="empty">
+                    <td colSpan={isEmployerView ? 8 : 10} className="empty">
                       {isEmployerView
                         ? 'Sağlık kaydı bulunamadı.'
                         : 'Kayıt yok. Yeni muayene ekleyebilirsiniz.'}
@@ -1019,9 +1020,9 @@ export function HealthPage({user}) {
       )}
 
       {detailRow && isEmployerView && (
-        <Modal title="Çalışanın Tüm Sağlık Bilgileri — Salt Okunur" close={() => setDetailRow(null)}>
+        <Modal title="Çalışma Uygunluğu Özeti — Salt Okunur" close={() => setDetailRow(null)}>
           <div className="form-grid">
-            {detail.map(([label, value]) => (
+            {employerDetail.map(([label, value]) => (
               <div key={label} className="field" style={{margin: 0}}>
                 <span>{label}</span>
                 <div style={{minHeight: 38, padding: '9px 10px', border: '1px solid #dbe3ee', borderRadius: 8, background: '#f8fafc', whiteSpace: 'pre-wrap'}}>
@@ -1031,7 +1032,7 @@ export function HealthPage({user}) {
             ))}
           </div>
           <div className="form-actions" style={{marginTop: 16}}>
-            {detailRow.has_report && <button type="button" onClick={() => downloadReport(detailRow)}><FileText size={15} /> Raporu İndir</button>}
+            {isPhysician && detailRow.has_report && <button type="button" onClick={() => downloadReport(detailRow)}><FileText size={15} /> Raporu İndir</button>}
             <button type="button" onClick={() => downloadHtmlDocument(detailRow)}><Download size={15} /> Sayfayı İndir</button>
             <button type="button" className="secondary" onClick={() => setDetailRow(null)}>Kapat</button>
           </div>

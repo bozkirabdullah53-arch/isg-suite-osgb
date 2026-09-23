@@ -647,12 +647,13 @@ function Login({done,onApply,onSpecialistApply}){
             </div>
           )}
           {mode==='login'&&(
-            <div style={{marginTop:14,display:'grid',gap:8}}>
-              <button type="button" className="secondary" onClick={onSpecialistApply} style={{width:'100%',justifyContent:'center'}}>
+            <div className="login-application-actions" style={{marginTop:14,display:'grid',gap:8}}>
+              <p className="login-application-heading">Başvuru seçenekleri</p>
+              <button type="button" className="secondary login-application-button login-application-button--specialist" onClick={onSpecialistApply} style={{width:'100%',justifyContent:'center'}}>
                 İş Güvenliği Uzmanı Bireysel Başvuru
               </button>
-              <p style={{margin:0,fontSize:12,color:'#64748b',textAlign:'center'}}>
-                OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>OSGB başvurusu</button>
+              <p className="login-application-note" style={{margin:0,fontSize:12,color:'#64748b',textAlign:'center'}}>
+                OSGB merkezi misiniz? <button type="button" className="linkish login-application-button--osgb" onClick={onApply}>OSGB başvurusu</button>
               </p>
             </div>
           )}

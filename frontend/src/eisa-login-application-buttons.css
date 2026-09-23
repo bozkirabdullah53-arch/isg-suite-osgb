@@ -1,72 +1,42 @@
-/* EİSA giriş ekranı — yalnız Uzman ve OSGB başvuru butonlarını
-   Giriş Yap butonuyla birebir aynı görsel stile getirir.
-   Auth/yönlendirme akışına ve diğer ekran öğelerine dokunmaz. */
+/* EİSA giriş ekranı başvuru aksiyonları: ana login eyleminden daha düşük ağırlık. */
 
-.login-card > div:has(> button.secondary + p button.linkish) {
-  gap: 10px !important;
-}
-
-.login-card > div:has(> button.secondary + p button.linkish) > p {
+.login-application-actions > .login-application-heading {
   margin: 0 !important;
-  font-size: 0 !important;
-  line-height: 0 !important;
-  color: transparent !important;
+  color: #526c78 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
 }
 
-.login-card > div:has(> button.secondary + p button.linkish) > button.secondary,
-.login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 100% !important;
-  min-height: 44px !important;
-  margin: 0 !important;
-  padding: 11px !important;
-  color: #ffffff !important;
-  font-size: 13px !important;
-  font-weight: 750 !important;
-  line-height: 1.25 !important;
-  text-align: center !important;
-  text-decoration: none !important;
-  cursor: pointer !important;
-}
-
-/* Modern temada Giriş Yap butonunun kullandığı stilin aynısı */
-html[data-ui-theme="modern"] .login-card > div:has(> button.secondary + p button.linkish) > button.secondary,
-html[data-ui-theme="modern"] .login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish {
-  position: relative !important;
-  overflow: hidden !important;
-  border: 0 !important;
-  border-radius: 14px !important;
-  background: var(--m-accent-grad) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), var(--m-shadow-accent) !important;
-  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease !important;
-}
-
-html[data-ui-theme="modern"] .login-card > div:has(> button.secondary + p button.linkish) > button.secondary:hover,
-html[data-ui-theme="modern"] .login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish:hover {
-  filter: brightness(1.07) !important;
-  transform: translateY(-2px) !important;
-}
-
-html[data-ui-theme="modern"] .login-card > div:has(> button.secondary + p button.linkish) > button.secondary:active,
-html[data-ui-theme="modern"] .login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish:active {
-  transform: translateY(0) scale(.99) !important;
-}
-
-/* Klasik temada da Giriş Yap ile aynı temel buton rengi */
-html:not([data-ui-theme="modern"]) .login-card > div:has(> button.secondary + p button.linkish) > button.secondary,
-html:not([data-ui-theme="modern"]) .login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish {
-  border: 0 !important;
-  border-radius: 10px !important;
-  background: #0f766e !important;
+.login-application-actions > .login-application-button--specialist {
+  border: 1px solid rgba(15, 118, 110, .3) !important;
+  border-radius: 12px !important;
+  color: #0f5f5a !important;
+  background: rgba(15, 118, 110, .08) !important;
   box-shadow: none !important;
 }
 
+.password-input-wrap { position: relative; }
+.password-input-wrap input { padding-right: 52px !important; }
+.password-toggle {
+  position: absolute !important;
+  top: 50% !important;
+  right: 4px !important;
+  display: inline-grid !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  place-items: center !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  color: #41606c !important;
+  background: transparent !important;
+  transform: translateY(-50%) !important;
+  box-shadow: none !important;
+}
+.password-toggle:hover { color: #0f766e !important; background: rgba(15,118,110,.08) !important; }
+
 @media (max-width: 420px) {
-  .login-card > div:has(> button.secondary + p button.linkish) > button.secondary,
-  .login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish {
-    min-height: 46px !important;
-    font-size: 12.5px !important;
-  }
+  .login-application-button--specialist { min-height: 46px !important; font-size: 12.5px !important; }
+  .login-application-button--osgb { min-height: 44px !important; }
 }

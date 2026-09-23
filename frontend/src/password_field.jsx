@@ -19,6 +19,7 @@ export function PasswordField({label, value, onChange, className = '', ...p}) {
           type="button"
           className="password-toggle"
           aria-label={show ? 'Şifreyi gizle' : 'Şifreyi göster'}
+          aria-pressed={show}
           title={show ? 'Şifreyi gizle' : 'Şifreyi göster'}
           onClick={() => setShow((s) => !s)}
         >
@@ -47,6 +48,7 @@ export function LoginPasswordInput({label, value, onChange, ...p}) {
           type="button"
           className="password-toggle"
           aria-label={show ? 'Şifreyi gizle' : 'Şifreyi göster'}
+          aria-pressed={show}
           title={show ? 'Şifreyi gizle' : 'Şifreyi göster'}
           onClick={() => setShow((s) => !s)}
         >

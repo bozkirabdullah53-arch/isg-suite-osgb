@@ -2080,16 +2080,16 @@ export function OsgbApplyPage({ onBack }) {
           <h1>OSGB Başvuru</h1>
           <p>Yetki ve vergi no ile kaydınız eşleşir. Onay sonrası deneme açılır.</p>
           <form className="form-grid apply-form" onSubmit={submit}>
-            <label className="field"><span>OSGB adı *</span><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-            <label className="field"><span>Yetki no *</span><input required value={form.authorization_number} onChange={(e) => setForm({ ...form, authorization_number: e.target.value })} /></label>
-            <label className="field"><span>Vergi no * (min. 8)</span><input required minLength={8} value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></label>
-            <label className="field"><span>Sorumlu müdür</span><input value={form.responsible_manager} onChange={(e) => setForm({ ...form, responsible_manager: e.target.value })} /></label>
-            <label className="field"><span>İletişim e-posta *</span><input type="email" required placeholder="ornek@firma.com" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></label>
-            <label className="field"><span>Telefon</span><input value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></label>
-            <label className="field apply-span-2"><span>Adres</span><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></label>
-            <label className="field"><span>Başvuran adı *</span><input required value={form.applicant_name} onChange={(e) => setForm({ ...form, applicant_name: e.target.value })} /></label>
-            <label className="field"><span>Başvuran e-posta *</span><input type="email" required placeholder="ornek@firma.com" value={form.applicant_email} onChange={(e) => setForm({ ...form, applicant_email: e.target.value })} /></label>
-            <label className="field apply-span-2"><span>Not</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
+            <label className="field"><span>OSGB adı *</span><input required autoComplete="organization" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+            <label className="field"><span>Yetki no *</span><input required inputMode="numeric" value={form.authorization_number} onChange={(e) => setForm({ ...form, authorization_number: e.target.value })} /></label>
+            <label className="field"><span>Vergi no * (min. 8)</span><input required minLength={8} inputMode="numeric" value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></label>
+            <label className="field"><span>Sorumlu müdür</span><input autoComplete="name" value={form.responsible_manager} onChange={(e) => setForm({ ...form, responsible_manager: e.target.value })} /></label>
+            <label className="field"><span>İletişim e-posta *</span><input type="email" autoComplete="email" required placeholder="ornek@firma.com" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></label>
+            <label className="field"><span>Telefon</span><input type="tel" autoComplete="tel" inputMode="tel" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></label>
+            <label className="field apply-span-2"><span>Adres</span><input autoComplete="street-address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></label>
+            <label className="field"><span>Başvuran adı *</span><input required autoComplete="name" value={form.applicant_name} onChange={(e) => setForm({ ...form, applicant_name: e.target.value })} /></label>
+            <label className="field"><span>Başvuran e-posta *</span><input type="email" autoComplete="email" required placeholder="ornek@firma.com" value={form.applicant_email} onChange={(e) => setForm({ ...form, applicant_email: e.target.value })} /></label>
+            <label className="field apply-span-2"><span>Not</span><textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
 
             <div className="apply-legal">
               <p>Metinleri okuyup onaylayın (Rev: {LEGAL_DOCS_VERSION})</p>
@@ -2100,8 +2100,7 @@ export function OsgbApplyPage({ onBack }) {
                   onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })}
                 />
                 <span>
-                  <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşmeyi</button>
-                  {' '}kabul ediyorum
+                  <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşmeyi görüntüle</button>{' '}kabul ediyorum
                 </span>
               </label>
               <label className="apply-check">
@@ -2111,8 +2110,7 @@ export function OsgbApplyPage({ onBack }) {
                   onChange={(e) => setForm({ ...form, personal_data_accepted: e.target.checked })}
                 />
                 <span>
-                  <button type="button" className="linkish" onClick={() => setLegalDoc(PRIVACY_NOTICE)}>KVKK</button>
-                  metnini kabul ediyorum
+                  <button type="button" className="linkish" onClick={() => setLegalDoc(PRIVACY_NOTICE)}>KVKK metnini görüntüle</button>{' '}kabul ediyorum
                 </span>
               </label>
             </div>
@@ -2198,13 +2196,13 @@ export function SpecialistRegisterPage({ onBack, onRegistered }) {
           ) : (
             <form className="form-grid apply-form" onSubmit={submit}>
               <label className="field"><span>Ad soyad *</span>
-                <input required minLength={2} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+                 <input required minLength={2} autoComplete="name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
               </label>
               <label className="field"><span>E-posta *</span>
-                <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                 <input type="email" required autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </label>
               <label className="field"><span>Telefon</span>
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                 <input type="tel" autoComplete="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </label>
               <label className="field"><span>Sertifika sınıfı *</span>
                 <select value={form.certificate_class} onChange={(e) => setForm({ ...form, certificate_class: e.target.value })}>
@@ -2214,25 +2212,23 @@ export function SpecialistRegisterPage({ onBack, onRegistered }) {
                 </select>
               </label>
               <label className="field"><span>Şifre *</span>
-                <input type="password" required minLength={10} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                 <input type="password" required minLength={10} autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
               </label>
               <label className="field"><span>Şifre tekrar *</span>
-                <input type="password" required minLength={10} value={form.password_confirm} onChange={(e) => setForm({ ...form, password_confirm: e.target.value })} />
+                 <input type="password" required minLength={10} autoComplete="new-password" value={form.password_confirm} onChange={(e) => setForm({ ...form, password_confirm: e.target.value })} />
               </label>
               <div className="apply-legal">
                 <p>Metinleri okuyup onaylayın (Rev: {LEGAL_DOCS_VERSION})</p>
                 <label className="apply-check">
                   <input type="checkbox" checked={form.contract_accepted} onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })} />
                   <span>
-                    <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşmeyi</button>
-                    {' '}kabul ediyorum
+                     <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşmeyi görüntüle</button>{' '}kabul ediyorum
                   </span>
                 </label>
                 <label className="apply-check">
                   <input type="checkbox" checked={form.personal_data_accepted} onChange={(e) => setForm({ ...form, personal_data_accepted: e.target.checked })} />
                   <span>
-                    <button type="button" className="linkish" onClick={() => setLegalDoc(PRIVACY_NOTICE)}>KVKK</button>
-                    {' '}metnini kabul ediyorum
+                     <button type="button" className="linkish" onClick={() => setLegalDoc(PRIVACY_NOTICE)}>KVKK metnini görüntüle</button>{' '}kabul ediyorum
                   </span>
                 </label>
               </div>
