@@ -2659,12 +2659,17 @@ function App(){
       setNaceCatalog(sectors);
       setContextCompaniesLoading(false);
       const persisted=readPersistedCompanyId();
+      const routeCompanyId=active==='customer_360'
+        ? String(readNavigationFromLocation().companyId||'')
+        : '';
       const preferredId=user.company_id
         ? String(user.company_id)
-        : requiresPageCompanySelection
-          ? ''
-          : (active==='osgb_dashboard'||active==='notifications' ? '' : persisted);
-      if(requiresPageCompanySelection) persistSelectedCompanyId('');
+        : routeCompanyId
+          ? routeCompanyId
+          : requiresPageCompanySelection
+            ? ''
+            : (active==='osgb_dashboard'||active==='notifications' ? '' : persisted);
+      if(requiresPageCompanySelection&&!routeCompanyId) persistSelectedCompanyId('');
       const preferred=companies.find((row)=>String(row.id)===preferredId);
       setSelectedContextCompanyId(preferred?String(preferred.id):'');
       setNaceDraft('');
@@ -2717,12 +2722,25 @@ function App(){
         setSelectedContextCompanyId('');
         setNaceDraft('');
         persistCompanyId('');
+        if(active==='customer_360'){
+          setC360Id(null);
+          setActive('companies');
+          try{sessionStorage.setItem('isg_active','companies')}catch{ /* ignore */ }
+          writeModuleToLocation('companies',{replace:true});
+        }
         return;
       }
       rememberCompany(company);
       setSelectedContextCompanyId(String(id));
       setNaceDraft('');
       persistCompanyId(id);
+      if(active==='customer_360'&&!isWorkplaceAccountUser(user)){
+        const nextCompanyId=Number(id);
+        if(Number.isFinite(nextCompanyId)&&nextCompanyId>0){
+          setC360Id(nextCompanyId);
+          writeModuleToLocation('customer_360',{replace:true,companyId:nextCompanyId});
+        }
+      }
     }
     function onCompanyUpdated(event){
       const company=event.detail?.company||event.detail;
@@ -2772,7 +2790,7 @@ function App(){
       window.removeEventListener('isg:nace-draft',onNaceDraft);
       window.removeEventListener('isg:nace-context-reset',onContextReset);
     };
-  },[logged,contextCompanies]);
+  },[logged,contextCompanies,active,user?.role,user?.company_id]);
 
   useEffect(()=>{
     if(naceDraftTimerRef.current){
@@ -2784,12 +2802,20 @@ function App(){
 
   useEffect(()=>{
     if(!logged||!user) return;
-    const shouldReset=requiresPageCompanySelection||active==='osgb_dashboard';
+    const shouldReset=active!=='customer_360'
+      && (requiresPageCompanySelection||active==='osgb_dashboard');
     if(!shouldReset) return;
     setSelectedContextCompanyId('');
     setNaceDraft('');
     persistSelectedCompanyId('');
   },[active,logged,user?.id,user?.role,user?.company_id,requiresPageCompanySelection]);
+
+  useEffect(()=>{
+    if(!logged||active!=='customer_360'||!c360Id) return;
+    setSelectedContextCompanyId(String(c360Id));
+    setNaceDraft('');
+    persistSelectedCompanyId(c360Id);
+  },[active,logged,c360Id]);
 
   const selectedContextCompany=contextCompanies.find(
     (row)=>String(row.id)===String(selectedContextCompanyId),
@@ -2821,6 +2847,12 @@ function App(){
     if(!company){
       setSelectedContextCompanyId('');
       persistSelectedCompanyId('');
+      if(active==='customer_360'){
+        setC360Id(null);
+        setActive('companies');
+        try{sessionStorage.setItem('isg_active','companies')}catch{ /* ignore */ }
+        writeModuleToLocation('companies',{replace:true});
+      }
       window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{
         detail:{source:'global-workplace-selector'},
       }));
@@ -3401,7 +3433,18 @@ function App(){
             onHome={goHome}
           >
             {active==='customer_360' && c360Id && !isWorkplaceAccountUser(user) ? (
-              <Customer360Page companyId={c360Id} onBack={closeCustomer360} onNavigate={goModule} user={user}/>
+              <Customer360Page
+                companyId={c360Id}
+                onBack={closeCustomer360}
+                onNavigate={goModule}
+                user={user}
+                companyOptions={contextCompanies}
+                canSelectCompany={canSelectGlobalCompany}
+                companiesLoading={contextCompaniesLoading}
+                companiesError={contextCompaniesError}
+                onCompanyChange={chooseGlobalContextCompany}
+                onRetryCompanyOptions={()=>setContextCompaniesRetry((value)=>value+1)}
+              />
             ) : pages[active] || (
               <section className="panel">
                 <h3 style={{marginTop:0}}>Modül bulunamadı</h3>

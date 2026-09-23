@@ -107,7 +107,18 @@ function SimpleTable({cols, rows, empty = 'Kayıt yok.'}) {
   );
 }
 
-export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
+export function Customer360Page({
+  companyId,
+  onBack,
+  onNavigate,
+  user = null,
+  companyOptions = [],
+  canSelectCompany = false,
+  companiesLoading = false,
+  companiesError = '',
+  onCompanyChange,
+  onRetryCompanyOptions,
+}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -228,6 +239,36 @@ export function Customer360Page({companyId, onBack, onNavigate, user = null}) {
           </div>
         </div>
       </header>
+
+      {canSelectCompany && (
+        <section className="customer-360-company-picker" aria-label="Firma seçimi">
+          <label htmlFor="customer-360-company-select">Firma / işyeri seçiniz</label>
+          <select
+            id="customer-360-company-select"
+            value={String(companyId || '')}
+            onChange={(event) => onCompanyChange?.(event.target.value)}
+            aria-label="Customer 360 firma / işyeri seçiniz"
+            data-global-company-selector="true"
+            disabled={companiesLoading || Boolean(companiesError) || !companyOptions.length}
+          >
+            <option value="">
+              {companiesLoading ? 'Firmalar yükleniyor…' : companiesError ? 'Firma listesi yüklenemedi' : 'Firma / işyeri seçiniz'}
+            </option>
+            {companyId && !companyOptions.some((row) => String(row.id) === String(companyId)) && (
+              <option value={String(companyId)}>{c?.name || `Firma ${companyId}`}</option>
+            )}
+            {companyOptions.map((company) => (
+              <option key={company.id} value={String(company.id)}>{company.name}</option>
+            ))}
+          </select>
+          {companiesError && (
+            <small role="alert">
+              Firma listesi yüklenemedi.{' '}
+              <button type="button" className="mini secondary" onClick={onRetryCompanyOptions}>Tekrar dene</button>
+            </small>
+          )}
+        </section>
+      )}
 
       {err && <p style={{color: '#b91c1c'}}>{err}</p>}
       {busy && !data && <p className="loading">Müşteri özeti yükleniyor…</p>}
