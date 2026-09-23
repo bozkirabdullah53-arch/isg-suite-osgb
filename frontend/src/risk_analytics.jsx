@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import {api} from './api';
+import {persistSelectedCompanyId, readPersistedCompanyId} from './nace_context';
 import './risk_analytics.css';
 
 const TYPE_ICONS = {
@@ -134,7 +135,9 @@ export function RiskAnalyticsPage({user, onNavigate}) {
   const workplaceAccount = user?.role === 'company_admin' && Number(user?.company_id) > 0;
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(
-    workplaceAccount && user?.company_id ? String(user.company_id) : ''
+    workplaceAccount && user?.company_id
+      ? String(user.company_id)
+      : readPersistedCompanyId()
   );
   const [data, setData] = useState(null);
   const analyticsRequestRef = useRef(0);
@@ -153,10 +156,20 @@ export function RiskAnalyticsPage({user, onNavigate}) {
         setCompanies(list);
         const preferred = workplaceAccount && user?.company_id
           ? String(user.company_id)
+          : readPersistedCompanyId();
+        const preferredExists = preferred && list.some((item) => String(item.id) === preferred);
+        const singleAssignedCompany = !preferredExists
+          && !workplaceAccount
+          && user?.role !== 'global_admin'
+          && list.length === 1
+          ? String(list[0].id)
           : '';
+        const nextCompanyId = preferredExists ? preferred : singleAssignedCompany;
         analyticsRequestRef.current += 1;
         setData(null);
-        setCompanyId(preferred);
+        setCompanyId(nextCompanyId);
+        if (nextCompanyId && !workplaceAccount) persistSelectedCompanyId(nextCompanyId);
+        if (!nextCompanyId && !workplaceAccount) persistSelectedCompanyId('');
       } catch (loadError) {
         if (!cancelled) setError(loadError.message || 'İşyeri listesi yüklenemedi.');
       } finally {
@@ -165,6 +178,29 @@ export function RiskAnalyticsPage({user, onNavigate}) {
     })();
     return () => { cancelled = true; };
   }, [user?.company_id, user?.role]);
+
+  useEffect(() => {
+    function handleCompanySelected(event) {
+      const detail = event.detail || {};
+      const next = String(detail.companyId ?? detail.company?.id ?? '');
+      if (!next || (workplaceAccount && next !== String(user?.company_id || ''))) return;
+      setCompanyId(next);
+    }
+
+    function handleCompanyReset() {
+      if (workplaceAccount) return;
+      analyticsRequestRef.current += 1;
+      setCompanyId('');
+      setData(null);
+    }
+
+    window.addEventListener('isg:company-selected', handleCompanySelected);
+    window.addEventListener('isg:nace-context-reset', handleCompanyReset);
+    return () => {
+      window.removeEventListener('isg:company-selected', handleCompanySelected);
+      window.removeEventListener('isg:nace-context-reset', handleCompanyReset);
+    };
+  }, [user?.company_id, workplaceAccount]);
 
   async function loadAnalytics(id = companyId) {
     const requestId = ++analyticsRequestRef.current;
@@ -201,11 +237,22 @@ export function RiskAnalyticsPage({user, onNavigate}) {
 
   function handleCompanyChange(event) {
     const nextCompanyId = event.target.value;
+    const selected = companies.find((item) => String(item.id) === String(nextCompanyId));
     analyticsRequestRef.current += 1;
     setData(null);
     setError('');
     setBusy(false);
     setCompanyId(nextCompanyId);
+    persistSelectedCompanyId(nextCompanyId);
+    if (selected) {
+      window.dispatchEvent(new CustomEvent('isg:company-selected', {
+        detail: {companyId: String(nextCompanyId), company: selected, source: 'risk-analytics'},
+      }));
+    } else {
+      window.dispatchEvent(new CustomEvent('isg:nace-context-reset', {
+        detail: {source: 'risk-analytics'},
+      }));
+    }
   }
 
   const selectedCompany = companies.find((item) => String(item.id) === String(companyId));
@@ -242,7 +289,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
           </label>
         )}
         <div className="ra-toolbar-actions">
-          {onNavigate && user?.role === 'safety_specialist' && <button type="button" className="ra-secondary-button" onClick={() => onNavigate('risk')}>Risk kayıtlarına git</button>}
+          {onNavigate && user?.role === 'safety_specialist' && <button type="button" className="ra-secondary-button" onClick={() => { if (companyId) persistSelectedCompanyId(companyId); onNavigate('risk'); }}>Risk kayıtlarına git</button>}
           <button type="button" className="ra-refresh-button" onClick={() => loadAnalytics()} disabled={!companyId || busy}><RefreshCw size={16} className={busy ? 'ra-spin' : ''} /> Yenile</button>
         </div>
       </section>

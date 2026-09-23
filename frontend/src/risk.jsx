@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
   AlertTriangle,
+  BarChart3,
   BookOpen,
   Building2,
   Camera,
@@ -19,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import {api, downloadFile, uploadFile, authBlobUrl} from './api';
+import {persistSelectedCompanyId, readPersistedCompanyId} from './nace_context';
 import {NaceRoadmapPanel, NaceRoadmapSummary} from './risk_nace_roadmap';
 import {createNavigationState, navigationIndex, parseNavigationLocation} from './navigation_history';
 import {isMatchingRiskId, normalizeRiskId} from './risk_detail_navigation';
@@ -465,7 +467,7 @@ function HazopGuide({data, calc, meta}) {
   );
 }
 
-export function RiskPage({user}) {
+export function RiskPage({user, onNavigate}) {
   const canEdit = ['global_admin', 'safety_specialist'].includes(user.role);
   const fieldRole = ['safety_specialist', 'workplace_physician', 'other_health_personnel'].includes(user.role);
   const empty = {
@@ -521,7 +523,9 @@ export function RiskPage({user}) {
   const [busy, setBusy] = useState(false);
   const [detailBusy, setDetailBusy] = useState(false);
   const [dlBusy, setDlBusy] = useState('');
-  const [reportCompanyId, setReportCompanyId] = useState(user.company_id || '');
+  const [reportCompanyId, setReportCompanyId] = useState(
+    user.company_id || readPersistedCompanyId() || '',
+  );
   const [tab, setTabState] = useState(() => readRiskViewFromLocation().tab);
   const [stats, setStats] = useState(null);
   const [dofs, setDofs] = useState([]);
@@ -751,7 +755,10 @@ export function RiskPage({user}) {
       setRiskMethods([]);
     }
     const cid = reportCompanyId || user.company_id || c[0]?.id;
-    if (cid && !reportCompanyId) setReportCompanyId(cid);
+    if (cid && !reportCompanyId) {
+      setReportCompanyId(cid);
+      persistSelectedCompanyId(cid);
+    }
     if (!cid && user.role === 'global_admin') {
       setRows([]);
       setErr('Risk listesi için firma seçiniz.');
@@ -1543,7 +1550,11 @@ export function RiskPage({user}) {
           {!user.company_id && (
             <select
               value={reportCompanyId}
-              onChange={(e) => setReportCompanyId(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setReportCompanyId(next);
+                persistSelectedCompanyId(next);
+              }}
               aria-label="Firma seçimi"
             >
               <option value="">Firma seçiniz</option>
@@ -1553,6 +1564,18 @@ export function RiskPage({user}) {
           <button type="button" className="btn" onClick={refreshAll}>
             <RefreshCw size={14} /> Yenile
           </button>
+          {onNavigate && canEdit && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                if (effectiveCompanyId) persistSelectedCompanyId(effectiveCompanyId);
+                onNavigate('risk_analytics');
+              }}
+            >
+              <BarChart3 size={14} /> Tehlike Analitiği
+            </button>
+          )}
           {canEdit && (
             <button type="button" className="btn" onClick={openImport}>
               <FileSpreadsheet size={14} /> Excel'den Aktar
