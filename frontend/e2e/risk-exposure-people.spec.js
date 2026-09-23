@@ -66,6 +66,8 @@ test('opens named reasons, filters a risk, builds a reviewed training list and p
   const dialog = page.getByRole('dialog', {name: 'Kimyasal'});
   await expect(dialog.getByText('Ayşe Test', {exact: true})).toBeVisible();
   await expect(dialog.getByText('Mehmet Test', {exact: true})).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('isg:company-selected', {detail: {companyId: '42'}})));
+  await expect(dialog.getByText('Ayşe Test', {exact: true})).toBeVisible();
   await dialog.locator('.ra-person-reasons summary').first().click();
   await expect(dialog.getByText('Bölüm bilgisi eşleşiyor: Şarj')).toBeVisible();
   await dialog.getByLabel('Risk / faaliyet').selectOption('10');

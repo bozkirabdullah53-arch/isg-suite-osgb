@@ -204,6 +204,7 @@ export function RiskAnalyticsPage({user, onNavigate}) {
       const detail = event.detail || {};
       const next = String(detail.companyId ?? detail.company?.id ?? '');
       if (!next || (workplaceAccount && next !== String(user?.company_id || ''))) return;
+      if (next === String(companyIdRef.current || '')) return;
       analyticsRequestRef.current += 1;
       setData(null);
       setExposure(null);
