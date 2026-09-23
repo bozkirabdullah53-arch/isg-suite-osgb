@@ -2,17 +2,20 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import re
 import uuid
 from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
+from zipfile import BadZipFile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from openpyxl.utils.exceptions import InvalidFileException
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 logger = logging.getLogger(__name__)
@@ -105,6 +108,7 @@ from app.services.risk_scoring import (
 )
 from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
+from app.services.risk_excel_import import infer_category_name, parse_risk_workbook
 from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 
@@ -412,6 +416,19 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         branch_id=row.branch_id,
         record_origin=getattr(row, "record_origin", None) or "risk",
         client_reference=getattr(row, "client_reference", None),
+        risk_source=getattr(row, "risk_source", None),
+        hazard_detail=getattr(row, "hazard_detail", None),
+        potential_consequence=getattr(row, "potential_consequence", None),
+        legislation_basis=getattr(row, "legislation_basis", None),
+        responsible=getattr(row, "responsible", None),
+        term_text=getattr(row, "term_text", None),
+        source_pn=getattr(row, "source_pn", None),
+        source_photo_no=getattr(row, "source_photo_no", None),
+        source_sheet=getattr(row, "source_sheet", None),
+        source_row=getattr(row, "source_row", None),
+        source_file=getattr(row, "source_file", None),
+        source_fingerprint=getattr(row, "source_fingerprint", None),
+        source_risk_score=getattr(row, "source_risk_score", None),
         observed_at=getattr(row, "observed_at", None),
         observation_location=getattr(row, "observation_location", None),
         gps_lat=getattr(row, "gps_lat", None),
@@ -424,7 +441,7 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         method_formula=method.get("formula"),
         hazop_data=hazop_data,
         hazard_code=hazard.code if hazard else None,
-        hazard_name=hazard.name if hazard else None,
+        hazard_name=(getattr(row, "hazard_detail", None) or (hazard.name if hazard else None)),
         category_name=category.name if category else None,
         department_name=row.department_name,
         activity=row.activity,
@@ -559,6 +576,120 @@ def _ensure_library(db: Session) -> None:
     count = db.scalar(select(func.count()).select_from(HazardCategory)) or 0
     if count == 0:
         seed_hazard_library(db)
+
+
+def _import_category(
+    db: Session,
+    category_name: str,
+    cache: dict[str, HazardCategory],
+) -> HazardCategory:
+    cached = cache.get(category_name)
+    if cached:
+        return cached
+    category = db.scalar(select(HazardCategory).where(HazardCategory.name == category_name))
+    if not category:
+        category = HazardCategory(
+            name=category_name[:150],
+            icon="bi-exclamation-triangle",
+            sort_order=999,
+        )
+        db.add(category)
+        db.flush()
+    cache[category_name] = category
+    return category
+
+
+def _import_hazard(
+    db: Session,
+    *,
+    category: HazardCategory,
+    name: str,
+    risk_source: str | None,
+    consequence: str | None,
+    legislation_basis: str | None,
+    probability: int,
+    severity: int,
+    cache: dict[tuple[int, str], Hazard],
+) -> Hazard:
+    key = (category.id, name)
+    cached = cache.get(key)
+    if cached:
+        return cached
+    hazard = db.scalar(
+        select(Hazard).where(
+            Hazard.category_id == category.id,
+            Hazard.name == name,
+        )
+    )
+    if not hazard:
+        digest = hashlib.sha1(f"{category.name}|{name}".encode("utf-8")).hexdigest().upper()
+        code = f"XLS-{digest[:12]}"
+        suffix = 1
+        while db.scalar(select(Hazard).where(Hazard.code == code)):
+            suffix += 1
+            code = f"XLS-{digest[:10]}{suffix:02d}"
+        hazard = Hazard(
+            category_id=category.id,
+            code=code[:20],
+            name=name[:250],
+            description=(consequence or "")[:2000] or None,
+            risk_source=(risk_source or "")[:250] or None,
+            regulations=json.dumps([legislation_basis], ensure_ascii=False) if legislation_basis else "[]",
+            default_probability=probability,
+            default_severity=severity,
+            is_active=True,
+        )
+        db.add(hazard)
+        db.flush()
+    cache[key] = hazard
+    return hazard
+
+
+def _import_department(
+    db: Session,
+    *,
+    company_id: int,
+    name: str,
+    cache: dict[str, tuple[int, str]],
+) -> tuple[int | None, str | None]:
+    normalized = re.sub(r"\s+", " ", (name or "").strip()).casefold()
+    if not normalized:
+        normalized = "içe aktarılan riskler"
+        name = "İçe Aktarılan Riskler"
+    if normalized in cache:
+        return cache[normalized]
+    resolved = _resolve_department(
+        db,
+        company_id=company_id,
+        department_id=None,
+        department_name=name[:200],
+    )
+    cache[normalized] = resolved
+    return resolved
+
+
+def _import_preview(
+    result: dict,
+    *,
+    new_rows: list[dict],
+    existing_count: int,
+) -> dict:
+    return {
+        "mode": "preview",
+        "success": True,
+        "filename": result["filename"],
+        "file_fingerprint": result["file_fingerprint"],
+        "total_rows": len(result["rows"]),
+        "new_rows": len(new_rows),
+        "duplicate_rows_existing": existing_count,
+        "duplicate_rows_in_file": result["duplicate_rows_in_file"],
+        "error_count": len(result["errors"]),
+        "errors": result["errors"][:50],
+        "warning_count": len(result["warnings"]),
+        "warnings": result["warnings"][:50],
+        "sheets": result["sheet_counts"],
+        "metadata": result["metadata"],
+    }
 
 
 @router.get("/meta")
@@ -1965,6 +2096,250 @@ def risk_record_report_pdf(
             "Content-Disposition": f'attachment; filename="saha-bulgu-{row.risk_code or row.id}.pdf"',
         },
     )
+
+
+@router.post("/import.xlsx")
+async def import_risk_excel(
+    company_id: int = Form(...),
+    dry_run: bool = Form(default=True),
+    confirm: bool = Form(default=False),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Preview or import a source-format 5x5 risk workbook.
+
+    The preview is read-only. Commit is additive and idempotent by the
+    normalized source row fingerprint; no existing risk or company metadata is
+    overwritten. Imported rows use the normal risk table, so dashboards,
+    analytics, reports and DÖF tracking consume them through existing paths.
+    """
+    ensure_access(db, user, company_id)
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+
+    filename = (file.filename or "risk-analizi.xlsx").strip()[:255]
+    extension = Path(filename).suffix.lower()
+    if extension not in {".xlsx", ".xlsm"}:
+        raise HTTPException(422, "Yalnızca .xlsx veya .xlsm risk analizi dosyası yükleyebilirsiniz.")
+
+    content = await file.read()
+    max_bytes = settings.max_upload_mb * 1024 * 1024
+    if not content:
+        raise HTTPException(422, "Boş Excel dosyası yüklenemez.")
+    if len(content) > max_bytes:
+        raise HTTPException(413, f"Excel dosyası {settings.max_upload_mb} MB sınırını aşıyor.")
+    assert_safe_upload(content, extension, filename)
+
+    try:
+        result = parse_risk_workbook(content, filename=filename)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except (BadZipFile, InvalidFileException, OSError) as exc:
+        raise HTTPException(
+            422,
+            "Excel dosyası açılamadı. Dosyayı Microsoft Excel'de .xlsx biçiminde yeniden kaydedip tekrar yükleyin.",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Risk Excel dosyası okunamadı: %s", filename)
+        raise HTTPException(422, "Excel dosyası okunamadı. 5x5 risk tablo başlıklarını kontrol edin.") from exc
+
+    if not result["rows"]:
+        detail = "Excel'de aktarılabilir 5x5 risk satırı bulunamadı."
+        if result["errors"]:
+            detail += f" İlk hata: {result['errors'][0]}"
+        raise HTTPException(422, detail)
+
+    # The import is also safe across a renamed/re-exported workbook because
+    # source_fingerprint is checked in addition to the client reference.
+    existing_pairs = db.execute(
+        select(RiskAssessment.client_reference, RiskAssessment.source_fingerprint).where(
+            RiskAssessment.company_id == company_id
+        )
+    ).all()
+    existing_refs = {row[0] for row in existing_pairs if row[0]}
+    existing_fingerprints = {row[1] for row in existing_pairs if row[1]}
+    new_rows: list[dict] = []
+    existing_count = 0
+    for item in result["rows"]:
+        client_reference = f"excel:{item['fingerprint']}"
+        if client_reference in existing_refs or item["fingerprint"] in existing_fingerprints:
+            existing_count += 1
+            continue
+        new_rows.append(item)
+
+    preview = _import_preview(result, new_rows=new_rows, existing_count=existing_count)
+    if dry_run:
+        return preview
+    if not confirm:
+        raise HTTPException(
+            409,
+            detail={
+                "message": "Önizleme tamamlandı; aktarım için onay gereklidir.",
+                **preview,
+            },
+        )
+
+    dof_created = 0
+    try:
+        _ensure_library(db)
+        category_cache: dict[str, HazardCategory] = {}
+        hazard_cache: dict[tuple[int, str], Hazard] = {}
+        department_cache: dict[str, tuple[int, str]] = {}
+        risk_codes = set(db.scalars(select(RiskAssessment.risk_code)).all())
+        dof_codes = set(db.scalars(select(RiskDof.dof_code)).all())
+        next_risk_no = int(db.scalar(select(func.count()).select_from(RiskAssessment)) or 0) + 1
+        assessment_date = None
+        raw_assessment_date = (result.get("metadata") or {}).get("assessment_date")
+        if raw_assessment_date:
+            try:
+                assessment_date = date.fromisoformat(raw_assessment_date)
+            except ValueError:
+                assessment_date = None
+        observed_at = datetime.combine(assessment_date, datetime.min.time()) if assessment_date else None
+        created_rows: list[tuple[RiskAssessment, dict]] = []
+
+        for item in new_rows:
+            category_name = infer_category_name(
+                item.get("process_area"),
+                item.get("risk_source"),
+                item.get("hazard"),
+            )
+            category = _import_category(db, category_name, category_cache)
+            hazard = _import_hazard(
+                db,
+                category=category,
+                name=item["hazard"],
+                risk_source=item.get("risk_source"),
+                consequence=item.get("consequence"),
+                legislation_basis=item.get("legislation_basis"),
+                probability=int(item["probability"]),
+                severity=int(item["severity"]),
+                cache=hazard_cache,
+            )
+            department_id, department_name = _import_department(
+                db,
+                company_id=company_id,
+                name=item.get("process_area") or "İçe Aktarılan Riskler",
+                cache=department_cache,
+            )
+            calc = evaluate(
+                int(item["probability"]),
+                int(item["severity"]),
+                term_override_days=item.get("term_days_hint"),
+                base_date=assessment_date,
+            )
+            client_reference = f"excel:{item['fingerprint']}"
+            while f"RSK-{next_risk_no:04d}" in risk_codes:
+                next_risk_no += 1
+            risk_code = f"RSK-{next_risk_no:04d}"
+            risk_codes.add(risk_code)
+            next_risk_no += 1
+            row = RiskAssessment(
+                risk_code=risk_code,
+                company_id=company_id,
+                record_origin="excel_import",
+                client_reference=client_reference,
+                observed_at=observed_at,
+                department_id=department_id,
+                hazard_id=hazard.id,
+                method_code="5x5_l",
+                department_name=department_name,
+                activity=item["activity"],
+                risk_definition=item["risk_definition"],
+                affected_people=None,
+                affected_group="Çalışan",
+                existing_measures=item.get("existing_measures"),
+                additional_measures=item.get("additional_measures"),
+                probability=calc["probability"],
+                frequency=None,
+                severity=calc["severity"],
+                risk_score=calc["risk_score"],
+                risk_level=calc["risk_level"],
+                term_days=calc["term_days"],
+                term_date=date.fromisoformat(calc["term_date"]),
+                term_suggested=calc["term_suggested"],
+                term_overridden=calc["term_overridden"],
+                status="Açık",
+                created_by_id=user.id,
+                risk_source=item.get("risk_source"),
+                hazard_detail=item.get("hazard"),
+                potential_consequence=item.get("consequence"),
+                legislation_basis=item.get("legislation_basis"),
+                responsible=item.get("responsible"),
+                term_text=item.get("term_text"),
+                source_pn=item.get("source_pn"),
+                source_photo_no=item.get("photo_no"),
+                source_sheet=item.get("source_sheet"),
+                source_row=item.get("source_row"),
+                source_file=filename,
+                source_fingerprint=item["fingerprint"],
+                source_risk_score=item.get("source_score"),
+            )
+            db.add(row)
+            created_rows.append((row, item))
+
+        db.flush()
+        for row, item in created_rows:
+            measure = (item.get("additional_measures") or "").strip()
+            if not measure:
+                continue
+            dof_code = f"DÖF-XLS-{item['fingerprint'][:10]}"
+            suffix = 1
+            while dof_code in dof_codes:
+                suffix += 1
+                dof_code = f"DÖF-XLS-{item['fingerprint'][:8]}{suffix:02d}"
+            dof_codes.add(dof_code)
+            db.add(
+                RiskDof(
+                    dof_code=dof_code[:20],
+                    risk_id=row.id,
+                    client_reference=f"excel:{item['fingerprint']}:dof",
+                    description=measure,
+                    responsible_person=(item.get("responsible") or "")[:150] or None,
+                    responsible_department=(row.department_name or "")[:150] or None,
+                    term_date=row.term_date,
+                    status="Açık",
+                    is_completed=False,
+                    created_by_id=user.id,
+                )
+            )
+            dof_created += 1
+
+        add_audit_log(
+            db,
+            user=user,
+            action="CREATE",
+            entity_type="risk_excel_import",
+            entity_id=result["file_fingerprint"],
+            company_id=company_id,
+            description=(
+                f"5x5 Excel risk analizi aktarıldı: {len(created_rows)} risk, "
+                f"{dof_created} DÖF, kaynak {filename}"
+            ),
+            module="risk",
+        )
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Risk Excel aktarımı veritabanına yazılamadı: %s", filename)
+        raise HTTPException(500, "Risk Excel aktarımı sırasında veritabanı işlemi tamamlanamadı.") from exc
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Risk Excel aktarımı başarısız: %s", filename)
+        raise HTTPException(500, "Risk Excel aktarımı sırasında beklenmeyen bir hata oluştu.") from exc
+
+    return {
+        **preview,
+        "mode": "imported",
+        "new_rows": 0,
+        "duplicate_rows_existing": existing_count + len(created_rows),
+        "created": len(created_rows),
+        "dof_created": dof_created,
+        "skipped_existing": existing_count,
+        "message": f"{len(created_rows)} risk kaydı uygulamaya aktarıldı.",
+    }
 
 
 @router.get("/{risk_id}", response_model=RiskResponse)

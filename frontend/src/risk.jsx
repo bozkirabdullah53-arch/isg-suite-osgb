@@ -543,6 +543,11 @@ export function RiskPage({user}) {
   const [naceRoadmap, setNaceRoadmap] = useState(null);
   const [naceBusy, setNaceBusy] = useState(false);
   const [naceErr, setNaceErr] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
   const detailRequestRef = useRef(0);
   const detailSectionRef = useRef(null);
 
@@ -1404,6 +1409,61 @@ export function RiskPage({user}) {
     }
   }
 
+  function openImport() {
+    setImportFile(null);
+    setImportPreview(null);
+    setImportMsg('');
+    setImportOpen(true);
+  }
+
+  async function previewImport() {
+    if (!importFile) {
+      setImportMsg('Önce .xlsx veya .xlsm dosyası seçin.');
+      return;
+    }
+    if (!effectiveCompanyId) {
+      setImportMsg('Aktarım için firma seçin.');
+      return;
+    }
+    setImportBusy(true);
+    setImportMsg('Dosya okunuyor ve önizleme hazırlanıyor…');
+    try {
+      const preview = await uploadFile(
+        '/risks/import.xlsx',
+        importFile,
+        {company_id: Number(effectiveCompanyId), dry_run: 'true'},
+        {timeoutMs: 15 * 60 * 1000},
+      );
+      setImportPreview(preview);
+      setImportMsg('Önizleme hazır. Onaylamadan önce aktarılacak satır sayısını kontrol edin.');
+    } catch (x) {
+      setImportMsg(x.message || 'Excel önizlemesi alınamadı.');
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  async function commitImport() {
+    if (!importFile || !effectiveCompanyId || !importPreview?.new_rows) return;
+    setImportBusy(true);
+    setImportMsg('Riskler ve bağlı DÖF kayıtları aktarılıyor…');
+    try {
+      const result = await uploadFile(
+        '/risks/import.xlsx',
+        importFile,
+        {company_id: Number(effectiveCompanyId), dry_run: 'false', confirm: 'true'},
+        {timeoutMs: 20 * 60 * 1000},
+      );
+      setImportPreview(result);
+      setImportMsg(result.message || 'Aktarım tamamlandı.');
+      await refreshAll();
+    } catch (x) {
+      setImportMsg(x.message || 'Excel aktarımı tamamlanamadı.');
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
   const companyBranches = useMemo(
     () => branches.filter((b) => String(b.company_id) === String(form.company_id)),
     [branches, form.company_id],
@@ -1493,6 +1553,11 @@ export function RiskPage({user}) {
           <button type="button" className="btn" onClick={refreshAll}>
             <RefreshCw size={14} /> Yenile
           </button>
+          {canEdit && (
+            <button type="button" className="btn" onClick={openImport}>
+              <FileSpreadsheet size={14} /> Excel'den Aktar
+            </button>
+          )}
           {canEdit && (
             <button type="button" className="btn btn-primary" onClick={openCreate}>
               <Plus size={14} /> Yeni Risk
@@ -2267,7 +2332,7 @@ export function RiskPage({user}) {
                   <td>{r.risk_code}</td>
                   <td>{r.department_name || '—'}</td>
                   <td>{r.activity}</td>
-                  <td>{r.hazard_code ? `${r.hazard_code} — ${r.hazard_name}` : r.hazard_id}</td>
+                  <td>{r.hazard_code ? `${r.hazard_code} — ${r.hazard_detail || r.hazard_name}` : (r.hazard_detail || r.hazard_id)}</td>
                   {showMethodColumns && <td>{r.method_label || (r.method_code === 'fine_kinney' ? 'Fine–Kinney' : (r.method_code === 'hazop' ? 'HAZOP' : '5×5'))}</td>}
                   <td>{r.method_code === 'hazop' ? (r.risk_level_label || r.risk_level || '—') : formatRiskNumber(r.probability)}</td>
                   {showFineColumns && <td>{r.method_code === 'fine_kinney' ? formatRiskNumber(r.frequency) : '—'}</td>}
@@ -2299,6 +2364,105 @@ export function RiskPage({user}) {
           </table>
         </div>
       </section>
+      )}
+
+      {importOpen && (
+        <Modal
+          title="5×5 Risk Analizi Excel Aktarımı"
+          close={() => { if (!importBusy) setImportOpen(false); }}
+          wide
+          layer="top"
+        >
+          <div style={{display: 'grid', gap: 14}}>
+            <div style={{padding: 12, background: '#eef5fb', borderRadius: 10, color: '#334155', fontSize: 13}}>
+              Kaynak Excel kolonları korunarak normal risk kayıtlarına aktarılır. Mevcut riskler silinmez veya
+              değiştirilmez; aynı satır yeniden yüklenirse çoğaltılmaz. Excel'deki ilave önlemler uygulamanın
+              Aksiyon / DÖF bölümüne bağlı olarak açılır.
+            </div>
+            <label className="field">
+              <span>5×5 risk analizi dosyası</span>
+              <input
+                type="file"
+                accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12"
+                disabled={importBusy}
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportPreview(null);
+                  setImportMsg('');
+                }}
+              />
+            </label>
+            {importFile && (
+              <div style={{fontSize: 13, color: '#475569'}}>
+                Seçilen dosya: <strong>{importFile.name}</strong> · {(importFile.size / 1024 / 1024).toFixed(2)} MB
+              </div>
+            )}
+            {importMsg && (
+              <div className={importPreview?.success ? 'success' : 'error'} role="status">
+                {importMsg}
+              </div>
+            )}
+            <div className="form-actions" style={{justifyContent: 'flex-start'}}>
+              <button type="button" className="btn btn-primary" disabled={importBusy || !importFile} onClick={previewImport}>
+                {importBusy ? 'İşleniyor…' : 'Önizlemeyi hazırla'}
+              </button>
+            </div>
+
+            {importPreview && (
+              <div style={{border: '1px solid #cbd5e1', borderRadius: 10, padding: 14}}>
+                <h4 style={{margin: '0 0 10px'}}>Aktarım önizlemesi</h4>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8}}>
+                  {[
+                    ['Toplam satır', importPreview.total_rows],
+                    ['Yeni kayıt', importPreview.new_rows],
+                    ['Mevcut / atlanan', importPreview.duplicate_rows_existing],
+                    ['Dosya içi tekrar', importPreview.duplicate_rows_in_file],
+                    ['Hata', importPreview.error_count],
+                    ['Uyarı', importPreview.warning_count],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{background: '#f8fafc', borderRadius: 8, padding: '8px 10px'}}>
+                      <div style={{fontSize: 12, color: '#64748b'}}>{label}</div>
+                      <strong>{value ?? 0}</strong>
+                    </div>
+                  ))}
+                </div>
+                {importPreview.metadata?.assessment_date && (
+                  <p style={{fontSize: 13, color: '#475569', margin: '10px 0 0'}}>
+                    Kaynak değerlendirme tarihi: <strong>{importPreview.metadata.assessment_date}</strong> · 5×5 Matris (L Tipi)
+                  </p>
+                )}
+                {(importPreview.errors || []).length > 0 && (
+                  <details style={{marginTop: 10}}>
+                    <summary>İlk hataları göster</summary>
+                    <ul style={{margin: '8px 0 0', paddingLeft: 20, fontSize: 12}}>
+                      {importPreview.errors.slice(0, 8).map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </details>
+                )}
+                {(importPreview.warnings || []).length > 0 && (
+                  <details style={{marginTop: 8}}>
+                    <summary>İlk uyarıları göster</summary>
+                    <ul style={{margin: '8px 0 0', paddingLeft: 20, fontSize: 12}}>
+                      {importPreview.warnings.slice(0, 8).map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </details>
+                )}
+                {importPreview.mode === 'preview' && importPreview.new_rows > 0 && (
+                  <div className="form-actions" style={{justifyContent: 'flex-start', marginTop: 12}}>
+                    <button type="button" className="btn btn-primary" disabled={importBusy} onClick={commitImport}>
+                      {importBusy ? 'Aktarılıyor…' : `${importPreview.new_rows} yeni kaydı onayla ve aktar`}
+                    </button>
+                  </div>
+                )}
+                {importPreview.mode === 'imported' && (
+                  <p style={{margin: '12px 0 0', color: '#166534', fontSize: 13}}>
+                    {importPreview.created || 0} risk ve {importPreview.dof_created || 0} bağlı DÖF uygulama bölümlerine işlendi.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
 
       {libOpen && (
@@ -2790,6 +2954,17 @@ export function RiskPage({user}) {
             <div className="field"><span>Bölüm</span><strong>{detail.department_name || '—'}</strong></div>
             <div className="field"><span>Faaliyet</span><strong>{detail.activity}</strong></div>
             <div className="field"><span>Tehlike</span><strong>{detail.hazard_code} — {detail.hazard_name}</strong></div>
+            {detail.record_origin === 'excel_import' && (
+              <>
+                <div className="field"><span>Risk unsuru</span><strong>{detail.risk_source || '—'}</strong></div>
+                <div className="field"><span>Olası sonuç</span><strong>{detail.potential_consequence || '—'}</strong></div>
+                <div className="field"><span>Sorumlu</span><strong>{detail.responsible || '—'}</strong></div>
+                <div className="field"><span>Kaynak RP</span><strong>{formatRiskNumber(detail.source_risk_score ?? detail.risk_score)}</strong></div>
+                <div className="field" style={{gridColumn: '1 / -1'}}><span>İlgili mevzuat dayanağı</span><p>{detail.legislation_basis || '—'}</p></div>
+                <div className="field"><span>Kaynak termin</span><strong>{detail.term_text || '—'}</strong></div>
+                <div className="field"><span>Kaynak satırı</span><strong>{detail.source_sheet || '—'} / {detail.source_row || '—'}</strong></div>
+              </>
+            )}
             <div className="field"><span>Yöntem</span><strong>{detail.method_label || '5x5 Matris (L Tipi)'}</strong><small>{detail.method_formula || 'Olasılık × Şiddet'}</small></div>
             {detail.method_code === 'hazop' ? (
               <>

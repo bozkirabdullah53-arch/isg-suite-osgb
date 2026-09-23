@@ -1003,6 +1003,23 @@ def build_risk_pdf(
             ["Risk Tanımı", Paragraph(str(risk.risk_definition or "—"), cell)],
             ["Etkilenenler", risk.affected_people or getattr(risk, "affected_group", None) or "—"],
         ]
+        if getattr(risk, "source_fingerprint", None):
+            risk_data.extend(
+                [
+                    ["Risk Unsuru", Paragraph(str(getattr(risk, "risk_source", None) or "—"), cell)],
+                    ["Olası Sonuç", Paragraph(str(getattr(risk, "potential_consequence", None) or "—"), cell)],
+                    ["Sorumlu", Paragraph(str(getattr(risk, "responsible", None) or "—"), cell)],
+                    [
+                        "Kaynak Mevzuat",
+                        Paragraph(str(getattr(risk, "legislation_basis", None) or "—"), cell),
+                    ],
+                    ["Kaynak RP", _score_text(getattr(risk, "source_risk_score", None) or risk.risk_score)],
+                    [
+                        "Kaynak Satırı",
+                        f"{getattr(risk, 'source_sheet', None) or '—'} / {getattr(risk, 'source_row', None) or '—'}",
+                    ],
+                ]
+            )
         if risk_method.get("code") == "hazop":
             hazop = _hazop_data(risk)
             priority = priority_details(hazop.get("priority"))
@@ -2128,6 +2145,97 @@ def build_risk_excel(
         ws4.freeze_panes = "A6"
         ws4.auto_filter.ref = f"A5:E{max(5, row - 1)}"
         _apply_excel_page_chrome(ws4, team_line=team_line, doc_label=f"NACE Yol Haritası — {getattr(company, 'name', '')}")
+
+    # Imported rows keep an additive source-format view. The standard report,
+    # DÖF and statistics sheets above are intentionally left unchanged.
+    imported_risks = sorted(
+        [risk for risk in risks if getattr(risk, "source_fingerprint", None)],
+        key=lambda risk: (
+            str(getattr(risk, "source_sheet", None) or ""),
+            int(getattr(risk, "source_row", None) or 0),
+            int(getattr(risk, "id", None) or 0),
+        ),
+    )
+    if imported_risks:
+        ws_source = wb.create_sheet("5x5 Kaynak Formatı")
+        source_headers = [
+            "PN",
+            "Proses / Alan",
+            "Faaliyet",
+            "Risk Unsuru",
+            "Tehlike",
+            "Olası Sonuç",
+            "O (1-5)",
+            "Ş (1-5)",
+            "RP",
+            "Mevcut Önlemler",
+            "Alınması Gereken İlave Önlemler",
+            "Termin süresi",
+            "Sorumlu",
+            "İlgili Mevzuat Dayanağı",
+        ]
+        ws_source.merge_cells("A1:N1")
+        ws_source["A1"] = "5×5 RİSK ANALİZİ — KAYNAK FORMAT GÖRÜNÜMÜ"
+        ws_source["A1"].font = Font(name="Calibri", bold=True, size=14, color="1a5276")
+        ws_source["A1"].alignment = Alignment(horizontal="center")
+        source_files = sorted({str(getattr(risk, "source_file", None) or "—") for risk in imported_risks})
+        ws_source.merge_cells("A2:N2")
+        ws_source["A2"] = (
+            f"Kaynak dosya: {', '.join(source_files)} | "
+            f"Aktarılan kayıt: {len(imported_risks)} | Yöntem: 5×5 Matris (L Tipi)"
+        )
+        ws_source["A2"].font = Font(size=9, color="2c3e50")
+        ws_source["A2"].alignment = Alignment(wrap_text=True, horizontal="center")
+        ws_source.merge_cells("A3:N3")
+        ws_source["A3"] = (
+            "Bu sekme, yüklenen risk analizinin kaynak kolonlarını korur. "
+            "Uygulama skoru O×Ş üzerinden hesaplanır; kaynak RP ayrıca saklanır."
+        )
+        ws_source["A3"].font = Font(size=9, italic=True, color="6c757d")
+        ws_source["A3"].alignment = Alignment(wrap_text=True, horizontal="center")
+        for col, header in enumerate(source_headers, 1):
+            cell = ws_source.cell(row=4, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin
+
+        for row_index, risk in enumerate(imported_risks, 5):
+            values = [
+                getattr(risk, "source_pn", None) or "—",
+                _dept(risk),
+                getattr(risk, "activity", None) or "—",
+                getattr(risk, "risk_source", None) or "—",
+                getattr(risk, "hazard_detail", None) or _hazard_name(risk, hazard_map),
+                getattr(risk, "potential_consequence", None) or "—",
+                _score_text(getattr(risk, "probability", None)),
+                _score_text(getattr(risk, "severity", None)),
+                _score_text(getattr(risk, "source_risk_score", None) or getattr(risk, "risk_score", None)),
+                getattr(risk, "existing_measures", None) or "—",
+                getattr(risk, "additional_measures", None) or "—",
+                getattr(risk, "term_text", None) or _fmt_date(getattr(risk, "term_date", None)),
+                getattr(risk, "responsible", None) or "—",
+                getattr(risk, "legislation_basis", None) or "—",
+            ]
+            for col, value in enumerate(values, 1):
+                cell = ws_source.cell(row=row_index, column=col, value=value)
+                cell.border = thin
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                cell.font = Font(size=9)
+
+        for col, width in enumerate(
+            [10, 20, 26, 24, 28, 24, 10, 10, 10, 30, 34, 18, 30, 42],
+            1,
+        ):
+            ws_source.column_dimensions[get_column_letter(col)].width = width
+        ws_source.freeze_panes = "A5"
+        ws_source.auto_filter.ref = f"A4:N{max(4, 4 + len(imported_risks))}"
+        ws_source.print_title_rows = "1:4"
+        _apply_excel_page_chrome(
+            ws_source,
+            team_line=team_line,
+            doc_label=f"5x5 Kaynak Formatı — {getattr(company, 'name', '')}",
+        )
 
     _apply_excel_page_chrome(ws2, team_line=team_line, doc_label=f"DÖF Listesi — {getattr(company, 'name', '')}")
     _apply_excel_page_chrome(ws3, team_line=team_line, doc_label=f"Risk İstatistikleri — {getattr(company, 'name', '')}")

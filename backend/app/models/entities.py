@@ -558,18 +558,6 @@ class DocumentRecord(Base):
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    @property
-    def has_file(self) -> bool:
-        """Whether a physical file is linked to this document record.
-
-        The document registry predates the file-upload endpoint and keeps the
-        storage reference in the description marker. Exposing this as a
-        derived property keeps the existing database schema and old records
-        backward compatible while allowing the UI to distinguish a typed file
-        name from an actually uploaded file.
-        """
-        return "[stored:" in (self.description or "")
-
 
 class AnnualPlanStatus(str, enum.Enum):
     PLANNED = "planned"
@@ -1405,6 +1393,21 @@ class RiskAssessment(Base):
     # Offline saha kaydının kaynağı ve istemci tarafı idempotency anahtarı.
     record_origin: Mapped[str | None] = mapped_column(String(30), default="risk", nullable=True, index=True)
     client_reference: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    # Kaynak Excel'in özgün 5x5 alanları. Nullable oldukları için mevcut
+    # uygulama kayıtları ve saha kayıtları aynen çalışmaya devam eder.
+    risk_source: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    hazard_detail: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    potential_consequence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    legislation_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responsible: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    term_text: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    source_pn: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    source_photo_no: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    source_sheet: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_file: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    source_risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     observed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     observation_location: Mapped[str | None] = mapped_column(String(220), nullable=True)
     gps_lat: Mapped[float | None] = mapped_column(Float, nullable=True)

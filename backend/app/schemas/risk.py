@@ -261,6 +261,19 @@ class RiskResponse(BaseModel):
     branch_id: int | None
     record_origin: str = "risk"
     client_reference: str | None = None
+    risk_source: str | None = None
+    hazard_detail: str | None = None
+    potential_consequence: str | None = None
+    legislation_basis: str | None = None
+    responsible: str | None = None
+    term_text: str | None = None
+    source_pn: str | None = None
+    source_photo_no: str | None = None
+    source_sheet: str | None = None
+    source_row: int | None = None
+    source_file: str | None = None
+    source_fingerprint: str | None = None
+    source_risk_score: float | None = None
     observed_at: datetime | None = None
     observation_location: str | None = None
     gps_lat: float | None = None

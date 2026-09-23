@@ -121,6 +121,8 @@ def test_latest_change_request_migration_present():
     assert "0125" in by_revision, "audit user_agent migration eksik"
     assert "0126" in by_revision, "pro parity migration eksik"
     assert "0127" in by_revision, "change requests migration eksik"
+    assert "0128" in by_revision, "risk Excel kaynak alanları migration eksik"
+    assert _literal(VERSIONS / by_revision["0128"], "down_revision") == "0127"
     assert _literal(VERSIONS / by_revision["0127"], "down_revision") == "0126"
     assert _literal(VERSIONS / by_revision["0126"], "down_revision") == "0125"
 
