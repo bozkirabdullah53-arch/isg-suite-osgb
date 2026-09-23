@@ -30,6 +30,10 @@
   line-height: 1.45;
 }
 
+.pwa-shortcut-message {
+  white-space: pre-line;
+}
+
 .pwa-shortcut-actions {
   display: flex;
   gap: 8px;
