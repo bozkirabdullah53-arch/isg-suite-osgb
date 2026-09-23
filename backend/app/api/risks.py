@@ -626,7 +626,10 @@ def _import_hazard(
         )
     )
     if not hazard:
-        digest = hashlib.sha1(f"{category.name}|{name}".encode("utf-8")).hexdigest().upper()
+        digest = hashlib.sha1(
+            f"{category.name}|{name}".encode("utf-8"),
+            usedforsecurity=False,
+        ).hexdigest().upper()
         code = f"XLS-{digest[:12]}"
         suffix = 1
         while db.scalar(select(Hazard).where(Hazard.code == code)):

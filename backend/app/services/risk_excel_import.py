@@ -269,7 +269,8 @@ def build_import_risk_code(
     of the visible row count and makes retries deterministic.
     """
     digest = hashlib.sha1(
-        f"{company_id}:{source_fingerprint}".encode("utf-8")
+        f"{company_id}:{source_fingerprint}".encode("utf-8"),
+        usedforsecurity=False,
     ).hexdigest().upper()
     if collision_number > 0:
         return f"RSK-{digest[:12]}{collision_number:04d}"
