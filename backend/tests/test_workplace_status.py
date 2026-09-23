@@ -701,3 +701,140 @@ def test_capa_board_status_and_excel_share_full_company_scope(client):
     workplace_headers = {"Authorization": f"Bearer {_token(client, seed['users'][2], seed['password'])}"}
     assert client.get(f"/api/v1/incidents/capa-board?company_id={sibling_id}", headers=workplace_headers).status_code == 403
     assert client.get(f"/api/v1/incidents/capa-board.xlsx?company_id={sibling_id}", headers=workplace_headers).status_code == 403
+
+
+def _seed_dof_actions(seed):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import (HazardCategory, Hazard, RiskAssessment, RiskDof, IncidentEvent,
+                                    IncidentDof, User, UserRole, Company, IsgProfessional,
+                                    ProfessionalType, WorkplaceAssignment, AssignmentStatus)
+    with SessionLocal() as db:
+        osgb_id = db.get(Company, seed['company_1']).osgb_id
+        doctor = User(email='dof-doctor@example.com', full_name='Test Hekimi',
+                      hashed_password=get_password_hash(seed['password']), role=UserRole.WORKPLACE_PHYSICIAN,
+                      osgb_id=osgb_id, is_active=True)
+        professional = IsgProfessional(osgb_id=osgb_id, full_name='Test Hekimi', email=doctor.email,
+                                      professional_type=ProfessionalType.WORKPLACE_PHYSICIAN,
+                                      certificate_number='DOF-DOC-1', is_active=True)
+        category = HazardCategory(name='DÖF işlem testi', sort_order=1)
+        db.add_all([doctor, professional, category]); db.flush()
+        db.add(WorkplaceAssignment(osgb_id=osgb_id, company_id=seed['company_1'], professional_id=professional.id,
+                                  professional_type=ProfessionalType.WORKPLACE_PHYSICIAN,
+                                  start_date=date.today(), status=AssignmentStatus.ACTIVE))
+        hazard = Hazard(category_id=category.id, code='DOF-ACTION', name='Koruyucu eksikliği')
+        db.add(hazard); db.flush()
+        actions = []
+        for index, company_id in enumerate([seed['company_1'], seed['company_2']]):
+            risk = RiskAssessment(risk_code=f'R-ACTION-{index}', company_id=company_id, hazard_id=hazard.id,
+                                  activity='Makine çalışması', risk_definition='Koruyucu eksikliği',
+                                  probability=2, severity=2, risk_score=4, risk_level='Düşük',
+                                  created_by_id=seed['admin_id'])
+            incident = IncidentEvent(form_no=f'I-ACTION-{index}', company_id=company_id, event_type='ramak_kala',
+                                     event_date=date.today(), short_summary='Koruyucu eksikliği tespit edildi.',
+                                     created_by_id=seed['admin_id'])
+            db.add_all([risk, incident]); db.flush()
+            dof = RiskDof(dof_code=f'D-ACTION-{index}', risk_id=risk.id, description='Makine koruyucusu takılacak.',
+                          term_date=date.today()-timedelta(days=3), created_by_id=seed['admin_id'])
+            incident_dof = IncidentDof(dof_no=f'ID-ACTION-{index}', incident_id=incident.id,
+                                      finding='Makine koruyucusu eksik.', corrective_action='Makine koruyucusu takılacak.',
+                                      preventive_action='Periyodik kontrol yapılacak.', responsible_person='Test Sorumlusu',
+                                      term_date=date.today()-timedelta(days=3), created_by_id=seed['admin_id'])
+            db.add_all([dof, incident_dof]); db.flush()
+            actions.append({'risk_id': risk.id, 'dof_id': dof.id, 'incident_id': incident.id, 'incident_dof_id': incident_dof.id})
+        db.commit()
+        return actions, doctor.email
+
+
+@pytest.mark.parametrize('role', ['workplace', 'specialist', 'physician'])
+def test_dof_actions_allow_only_authorized_workplaces_and_update_counts(client, role):
+    seed = _seed()
+    (own, foreign), doctor = _seed_dof_actions(seed)
+    email = {'workplace': seed['users'][2], 'specialist': seed['users'][3], 'physician': doctor}[role]
+    headers = {'Authorization': f"Bearer {_token(client, email, seed['password'])}"}
+    base = f"/api/v1/risks/{own['risk_id']}/dofs/{own['dof_id']}"
+    incident_base = f"/api/v1/incidents/{own['incident_id']}/dofs/{own['incident_dof_id']}"
+    for path in [f"/api/v1/risks/{foreign['risk_id']}/dofs/{foreign['dof_id']}",
+                 f"/api/v1/incidents/{foreign['incident_id']}/dofs/{foreign['incident_dof_id']}"]:
+        assert client.patch(path, headers=headers, json={'responsible_person': 'Test Sorumlusu'}).status_code == 403
+        assert client.post(path+'/complete', headers=headers, json={}).status_code == 403
+    response = client.patch(base, headers=headers, json={'responsible_person': 'Bakım Müdürü', 'term_date': date.today().isoformat()})
+    assert response.status_code == 200, response.text
+    response = client.patch(incident_base, headers=headers, json={'corrective_action': 'Makine koruyucusu yenilenecek.'})
+    assert response.status_code == 200, response.text
+    assert client.patch(f"/api/v1/risks/{own['risk_id']}/dofs/{foreign['dof_id']}", headers=headers, json={'responsible_person': 'Test Sorumlusu'}).status_code == 404
+    completed_on = (date.today()-timedelta(days=1)).isoformat()
+    response = client.post(base+'/complete', headers=headers, json={'completion_date': completed_on, 'completion_note': 'Makine koruyucusu takıldı ve kontrol edildi.'})
+    assert response.status_code == 200, response.text
+    assert response.json()['is_completed'] is True
+    assert response.json()['completion_date'] == completed_on
+    response = client.post(incident_base+'/complete', headers=headers, json={'completion_date': completed_on, 'effectiveness_note': 'Makine koruyucusu takıldı ve kontrol edildi.', 'close_approval': 'Test Sorumlusu'})
+    assert response.status_code == 200, response.text
+    board = client.get(f"/api/v1/incidents/capa-board?company_id={seed['company_1']}", headers=headers).json()
+    assert board['summary'] == {'total': 2, 'open': 0, 'completed': 2, 'overdue': 0}
+    assert all(row['parent_id'] and row['completion_date'] == completed_on for row in board['items'])
+    # Repeated clicks/retries must not overwrite the recorded completion date.
+    assert client.post(base+'/complete', headers=headers, json={}).json()['completion_date'] == completed_on
+    if role != 'specialist':
+        assert client.patch(f"/api/v1/risks/{own['risk_id']}", headers=headers, json={'probability': 1}).status_code == 403
+
+
+def test_osgb_manager_and_read_only_user_cannot_create_edit_or_complete_dofs(client):
+    seed = _seed()
+    (own, _), _doctor = _seed_dof_actions(seed)
+    for email in seed['users'][:2]:
+        headers = {'Authorization': f"Bearer {_token(client, email, seed['password'])}"}
+        assert client.get(f"/api/v1/incidents/capa-board?company_id={seed['company_1']}", headers=headers).status_code == 200
+        for source, parent, identifier in [('risks', own['risk_id'], own['dof_id']), ('incidents', own['incident_id'], own['incident_dof_id'])]:
+            base = f'/api/v1/{source}/{parent}/dofs'
+            assert client.post(base, headers=headers, json={}).status_code == 403
+            assert client.patch(f'{base}/{identifier}', headers=headers, json={'responsible_person': 'Test Sorumlusu'}).status_code == 403
+            assert client.post(f'{base}/{identifier}/complete', headers=headers, json={}).status_code == 403
+
+
+def test_continuous_deadline_migration_preserves_manual_mixed_and_completed_actions(client):
+    from datetime import datetime
+    import importlib.util
+    from pathlib import Path
+    from sqlalchemy import select
+    from app.core.database import SessionLocal
+    from app.models.entities import RiskAssessment, RiskDof, AuditLog
+    seed = _seed()
+    (own, _), _doctor = _seed_dof_actions(seed)
+    created = datetime(2026, 9, 23, 10, 0)
+    base_date = datetime(2026, 6, 9)
+    due = base_date.date() + timedelta(days=90)
+    ids = {}
+    with SessionLocal() as db:
+        hazard_id = db.get(RiskAssessment, own['risk_id']).hazard_id
+        for index, mode in enumerate(['continuous', 'mixed', 'edited', 'completed', 'manual']):
+            fp = f'fingerprint-{index}'
+            risk = RiskAssessment(risk_code=f'R-CONT-{index}', company_id=seed['company_1'], hazard_id=hazard_id,
+                                  activity='Kontrol', risk_definition='Kayma riski', probability=2, severity=2,
+                                  risk_score=4, risk_level='Düşük', created_by_id=seed['admin_id'], record_origin='excel_import',
+                                  source_fingerprint=fp, observed_at=base_date, created_at=created, updated_at=created,
+                                  term_text='30 gün / Sürekli izleme' if mode == 'mixed' else 'Sürekli izleme',
+                                  term_date=due, term_days=90, term_suggested=90, term_overridden=False)
+            db.add(risk); db.flush()
+            dof = RiskDof(dof_code=f'D-CONT-{index}', risk_id=risk.id, description='Düzenli kontrol yap.',
+                          client_reference=None if mode == 'manual' else f'excel:{fp}:dof', term_date=due,
+                          created_by_id=seed['admin_id'], created_at=created,
+                          updated_at=created+timedelta(days=1) if mode == 'edited' else created,
+                          is_completed=mode == 'completed', status='Tamamlandı' if mode == 'completed' else 'Açık')
+            db.add(dof); db.flush(); ids[mode] = dof.id
+        db.commit()
+        spec = importlib.util.spec_from_file_location('deadline_migration', Path(__file__).parents[1]/'alembic/versions/0129_continuous_risk_deadlines.py')
+        migration = importlib.util.module_from_spec(spec); spec.loader.exec_module(migration)
+        changed = migration.repair_continuous_deadlines(db.connection())
+        assert changed['dofs'] == 1
+        assert migration.repair_continuous_deadlines(db.connection()) == {'risks': 0, 'dofs': 0}
+        db.commit(); db.expire_all()
+        assert db.get(RiskDof, ids['continuous']).term_date is None
+        for mode in ['mixed', 'edited', 'completed', 'manual']:
+            assert db.get(RiskDof, ids[mode]).term_date == due
+        assert db.scalar(select(AuditLog).where(AuditLog.entity_type == 'risk_dof', AuditLog.entity_id == str(ids['continuous']))) is not None
+    headers = {'Authorization': f"Bearer {_token(client, seed['users'][2], seed['password'])}"}
+    board = client.get(f"/api/v1/incidents/capa-board?company_id={seed['company_1']}", headers=headers).json()
+    continuous = next(row for row in board['items'] if row['key'] == f"r-{ids['continuous']}")
+    assert continuous['term_kind'] == 'continuous'
+    assert continuous['is_overdue'] is False

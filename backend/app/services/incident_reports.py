@@ -198,8 +198,8 @@ def build_capa_board_excel(*, rows: list[dict]) -> bytes:
                 r.get("title") or "",
                 r.get("action") or "",
                 r.get("responsible") or "",
-                r.get("term") or "",
-                r.get("status") or "",
+                r.get("term") or ("Sürekli izleme" if r.get("term_kind") == "continuous" else "Termin belirlenmedi"),
+                "Tamamlandı" if r.get("is_completed") else "Gecikmiş" if r.get("is_overdue") else "Sürekli izleme" if r.get("term_kind") == "continuous" else r.get("status") or "",
                 r.get("priority") or "",
             ]
         )

@@ -5,6 +5,8 @@ import {assertIncidentForm} from './validation';
 import {AppModal} from './ui_modal';
 import {readPersistedCompanyId, persistSelectedCompanyId} from './nace_context';
 import {parseNavigationLocation} from './navigation_history';
+import {CapaDofDialog} from './capa_dof_dialog';
+import {canManageDof, capaStatus, formatCapaDate} from './capa_actions';
 
 const TYPE_DEFAULT = {
   near_miss: 'ramak_kala',
@@ -499,7 +501,7 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
                         <td>{d.term_date || '—'}</td>
                         <td>{d.status}</td>
                         <td>
-                          {canEdit && d.status !== 'Tamamlandı' && (
+                          {canManageDof(user) && d.status !== 'Tamamlandı' && (
                             <button className="mini" type="button" onClick={() => completeDof(d.id)}>Tamamla</button>
                           )}
                         </td>
@@ -510,7 +512,7 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
                   </tbody>
                 </table>
               </div>
-              {canEdit && (
+              {canManageDof(user) && (
                 <form className="form-grid" onSubmit={addDof}>
                   <TextArea label="Tespit edilen uygunsuzluk (min. 10 karakter)" required value={dofForm.finding} onChange={(e) => setDofForm({...dofForm, finding: e.target.value})} />
                   {(dofAiBusy || dofAi) && (
@@ -777,9 +779,12 @@ export function CapaPage({user, companyId: selectedCompanyId, onCompanyChange}) 
   const [dlBusy, setDlBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [selectedDof, setSelectedDof] = useState(null);
+  const [notice, setNotice] = useState('');
   const rows = result?.company_id === Number(companyId) ? result.items : [];
   const summary = result?.company_id === Number(companyId) ? result.summary : null;
   const company = companies.find((row) => String(row.id) === companyId);
+  useEffect(() => { setSelectedDof(null); setNotice(''); }, [companyId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -832,6 +837,8 @@ export function CapaPage({user, companyId: selectedCompanyId, onCompanyChange}) 
     if (statusFilter === 'open' && row.is_completed) return false;
     if (statusFilter === 'overdue' && !row.is_overdue) return false;
     if (statusFilter === 'completed' && !row.is_completed) return false;
+    if (statusFilter === 'continuous' && (row.is_completed || row.term_kind !== 'continuous')) return false;
+    if (statusFilter === 'unset' && (row.is_completed || row.term_kind !== 'unset')) return false;
     const search = q.trim().toLocaleLowerCase('tr-TR');
     return !search || [row.code, row.title, row.responsible, row.parent, row.parentSummary, row.source]
       .some((value) => String(value || '').toLocaleLowerCase('tr-TR').includes(search));
@@ -868,10 +875,13 @@ export function CapaPage({user, companyId: selectedCompanyId, onCompanyChange}) 
             <option value="open">Açık</option>
             <option value="overdue">Gecikmiş</option>
             <option value="completed">Tamamlanan</option>
+            <option value="continuous">Sürekli izleme</option>
+            <option value="unset">Termin belirlenmedi</option>
           </select>
           <button className="secondary" type="button" disabled={!companyId || busy} onClick={() => setRevision((value) => value + 1)}>Yenile</button>
         </div>
         {err && <div className="error" role="alert">{err}</div>}
+        {notice && <p role="status">{notice}</p>}
         {busy && <p role="status">DÖF kayıtları yükleniyor…</p>}
         {summary && <p style={{fontSize: 14, marginBottom: 10}}>
           Toplam {summary.total} DÖF · açık {summary.open} · gecikmiş {summary.overdue} · tamamlanan {summary.completed}
@@ -880,18 +890,19 @@ export function CapaPage({user, companyId: selectedCompanyId, onCompanyChange}) 
         <div className="table-wrap">
           <table>
             <thead><tr>
-              <th>Kaynak</th><th>DÖF No</th><th>Bağlı kayıt</th><th>Tespit / iş</th><th>Sorumlu</th><th>Termin</th><th>Durum</th>
+              <th>Kaynak</th><th>DÖF No</th><th>Bağlı kayıt</th><th>Tespit / iş</th><th>Sorumlu</th><th>Termin</th><th>Durum</th><th>İşlem</th>
             </tr></thead>
             <tbody>
               {filtered.length ? filtered.map((row) => (
                 <tr key={row.key}>
-                  <td>{row.source}</td><td>{row.code}</td>
+                  <td>{row.source}</td><td><button type="button" className="secondary mini" disabled={!row.parent_id} onClick={() => setSelectedDof(row)} aria-label={`${row.code} kaydını aç`}>{row.code}</button></td>
                   <td><div>{row.parent}</div><div style={{fontSize: 12}}>{row.parentSummary}</div></td>
-                  <td>{row.title}</td><td>{row.responsible || '—'}</td><td>{row.term || '—'}</td>
-                  <td><span className={'badge ' + (row.is_completed ? 'ok' : 'off')}>{row.is_overdue ? 'Gecikmiş' : row.status}</span></td>
+                  <td>{row.title}</td><td>{row.responsible || '—'}</td><td style={{whiteSpace: 'nowrap'}}>{row.term ? formatCapaDate(row.term) : row.term_kind === 'continuous' ? 'Sürekli izleme' : 'Belirlenmedi'}</td>
+                  <td><span className={`status-badge ${capaStatus(row).tone}`}>{capaStatus(row).label}</span></td>
+                  <td><button type="button" className="secondary mini" disabled={!row.parent_id} onClick={() => setSelectedDof(row)}>{canManageDof(user) && !row.is_completed ? 'İncele / Düzenle' : 'İncele'}</button></td>
                 </tr>
               )) : (
-                <tr><td colSpan={7} className="empty">
+                <tr><td colSpan={8} className="empty">
                   {!companyId ? 'DÖF listesini görüntülemek için firma / işyeri seçiniz.'
                     : busy ? 'Yükleniyor…'
                     : err ? 'DÖF kayıtları gösterilemiyor. Lütfen tekrar deneyin.'
@@ -903,6 +914,10 @@ export function CapaPage({user, companyId: selectedCompanyId, onCompanyChange}) 
           </table>
         </div>
       </section>
+      {selectedDof && selectedDof.company_id === Number(companyId) && <CapaDofDialog
+        key={`${companyId}:${selectedDof.key}`} row={selectedDof} user={user} companyName={company?.name}
+        close={() => setSelectedDof(null)} onSaved={(message) => { setSelectedDof(null); setNotice(message); setRevision((value) => value + 1); }}
+      />}
     </>
   );
 }
