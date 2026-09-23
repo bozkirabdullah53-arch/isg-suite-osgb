@@ -21,7 +21,8 @@ def risk(**overrides):
     return N(**(values | overrides))
 
 
-@pytest.mark.parametrize("department", ["Genel", "Genel Alan", "Ortak Alan", "Tüm Alanlar", "Üretim", "İmalat"])
+@pytest.mark.parametrize("department", ["Genel", "Genel Alan", "Ortak Alan", "Tüm Alanlar", "Üretim", "İmalat",
+                                        "Üretim Hattı", "İşletme Geneli", "Fabrika Sahası"])
 def test_generic_department_alone_cannot_establish_an_exposure_candidate(department):
     assert personnel_exposure_match(risk(department_name=department), [person(department)])[0] == 0
 

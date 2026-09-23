@@ -17,6 +17,7 @@ _GENERIC = frozenset({
     "uretim", "imalat", "eleman", "operator", "destek", "sorumlu", "teknisyen",
     "teknik", "genel", "tesis", "hat", "calisma", "gorev", "yardimci",
     "ortak", "tum", "her", "diger", "uzman", "kontrol", "bakim", "hijyen",
+    "hatti", "hatlar", "isletme", "fabrika", "saha", "tumu", "tamami",
 })
 
 # Explicit occupational variants, not arbitrary shared prefixes (halk/halkla).
