@@ -2071,7 +2071,7 @@ export function OsgbApplyPage({ onBack }) {
   }
 
   return (
-    <main className="login-shell login-shell--form login-shell--apply">
+    <main className="login-shell login-shell--form login-shell--apply login-shell--osgb-apply">
       <div className="login-wrap login-wrap--form login-wrap--apply">
         <div className="login-brand login-brand--apply">
           <img src="/eisa-logo-horizontal.svg" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
