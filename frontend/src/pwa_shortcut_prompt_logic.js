@@ -106,7 +106,7 @@ export function shouldAskShortcutPrompt({
 
 export function shortcutInstructionText(ios, mobile = true) {
   if (ios) {
-    return 'Safari paylaş menüsünden Ana Ekrana Ekle’yi seçin. Kısayol telefonunuzun ana ekranına yerleşir.';
+    return 'iPhone’da kurulum için:\n1. Sayfayı Safari’de açın.\n2. Safari’de Paylaş (□↑) düğmesine dokunun.\n3. “Ana Ekrana Ekle” seçeneğini seçin.\n4. Sağ üstten “Ekle”ye dokunun.\n\nNot: iPhone, bu işlemi web sitesinin içindeki bir düğmeyle otomatikleştirmeye izin vermez.';
   }
   if (mobile) {
     return 'Tarayıcı menüsünden Ana ekrana ekle / Uygulamayı yükle’yi seçin. Kısayol telefonunuzun ana ekranına yerleşir.';
