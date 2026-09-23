@@ -11,6 +11,7 @@ import {
 } from './visit_qr_policy';
 import {effectiveAssignmentStatus} from './assignment_status';
 import {persistSelectedCompanyId} from './nace_context';
+import {osgbDashboardCompanyOptions} from './osgb_company_scope';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -165,8 +166,10 @@ async function copyText(text){
 }
 
 export function OsgbDashboard({user, onNavigate}){
- const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
+ const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState(()=>String(user?.osgb_id||''));
  const[companies,setCompanies]=useState([]),[companyId,setCompanyId]=useState('');
+ const[companiesLoading,setCompaniesLoading]=useState(true),[companiesError,setCompaniesError]=useState('');
+ const[companyReloadAttempt,setCompanyReloadAttempt]=useState(0);
  const[ops,setOps]=useState(null);
  const[kpis,setKpis]=useState(null);
  const[csgb,setCsgb]=useState(null);
@@ -282,41 +285,75 @@ export function OsgbDashboard({user, onNavigate}){
  },[user?.id,user?.osgb_id]);
 
  useEffect(()=>{
-  if(!oid) return undefined;
   let cancelled=false;
+  setCompaniesLoading(true);
+  setCompaniesError('');
   api('/companies').then((rows)=>{
    if(cancelled) return;
-   const list=(Array.isArray(rows)?rows:[]).filter((row)=>
-    row?.is_active!==false && String(row.osgb_id)===String(oid)
-   );
-   setCompanies(list);
+   setCompanies(Array.isArray(rows)?rows:[]);
    // OSGB ana paneli her açılışta açık bir kapsam ister; tek firma olsa bile
    // son kullanılan/ilk firma otomatik seçilmez.
    setCompanyId('');
    persistSelectedCompanyId('');
    window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{detail:{source:'osgb-dashboard'}}));
-  }).catch(()=>{
-   if(!cancelled) setCompanies([]);
+  }).catch((error)=>{
+   if(!cancelled){
+    setCompanies([]);
+    setCompaniesError(error?.message||'Firma listesi yüklenemedi.');
+   }
+  }).finally(()=>{
+   if(!cancelled) setCompaniesLoading(false);
   });
   return()=>{cancelled=true};
- },[oid,user?.role]);
+ },[user?.id,user?.role,companyReloadAttempt]);
+
+ const companyOptions=useMemo(
+  ()=>osgbDashboardCompanyOptions(companies,{role:user?.role,osgbId:oid}),
+  [companies,user?.role,oid],
+ );
+ const companyListEmpty=!companiesLoading&&!companiesError&&!companyOptions.length;
+ const companyEmptyMessage=user?.role==='global_admin'&&!oid
+  ? 'OSGB listesi yüklenemedi; işyeri kapsamı belirlenemedi.'
+  : oid
+   ? 'Seçili OSGB için erişilebilir aktif firma bulunamadı. Firma bağlantılarını kontrol edin.'
+   : 'Bu hesap için erişilebilir aktif firma bulunamadı. Hesabın OSGB bağlantısını ve işyeri atamalarını kontrol edin.';
 
  useEffect(()=>{
   if(oid&&companyId) void load(oid,companyId);
   else clearDashboardData();
  },[oid,companyId]);
 
- const selectedCompany=companies.find((row)=>String(row.id)===String(companyId))||null;
+ const selectedCompany=companyOptions.find((row)=>String(row.id)===String(companyId))||null;
 
  function chooseCompany(value){
   const next=String(value||'');
-  const selected=companies.find((row)=>String(row.id)===next);
+  const selected=companyOptions.find((row)=>String(row.id)===next);
   setCompanyId(next);
+  if(!oid&&selected?.osgb_id) setOid(String(selected.osgb_id));
   persistSelectedCompanyId(next);
   window.dispatchEvent(new CustomEvent('isg:company-selected',{
    detail:next?{companyId:next,company:selected}: {},
   }));
  }
+
+ useEffect(()=>{
+  function onCompanySelected(event){
+   const detail=event.detail||{};
+   const next=String(detail.companyId??detail.id??detail.company?.id??'');
+   if(!next) return;
+   const selected=companyOptions.find((row)=>String(row.id)===next);
+   if(!selected) return;
+   setCompanyId(next);
+   if(!oid&&selected.osgb_id) setOid(String(selected.osgb_id));
+  }
+  function onContextReset(){setCompanyId('')}
+  window.addEventListener('isg:company-selected',onCompanySelected);
+  window.addEventListener('isg:nace-context-reset',onContextReset);
+  return()=>{
+   window.removeEventListener('isg:company-selected',onCompanySelected);
+   window.removeEventListener('isg:nace-context-reset',onContextReset);
+  };
+ },[companyOptions,oid]);
 
  const byType=data?.professionals_by_type||{};
  const unBy=data?.unassigned_by_type||{};
@@ -368,12 +405,18 @@ export function OsgbDashboard({user, onNavigate}){
     </div>
     <label className="field" style={{margin:0,minWidth:280,flex:'1 1 340px'}}>
      <span>Firma / işyeri</span>
-     <select value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={!companies.length}>
-      <option value="">Firma seçiniz</option>
-      {companies.map((row)=><option key={row.id} value={row.id}>{row.name}</option>)}
+     <select value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={companiesLoading||!companyOptions.length}>
+      <option value="">{companiesLoading?'Firmalar yükleniyor…':companiesError?'Firma listesi yüklenemedi':companyOptions.length?'Firma seçiniz':'Erişilebilir firma bulunamadı'}</option>
+      {companyOptions.map((row)=><option key={row.id} value={row.id}>{row.name}</option>)}
      </select>
     </label>
    </div>
+   {companiesError&&<div role="alert" style={{marginTop:10,color:'#9f1239',fontSize:13}}>
+    Firma listesi yüklenemedi: {companiesError}{' '}
+    <button type="button" className="mini secondary" disabled={companiesLoading} onClick={()=>setCompanyReloadAttempt((value)=>value+1)}>Tekrar dene</button>
+   </div>}
+   {companyListEmpty&&<p role="status" style={{margin:'10px 0 0',color:'#475569',fontSize:13}}>{companyEmptyMessage}</p>}
+   {companyId&&!oid&&<p role="alert" style={{margin:'10px 0 0',color:'#9f1239',fontSize:13}}>Seçilen firmanın bağlı olduğu OSGB bilgisi eksik. Firma kaydındaki OSGB bağlantısı düzeltilmelidir.</p>}
    {selectedCompany&&(
     <div style={{display:'flex',gap:18,flexWrap:'wrap',marginTop:14,paddingTop:12,borderTop:'1px solid #d6e8eb',fontSize:13,color:'#475569'}}>
      <span><strong style={{color:'#123b5d'}}>Seçili firma:</strong> {selectedCompany.name}</span>
@@ -390,6 +433,12 @@ export function OsgbDashboard({user, onNavigate}){
     <p style={{margin:0,color:'#64748b',fontSize:14}}>
      Firma seçilmeden hiçbir işyeri verisi OSGB ana paneline otomatik bağlanmaz.
     </p>
+   </section>
+  ) : !oid ? (
+   <section className="panel" role="alert" style={{marginBottom:16,textAlign:'center',padding:'32px 24px'}}>
+    <Building2 size={34} color="#0f766e" style={{marginBottom:8}}/>
+    <h3 style={{margin:'0 0 6px'}}>Firma için OSGB bilgisi eksik</h3>
+    <p style={{margin:0,color:'#64748b',fontSize:14}}>Bu firmanın bağlı olduğu OSGB bilgisi olmadan panel verileri güvenli kapsamda yüklenemiyor.</p>
    </section>
   ) : <>
 

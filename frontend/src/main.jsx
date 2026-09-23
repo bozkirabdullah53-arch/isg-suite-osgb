@@ -2444,9 +2444,12 @@ function GlobalNaceContextCard({
   loading,
   className='',
   companies=[],
+  companiesLoading=false,
+  companiesError='',
   selectedCompanyId='',
   canSelectCompany=false,
   onCompanyChange,
+  onRetryCompanies,
 }){
   const hasCompany=Boolean(String(companyName||'').trim());
   const hasNace=Boolean(String(naceCode||'').trim());
@@ -2462,20 +2465,34 @@ function GlobalNaceContextCard({
         <span className="global-nace-context-kicker"><Building2 size={13}/> İŞYERİ BAĞLAMI</span>
       </div>
       {canSelectCompany&&(
-        <label className="global-nace-context-selector">
-          <span>FİRMA / İŞYERİ SEÇİNİZ</span>
-          <select
-            value={selectedCompanyId}
-            onChange={(event)=>onCompanyChange?.(event.target.value)}
-            aria-label="Firma / işyeri seçiniz"
-            data-global-company-selector="true"
-          >
-            <option value="">Firma / işyeri seçiniz</option>
-            {companies.map((company)=>(
-              <option key={company.id} value={company.id}>{company.name}</option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <label className="global-nace-context-selector">
+            <span>FİRMA / İŞYERİ SEÇİNİZ</span>
+            <select
+              value={selectedCompanyId}
+              onChange={(event)=>onCompanyChange?.(event.target.value)}
+              aria-label="Firma / işyeri seçiniz"
+              data-global-company-selector="true"
+              disabled={companiesLoading||Boolean(companiesError)||!companies.length}
+            >
+              <option value="">{companiesLoading?'Firmalar yükleniyor…':companiesError?'Firma listesi yüklenemedi':companies.length?'Firma / işyeri seçiniz':'Erişilebilir firma bulunamadı'}</option>
+              {companies.map((company)=>(
+                <option key={company.id} value={company.id}>{company.name}</option>
+              ))}
+            </select>
+          </label>
+          {companiesError&&(
+            <div role="alert" style={{fontSize:10,lineHeight:1.35,color:'#fecaca',marginTop:4}}>
+              Firma listesi yüklenemedi.{' '}
+              <button type="button" className="mini secondary" onClick={onRetryCompanies}>Tekrar dene</button>
+            </div>
+          )}
+          {!companiesLoading&&!companiesError&&!companies.length&&(
+            <small role="status" style={{display:'block',fontSize:10,lineHeight:1.35,color:'#cbd5e1',marginTop:4}}>
+              Bu hesap için erişilebilir aktif firma bulunamadı. OSGB bağlantısını ve işyeri atamalarını kontrol edin.
+            </small>
+          )}
+        </div>
       )}
       <strong className="global-nace-context-company">
         {companyName||(canSelectCompany?'Henüz işyeri seçilmedi':'Firma seçiniz')}
@@ -2575,6 +2592,9 @@ function App(){
   const navRef=useRef(null);
   const[naceCatalog,setNaceCatalog]=useState([]);
   const[contextCompanies,setContextCompanies]=useState([]);
+  const[contextCompaniesLoading,setContextCompaniesLoading]=useState(false);
+  const[contextCompaniesError,setContextCompaniesError]=useState('');
+  const[contextCompaniesRetry,setContextCompaniesRetry]=useState(0);
   const[selectedContextCompanyId,setSelectedContextCompanyId]=useState('');
   const[naceDraft,setNaceDraft]=useState('');
   const[naceContextLoading,setNaceContextLoading]=useState(false);
@@ -2593,6 +2613,8 @@ function App(){
     if(!logged||!user){
       setNaceCatalog([]);
       setContextCompanies([]);
+      setContextCompaniesLoading(false);
+      setContextCompaniesError('');
       setSelectedContextCompanyId('');
       setNaceDraft('');
       setNaceContextLoading(false);
@@ -2600,15 +2622,19 @@ function App(){
     }
     let cancelled=false;
     setNaceContextLoading(true);
+    setContextCompaniesLoading(true);
+    setContextCompaniesError('');
     Promise.all([
-      api('/companies').catch(()=>[]),
+      api('/companies').then((rows)=>({rows,error:null})).catch((error)=>({rows:[],error})),
       loadSectorsCatalog().catch(()=>[]),
-    ]).then(([rows,catalog])=>{
+    ]).then(([companyResult,catalog])=>{
       if(cancelled) return;
-      const companies=Array.isArray(rows)?rows:[];
+      const companies=Array.isArray(companyResult.rows)?companyResult.rows:[];
       const sectors=Array.isArray(catalog)?catalog:[];
       setContextCompanies(companies);
+      setContextCompaniesError(companyResult.error?.message||'');
       setNaceCatalog(sectors);
+      setContextCompaniesLoading(false);
       const persisted=readPersistedCompanyId();
       const preferredId=user.company_id
         ? String(user.company_id)
@@ -2620,10 +2646,13 @@ function App(){
       setSelectedContextCompanyId(preferred?String(preferred.id):'');
       setNaceDraft('');
     }).finally(()=>{
-      if(!cancelled) setNaceContextLoading(false);
+      if(!cancelled){
+        setNaceContextLoading(false);
+        setContextCompaniesLoading(false);
+      }
     });
     return()=>{cancelled=true};
-  },[logged,user?.id,user?.company_id,user?.role,active,requiresPageCompanySelection]);
+  },[logged,user?.id,user?.company_id,user?.role,active,requiresPageCompanySelection,contextCompaniesRetry]);
 
   useEffect(()=>{
     if(!logged) return undefined;
@@ -2752,6 +2781,8 @@ function App(){
     hazardClass:draftNace?(draftNaceMatch?.hazard_class||''):selectedNaceInfo.hazardClass,
     preview:Boolean(draftNace),
     loading:naceContextLoading,
+    companiesLoading:contextCompaniesLoading,
+    companiesError:contextCompaniesError,
   };
   const canSelectGlobalCompany=requiresPageCompanySelection;
   const hasGlobalNaceContext=Boolean(selectedContextCompany);
@@ -3255,6 +3286,7 @@ function App(){
             selectedCompanyId={selectedContextCompanyId}
             canSelectCompany={canSelectGlobalCompany}
             onCompanyChange={chooseGlobalContextCompany}
+            onRetryCompanies={()=>setContextCompaniesRetry((value)=>value+1)}
           />
         </div>
         <button type="button" className="logout" onClick={logout}>
@@ -3329,6 +3361,7 @@ function App(){
               selectedCompanyId={selectedContextCompanyId}
               canSelectCompany={canSelectGlobalCompany}
               onCompanyChange={chooseGlobalContextCompany}
+            onRetryCompanies={()=>setContextCompaniesRetry((value)=>value+1)}
             />
           </div>
           {!user.is_eisa && user.subscription_write_allowed===false && (
