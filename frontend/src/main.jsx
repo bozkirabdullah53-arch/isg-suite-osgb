@@ -62,7 +62,7 @@ import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {EmployeeSelfServicePage} from './employee_self_service';
 import {rememberEmployeeTrainingAssignment, selfServiceFeatureEnabled} from './employee_self_service_logic';
 import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
-import {COMPANY_CONTEXT_MODULES, canOpenCompanyCapa} from './company_module_navigation';
+import {COMPANY_CONTEXT_MODULES, canOpenCompanyCapa, normalizeCompanyId} from './company_module_navigation';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {SpecialistReportCenterPage} from './specialist_report_center';
 import {AppModal} from './ui_modal';
@@ -2566,10 +2566,12 @@ function writeModuleToLocation(id,{replace=false,companyId}={}){
   try{
     const u=new URL(window.location.href);
     u.searchParams.delete('m');
+    u.searchParams.delete('company');
+    u.searchParams.delete('company_id');
     const current=readNavigationFromLocation();
     const preserveRiskView=id==='risk' && current.module==='risk' && replace;
     const nextCompany=COMPANY_CONTEXT_MODULES.has(id)
-      ? String(companyId ?? (current.module===id ? current.companyId : '') ?? '')
+      ? normalizeCompanyId(companyId ?? (current.module===id ? current.companyId : ''))
       : '';
     const hashParams=new URLSearchParams();
     if(id) hashParams.set('m',id);
@@ -2674,8 +2676,10 @@ function App(){
       setNaceCatalog(sectors);
       setContextCompaniesLoading(false);
       const persisted=readPersistedCompanyId();
-      const routeCompanyId=COMPANY_CONTEXT_MODULES.has(active)
-        ? String(readNavigationFromLocation().companyId||'')
+      // History can change while the directory is in flight; use the current URL.
+      const route=readNavigationFromLocation();
+      const routeCompanyId=COMPANY_CONTEXT_MODULES.has(route.module)
+        ? normalizeCompanyId(route.companyId)
         : '';
       const preferredId=user.company_id
         ? String(user.company_id)
@@ -2687,6 +2691,20 @@ function App(){
       if(requiresPageCompanySelection&&!routeCompanyId) persistSelectedCompanyId('');
       const preferred=companies.find((row)=>String(row.id)===preferredId);
       setSelectedContextCompanyId(preferred?String(preferred.id):'');
+      if(COMPANY_CONTEXT_MODULES.has(route.module)){
+        persistSelectedCompanyId(preferred?.id||'');
+        if(!companyResult.error){
+          if(route.module==='customer_360'&&!preferred){
+            setC360Id(null);
+            setActive('companies');
+            try{sessionStorage.setItem('isg_active','companies')}catch{ /* ignore */ }
+            writeModuleToLocation('companies',{replace:true});
+          }else{
+            if(route.module==='customer_360') setC360Id(Number(preferred.id));
+            writeModuleToLocation(route.module,{replace:true,companyId:preferred?.id||''});
+          }
+        }
+      }
       setNaceDraft('');
     }).finally(()=>{
       if(!cancelled){
@@ -2732,32 +2750,32 @@ function App(){
       const detail=event.detail||{};
       cancelPendingNaceDraft();
       const company=detail.company||null;
-      const id=detail.companyId??detail.id??company?.id;
+      const id=normalizeCompanyId(detail.companyId??detail.id??company?.id);
       if(!id){
         setSelectedContextCompanyId('');
         setNaceDraft('');
         persistCompanyId('');
-        if(active==='capa'||active==='workplace_status') writeModuleToLocation(active,{replace:true,companyId:''});
+        if(COMPANY_CONTEXT_MODULES.has(active)&&active!=='customer_360') writeModuleToLocation(active,{companyId:''});
         if(active==='customer_360'){
           setC360Id(null);
           setActive('companies');
           try{sessionStorage.setItem('isg_active','companies')}catch{ /* ignore */ }
-          writeModuleToLocation('companies',{replace:true});
+          writeModuleToLocation('companies');
         }
         return;
       }
-      rememberCompany(company);
+      if(COMPANY_CONTEXT_MODULES.has(active)&&!contextCompanies.some((row)=>String(row.id)===id)) return;
+      if(detail.source!=='global-workplace-selector') rememberCompany(company);
       setSelectedContextCompanyId(String(id));
       setNaceDraft('');
       persistCompanyId(id);
-      if((active==='capa'||active==='workplace_status')&&!user?.company_id){
-        writeModuleToLocation(active,{replace:true,companyId:String(id)});
+      if(COMPANY_CONTEXT_MODULES.has(active)&&!user?.company_id){
+        writeModuleToLocation(active,{companyId:id});
       }
       if(active==='customer_360'&&!isWorkplaceAccountUser(user)){
         const nextCompanyId=Number(id);
         if(Number.isFinite(nextCompanyId)&&nextCompanyId>0){
           setC360Id(nextCompanyId);
-          writeModuleToLocation('customer_360',{replace:true,companyId:nextCompanyId});
         }
       }
     }
@@ -2775,7 +2793,7 @@ function App(){
     }
     function onContextReset(){
       cancelPendingNaceDraft();
-      if(active==='capa'||active==='workplace_status') writeModuleToLocation(active,{replace:true,companyId:''});
+      if(COMPANY_CONTEXT_MODULES.has(active)&&active!=='customer_360') writeModuleToLocation(active,{companyId:''});
       setSelectedContextCompanyId('');
       setNaceDraft('');
       persistCompanyId('');
@@ -2831,11 +2849,11 @@ function App(){
   },[active,logged,user?.id,user?.role,user?.company_id,requiresPageCompanySelection]);
 
   useEffect(()=>{
-    if(!logged||active!=='customer_360'||!c360Id) return;
+    if(!logged||active!=='customer_360'||!contextCompanies.some((row)=>String(row.id)===String(c360Id))) return;
     setSelectedContextCompanyId(String(c360Id));
     setNaceDraft('');
     persistSelectedCompanyId(c360Id);
-  },[active,logged,c360Id]);
+  },[active,logged,c360Id,contextCompanies]);
 
   const selectedContextCompany=contextCompanies.find(
     (row)=>String(row.id)===String(selectedContextCompanyId),
@@ -2861,7 +2879,8 @@ function App(){
     canSelectGlobalCompany||hasGlobalNaceContext||showOsgbScopePlaceholder;
 
   function chooseGlobalContextCompany(value){
-    const next=String(value||'');
+    const next=normalizeCompanyId(value);
+    if(next===selectedContextCompanyId) return;
     const company=contextCompanies.find((row)=>String(row.id)===next)||null;
     setNaceDraft('');
     if(!company){
@@ -2871,7 +2890,7 @@ function App(){
         setC360Id(null);
         setActive('companies');
         try{sessionStorage.setItem('isg_active','companies')}catch{ /* ignore */ }
-        writeModuleToLocation('companies',{replace:true});
+        writeModuleToLocation('companies');
       }
       window.dispatchEvent(new CustomEvent('isg:nace-context-reset',{
         detail:{source:'global-workplace-selector'},
@@ -2933,6 +2952,8 @@ function App(){
   }
 
   function goModule(id,{replace=false,companyId=''}={}){
+    companyId=normalizeCompanyId(user?.company_id||companyId);
+    if(companyId&&!contextCompanies.some((row)=>String(row.id)===companyId)) companyId='';
     setMobileMoreOpen(false);
     if(requiresPageCompanySelection && id!==active && id!=='customer_360' && !(COMPANY_CONTEXT_MODULES.has(id)&&companyId)){
       setSelectedContextCompanyId('');
@@ -2978,8 +2999,8 @@ function App(){
 
   function openCustomer360(companyId){
     if(isWorkplaceAccountUser(user)) return;
-    const nextCompanyId=Number(companyId);
-    if(!Number.isFinite(nextCompanyId) || nextCompanyId<=0) return;
+    const nextCompanyId=Number(normalizeCompanyId(companyId));
+    if(!nextCompanyId||!contextCompanies.some((row)=>Number(row.id)===nextCompanyId)) return;
     setC360Id(nextCompanyId);
     setActive('customer_360');
     try{sessionStorage.setItem('isg_active','customer_360')}catch(_){ /* ignore */ }
@@ -3070,11 +3091,10 @@ function App(){
         const allowed=modulesForUser(u);
         const locationNavigation=readNavigationFromLocation();
         const fromUrl=locationNavigation.module;
-        const locationCompanyId=Number(locationNavigation.companyId);
+        const locationCompanyId=normalizeCompanyId(locationNavigation.companyId);
         const validCustomerRoute=!isWorkplaceAccountUser(u)
           && fromUrl==='customer_360'
-          && Number.isFinite(locationCompanyId)
-          && locationCompanyId>0;
+          && Boolean(locationCompanyId);
         // Kökten açılışta önceki session sayfasını değil, rolün ana sayfasını aç.
         // Paylaşılan/derin bağlantılar (ör. eğitim doğrulama veya customer_360)
         // açıkça istenmişse geriye dönük uyumluluk için korunur.
@@ -3084,12 +3104,12 @@ function App(){
         else if(fromUrl && (allowed.includes(fromUrl)||canOpenCompanyCapa(u,fromUrl,locationCompanyId))) next=fromUrl;
         else next=homeModuleForUser(u);
         setActive(next);
-        if(next==='customer_360' && validCustomerRoute) setC360Id(locationCompanyId);
+        if(next==='customer_360' && validCustomerRoute) setC360Id(Number(locationCompanyId));
         else if(next!=='customer_360') setC360Id(null);
         try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
         if(next) writeModuleToLocation(next,{
           replace:true,
-          companyId:COMPANY_CONTEXT_MODULES.has(next) ? (u.company_id||locationNavigation.companyId) : '',
+          companyId:COMPANY_CONTEXT_MODULES.has(next) ? (u.company_id||(next===fromUrl?locationNavigation.companyId:'')) : '',
         });
       }catch(_){
         if(cancelled) return;
@@ -3109,17 +3129,30 @@ function App(){
       const locationNavigation=readNavigationFromLocation();
       const id=locationNavigation.module;
       const allowed=modulesForUser(user);
-      const customerId=Number(locationNavigation.companyId);
-      if(id==='customer_360' && !isWorkplaceAccountUser(user) && Number.isFinite(customerId) && customerId>0){
+      const requestedId=normalizeCompanyId(user.company_id||locationNavigation.companyId);
+      const customerId=contextCompanies.some((row)=>String(row.id)===requestedId)?requestedId:'';
+      if(id==='customer_360' && !isWorkplaceAccountUser(user) && requestedId){
+        if(!customerId&&!contextCompaniesLoading&&!contextCompaniesError){
+          setActive('companies');
+          setC360Id(null);
+          setSelectedContextCompanyId('');
+          persistSelectedCompanyId('');
+          try{sessionStorage.setItem('isg_active','companies')}catch{ /* ignore */ }
+          writeModuleToLocation('companies',{replace:true});
+          return;
+        }
         setActive(id);
-        setC360Id(customerId);
+        setC360Id(Number(requestedId));
+        setSelectedContextCompanyId(customerId);
+        persistSelectedCompanyId(customerId);
         try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
         return;
       }
-      if(id && (allowed.includes(id)||canOpenCompanyCapa(user,id,customerId))){
+      if(id && (allowed.includes(id)||canOpenCompanyCapa(user,id,locationNavigation.companyId))){
         if(COMPANY_CONTEXT_MODULES.has(id)){
-          setSelectedContextCompanyId(String(user.company_id||locationNavigation.companyId||''));
-          persistSelectedCompanyId(user.company_id||locationNavigation.companyId||'');
+          setSelectedContextCompanyId(customerId);
+          persistSelectedCompanyId(customerId);
+          if(!contextCompaniesLoading&&!contextCompaniesError) writeModuleToLocation(id,{replace:true,companyId:customerId});
         }
         setActive(id);
         setC360Id(null);
@@ -3130,13 +3163,16 @@ function App(){
       if(home){
         setActive(home);
         setC360Id(null);
+        setSelectedContextCompanyId(normalizeCompanyId(user.company_id));
+        persistSelectedCompanyId(user.company_id);
+        setNaceDraft('');
         try{sessionStorage.setItem('isg_active',home)}catch(_){ /* ignore */ }
         writeModuleToLocation(home,{replace:true});
       }
     }
     window.addEventListener('popstate',onPop);
     return ()=>window.removeEventListener('popstate',onPop);
-  },[user]);
+  },[user,contextCompanies,contextCompaniesLoading,contextCompaniesError]);
 
   useEffect(()=>{
     if(logged) return;
@@ -3470,7 +3506,12 @@ function App(){
             onHome={goHome}
           >
             {active==='customer_360' && c360Id && !isWorkplaceAccountUser(user) ? (
-              <Customer360Page
+              contextCompaniesLoading||contextCompaniesError||!selectedContextCompany ? (
+                <section className="panel" role={contextCompaniesError?'alert':'status'}>
+                  <p>{contextCompaniesLoading?'Firmalar yükleniyor…':contextCompaniesError?'Firma listesi yüklenemedi.':'Bu firmaya erişilemiyor. Firma / işyeri seçiniz.'}</p>
+                  {contextCompaniesError&&<button type="button" onClick={()=>setContextCompaniesRetry((value)=>value+1)}>Tekrar dene</button>}
+                </section>
+              ) : <Customer360Page
                 companyId={c360Id}
                 onBack={closeCustomer360}
                 onNavigate={goModule}

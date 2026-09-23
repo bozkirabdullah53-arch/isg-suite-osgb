@@ -1,3 +1,5 @@
+import {normalizeCompanyId} from './company_module_navigation';
+
 /**
  * NACE katalog değerlerini ekranlar arasında aynı biçimde çözümlemek için
  * küçük, bağımsız yardımcılar.
@@ -176,7 +178,7 @@ export function isCompanySelector(element) {
 
 export function readPersistedCompanyId() {
   try {
-    return String(sessionStorage.getItem('isg_selected_company_id') || '');
+    return normalizeCompanyId(sessionStorage.getItem('isg_selected_company_id'));
   } catch {
     return '';
   }
@@ -184,7 +186,7 @@ export function readPersistedCompanyId() {
 
 export function persistSelectedCompanyId(id) {
   try {
-    const value = String(id || '');
+    const value = normalizeCompanyId(id);
     if (value) sessionStorage.setItem('isg_selected_company_id', value);
     else sessionStorage.removeItem('isg_selected_company_id');
   } catch {
