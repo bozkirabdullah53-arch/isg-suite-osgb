@@ -40,8 +40,10 @@ def test_legacy_electricity_distribution_code_resolves_to_current_catalog_entry(
     assert result.nace_description.startswith("Elektrik enerjisinin dağıtımı")
     assert result.hazard_class == "Çok Tehlikeli"
     assert result.source_snapshot["catalog_row"]["source_nace"] == "35.14.06"
-    # Identity is resolved; energy-specific risk tags remain subject to review.
-    assert result.classification_status == "review_required"
+    assert result.classification_status == "verified"
+    assert {"electrical", "high_voltage", "energy_isolation"}.issubset(
+        set(result.technical_risk_tags)
+    )
 
 
 def test_company_hazard_class_is_derived_for_any_exact_nace_code():
