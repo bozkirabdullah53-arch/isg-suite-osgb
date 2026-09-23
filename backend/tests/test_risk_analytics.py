@@ -18,6 +18,16 @@ def _risk(risk_id, hazard_id, score, exposed, *, status="Açık"):
     )
 
 
+def _employee(employee_id, *, department=None, job_title=None, is_active=True, branch_id=None):
+    return SimpleNamespace(
+        id=employee_id,
+        department=department,
+        job_title=job_title,
+        is_active=is_active,
+        branch_id=branch_id,
+    )
+
+
 def test_hazard_type_classifier_handles_turkish_terms():
     assert classify_hazard_type("Biyolojik Riskler", "Enfeksiyon") == "biological"
     assert classify_hazard_type("Kimyasal Riskler", "Solvent") == "chemical"
@@ -139,3 +149,53 @@ def test_missing_exposure_count_is_explicit_and_does_not_drop_risk():
     assert result["summary"]["exposure_records_missing"] == 1
     assert result["observed_risks"][0]["exposure_count_reported"] is False
     assert result["observed_risks"][0]["dominance_score"] == 8
+
+
+def test_missing_exposure_count_uses_active_personnel_scope_not_company_total():
+    company = SimpleNamespace(id=1, name="Personel kapsamı", hazard_class=None)
+    risk = _risk(1, 11, 8, None)
+    risk.department_name = "Üretim"
+    risk.activity = "Kurşun oksit üretimi"
+    risk.risk_source = "Üretim hattı"
+    risk.hazard_detail = "Kurşun maruziyeti"
+    employees = [
+        _employee(1, department="Üretim", job_title="Operatör"),
+        _employee(2, department="Üretim Hattı", job_title="Üretim operatörü"),
+        _employee(3, department="Bakım", job_title="Bakım teknisyeni"),
+        _employee(4, department="Üretim", job_title="Operatör", is_active=False),
+    ]
+
+    result = build_risk_analytics(
+        company,
+        risks=[risk],
+        employees=employees,
+        hazard_map={11: SimpleNamespace(id=11, code="K-1", name="Kurşun", category_id=1)},
+        category_map={1: SimpleNamespace(id=1, name="Kimyasal Riskler")},
+        active_employee_count=4,
+    )
+
+    assert result["company"]["active_employee_count"] == 4
+    assert result["summary"]["exposed_worker_count_total"] == 2
+    assert result["summary"]["exposure_records_matched"] == 1
+    assert result["summary"]["exposure_records_unmatched"] == 0
+    assert result["observed_risks"][0]["exposure_count_source"] == "personnel_match"
+    assert result["observed_risks"][0]["exposed_worker_count"] == 2
+
+
+def test_unmatched_personnel_scope_is_not_filled_with_company_total():
+    company = SimpleNamespace(id=1, name="Eşleşmeyen kapsam", hazard_class=None)
+    risk = _risk(1, 11, 8, None)
+    risk.department_name = "Kantar"
+    risk.activity = "Özel proses"
+
+    result = build_risk_analytics(
+        company,
+        risks=[risk],
+        employees=[_employee(1, department="İdari Ofis", job_title="Muhasebe uzmanı")],
+        hazard_map={11: SimpleNamespace(id=11, code="F-1", name="Tartım")},
+        active_employee_count=1,
+    )
+
+    assert result["summary"]["exposed_worker_count_total"] == 0
+    assert result["summary"]["exposure_records_unmatched"] == 1
+    assert result["observed_risks"][0]["exposure_count_source"] == "unmatched"

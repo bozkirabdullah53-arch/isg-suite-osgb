@@ -4,7 +4,7 @@ from io import BytesIO
 
 from openpyxl import Workbook
 
-from app.services.risk_excel_import import build_import_risk_code, parse_risk_workbook
+from app.services.risk_excel_import import build_import_risk_code, map_header, parse_risk_workbook
 
 
 def test_import_risk_code_does_not_depend_on_visible_global_risk_count() -> None:
@@ -160,4 +160,10 @@ def test_parser_fingerprint_includes_source_number_and_preserves_fields() -> Non
     assert appendix["photo_no"] == "20"
     assert first["legislation_basis"] == "6331 m.5"
     assert first["term_days_hint"] == 7
+    assert first["exposed_worker_count"] is None
     assert len({row["fingerprint"] for row in result["rows"]}) == 3
+
+
+def test_parser_recognizes_optional_exposed_worker_count_header() -> None:
+    assert map_header("Maruz kalan kişi sayısı") == "exposed_worker_count"
+    assert map_header("Personel sayısı") == "exposed_worker_count"
