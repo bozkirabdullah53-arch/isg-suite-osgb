@@ -1,7 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {AlertTriangle, Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
-import {API_URL, api, downloadFile, uploadFile} from './api';
-import {getAccessToken} from './auth_session';
+import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 import {
   canEditHealthRecords,
@@ -651,12 +650,10 @@ export function HealthPage({user}) {
   }
   async function openHtmlDocument(row, kind) {
     try {
-      const token = getAccessToken();
-      const r = await fetch(`${API_URL}/health-records/${row.id}/${kind}.html`, {
-        headers: token ? {Authorization: `Bearer ${token}`} : {},
-      });
-      if (!r.ok) throw new Error(kind === 'fitness' ? 'Uygunluk belgesi açılamadı.' : 'Sağlık sayfası açılamadı.');
-      const html = await r.text();
+      const html = await api(`/health-records/${row.id}/${kind}.html`);
+      if (typeof html !== 'string' || !html.trim()) {
+        throw new Error(kind === 'fitness' ? 'Uygunluk belgesi açılamadı.' : 'Sağlık sayfası açılamadı.');
+      }
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const w = window.open(url, '_blank');
@@ -671,12 +668,8 @@ export function HealthPage({user}) {
   }
   async function downloadHtmlDocument(row) {
     try {
-      const token = getAccessToken();
-      const r = await fetch(`${API_URL}/health-records/${row.id}/form.html`, {
-        headers: token ? {Authorization: `Bearer ${token}`} : {},
-      });
-      if (!r.ok) throw new Error('Sağlık sayfası indirilemedi.');
-      const html = await r.text();
+      const html = await api(`/health-records/${row.id}/form.html`);
+      if (typeof html !== 'string' || !html.trim()) throw new Error('Sağlık sayfası indirilemedi.');
       const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
