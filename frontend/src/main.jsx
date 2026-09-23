@@ -2810,7 +2810,7 @@ function App(){
   const canSelectGlobalCompany=requiresPageCompanySelection;
   const hasGlobalNaceContext=Boolean(selectedContextCompany);
   const showOsgbScopePlaceholder=active==='osgb_dashboard'
-    && user.role==='global_admin';
+    && user?.role==='global_admin';
   const showGlobalNaceContext=
     canSelectGlobalCompany||hasGlobalNaceContext||showOsgbScopePlaceholder;
 
