@@ -1329,14 +1329,41 @@ header p { margin: 4px 0 0; color: #6c7f87; }
   .customer-file-meta{width:100%;border-left:0;border-top:1px solid #cfe5e8;padding:10px 0 0;text-align:left}
 }
 @media print{
+  /* The sidebar's grid column must not constrain the report on paper. */
+  html:has(.customer-360-page),
+  body:has(.customer-360-page),
+  #root:has(.customer-360-page),
+  .app-shell:has(.customer-360-page),
+  .workspace:has(.customer-360-page),
+  .content:has(.customer-360-page),
+  .customer-360-page{
+    display:block!important;width:100%!important;max-width:none!important;min-width:0!important;
+    height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;
+    margin:0!important;padding:0!important;background:#fff!important;
+  }
   .customer-360-page .customer-360-actions,
   .customer-360-page .customer-360-company-picker,
   .customer-360-page .customer-file-hero,
-  .customer-360-page button{display:none!important}
-  .customer-360-page .table-wrap{overflow:visible!important;border:1px solid #cbd5e1!important}
-  .customer-360-page table{min-width:0!important;font-size:9px!important}
-  .customer-360-page th,.customer-360-page td{padding:5px 6px!important;font-size:9px!important}
-  .customer-360-page .panel{break-inside:avoid;page-break-inside:avoid}
+  .customer-360-page .workplace-obligation-filters,
+  .customer-360-page .workplace-obligation-metrics,
+  .customer-360-page button,
+  body:has(.customer-360-page) .modal-bg{display:none!important}
+  .customer-360-page .page-head{
+    position:static!important;margin:0 0 4mm!important;padding:0 0 4mm!important;
+    background:#fff!important;border:0!important;border-bottom:1px solid #cbd5e1!important;
+    border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;
+  }
+  .customer-360-page .customer-360-columns{display:block!important}
+  .customer-360-page .table-wrap{overflow:visible!important;border:1px solid #cbd5e1!important;border-radius:0!important}
+  .customer-360-page table{width:100%!important;min-width:0!important;table-layout:fixed;font-size:9px!important}
+  .customer-360-page th,.customer-360-page td{padding:5px 6px!important;font-size:9px!important;white-space:normal!important;overflow-wrap:anywhere}
+  .customer-360-page thead{display:table-header-group}
+  .customer-360-page tr{break-inside:avoid;page-break-inside:avoid}
+  .customer-360-page .panel{margin:0 0 4mm!important;padding:3mm!important;border:1px solid #cbd5e1!important;border-radius:0!important;background:#fff!important;break-inside:auto;page-break-inside:auto}
+  .customer-360-page h2,.customer-360-page h3{break-after:avoid;page-break-after:avoid}
+  .customer-360-page .cards{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}
+  .customer-360-page .metric{min-width:0!important;padding:8px!important;box-shadow:none!important;background:#fff!important;break-inside:avoid}
+  .customer-360-page .metric strong{font-size:18px!important}
 }
 
 /* Deneysel tema anahtarı (klasik görünüm) — mevcut tasarıma dokunmaz, sadece yeni buton */

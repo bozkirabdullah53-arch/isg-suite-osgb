@@ -359,19 +359,19 @@ def test_workplace_manager_gets_full_read_and_safe_downloads(client):
     assert row["fitness_status"] == "conditional"
     assert row["restrictions"] == restrictions
     assert row["physician_name"] == "Hekim Kisi"
-    assert row["informed_consent"] is True
-    assert row["informed_consent_at"] is not None
+    assert row["informed_consent"] is False
+    assert row["informed_consent_at"] is None
     assert row["has_report"] is True
     assert row["physician_professional_id"] is not None
-    for field, value in secrets.items():
-        assert row[field] == value, field
+    for field in secrets:
+        assert row[field] is None, field
     assert row["audiometry_date"] == "2026-08-10"
     assert row["spirometry_date"] == "2026-08-10"
     assert row["chest_xray_date"] == "2026-08-10"
     assert row["blood_lead_date"] == "2026-08-10"
-    assert row["blood_lead_value"] == 44
-    assert row["blood_lead_ref"] == 30
-    assert row["blood_lead_eval"] == "yuksek"
+    assert row["blood_lead_value"] is None
+    assert row["blood_lead_ref"] is None
+    assert row["blood_lead_eval"] is None
     assert row["report_file_name"] == "muayene-raporu.pdf"
 
     summary = client.get(
@@ -396,7 +396,7 @@ def test_workplace_manager_gets_full_read_and_safe_downloads(client):
     assert full_page.status_code == 200, full_page.text
     assert "Çalışan Sağlık Bilgileri — Salt Okunur" in full_page.text
     for secret in secrets.values():
-        assert secret in full_page.text
+        assert secret not in full_page.text
 
     report = client.get(
         f"/api/v1/health-records/{record_id}/report", headers=headers
@@ -415,10 +415,8 @@ def test_workplace_manager_gets_full_read_and_safe_downloads(client):
     exported_text = "\n".join(str(value) for value in values if value is not None)
     assert "Personel A" in exported_text
     assert restrictions in exported_text
-    assert "Kan Kurşun" in exported_text
-    assert "44" in exported_text
     for secret in secrets.values():
-        assert secret in exported_text
+        assert secret not in exported_text
 
     lead_exported = client.get(
         f"/api/v1/health-records/lead-export.xlsx?company_id={company_id}&lead_status=measured",

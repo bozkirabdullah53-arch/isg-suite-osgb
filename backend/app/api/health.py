@@ -216,10 +216,9 @@ def _to_response(
         ),
     }
     if employer_view:
-        # İşyeri yöneticisi kendi işyerindeki çalışanların sağlık kaydını
-        # salt-okunur olarak tam veriyle görebilir. Yazma/silme yetkileri ve
-        # hekim analiz uçları ayrı tutulur. Tenant erişimi ensure_access /
-        # company_ids_for_query ile korunur ve her erişim audit edilir.
+        # İşyeri yöneticisi yalnızca minimum gerekli, salt-okunur operasyonel
+        # görünümü alır. Klinik metinler ve tetkik sonuçları sağlık rollerine
+        # ayrılmıştır; tenant erişimi ayrıca ensure_access ile korunur.
         return HealthRecordResponse(
             id=row.id,
             company_id=row.company_id,
@@ -233,44 +232,48 @@ def _to_response(
             fitness_status=row.fitness_status,
             physician_professional_id=row.physician_professional_id,
             physician_name=row.physician_name,
-            diagnosis=view.diagnosis,
-            laboratory_result_summary=view.laboratory_result_summary,
-            anamnesis_chronic_diseases=view.anamnesis_chronic_diseases,
-            anamnesis_past_medical_history=view.anamnesis_past_medical_history,
-            anamnesis_family_history=view.anamnesis_family_history,
-            anamnesis_current_medications=view.anamnesis_current_medications,
-            anamnesis_allergies=view.anamnesis_allergies,
-            anamnesis_smoking_status=view.anamnesis_smoking_status,
-            anamnesis_smoking_pack_years=row.anamnesis_smoking_pack_years,
-            anamnesis_alcohol_use=view.anamnesis_alcohol_use,
-            anamnesis_occupational_history=view.anamnesis_occupational_history,
-            anamnesis_previous_exposures=view.anamnesis_previous_exposures,
-            anamnesis_current_complaints=view.anamnesis_current_complaints,
-            summary=view.summary,
-            confidential_note=view.confidential_note,
-            informed_consent=bool(row.informed_consent),
-            informed_consent_at=row.informed_consent_at,
+            diagnosis=None,
+            laboratory_result_summary=None,
+            anamnesis_chronic_diseases=None,
+            anamnesis_past_medical_history=None,
+            anamnesis_family_history=None,
+            anamnesis_current_medications=None,
+            anamnesis_allergies=None,
+            anamnesis_smoking_status=None,
+            anamnesis_smoking_pack_years=None,
+            anamnesis_alcohol_use=None,
+            anamnesis_occupational_history=None,
+            anamnesis_previous_exposures=None,
+            anamnesis_current_complaints=None,
+            summary=None,
+            confidential_note=None,
+            informed_consent=False,
+            informed_consent_at=None,
             restrictions=view.restrictions,
             audiometry_date=row.audiometry_date,
-            audiometry_result=view.audiometry_result,
+            audiometry_result=None,
             spirometry_date=row.spirometry_date,
-            spirometry_result=view.spirometry_result,
+            spirometry_result=None,
             chest_xray_date=row.chest_xray_date,
-            chest_xray_result=view.chest_xray_result,
+            chest_xray_result=None,
             blood_lead_date=row.blood_lead_date,
-            blood_lead_value=row.blood_lead_value,
-            blood_lead_unit=row.blood_lead_unit,
-            blood_lead_ref=row.blood_lead_ref,
-            blood_lead_eval=row.blood_lead_eval,
-            **lead_fields,
-            suggested_tests=view.suggested_tests,
-            exposures=view.exposures,
-            follow_up_note=view.follow_up_note,
-            other_biological_test=view.other_biological_test,
+            blood_lead_value=None,
+            blood_lead_unit=None,
+            blood_lead_ref=None,
+            blood_lead_eval=None,
+            blood_lead_limit=None,
+            blood_lead_medical_threshold=None,
+            blood_lead_status=None,
+            blood_lead_status_label=None,
+            blood_lead_exceeds_limit=False,
+            suggested_tests=None,
+            exposures=None,
+            follow_up_note=None,
+            other_biological_test=None,
             report_file_name=row.report_file_name,
             has_report=bool(row.report_storage_path),
-            smart_summary=smart_summary(view, employee),
-            tetkik_summary=tetkik_summary(view),
+            smart_summary=None,
+            tetkik_summary=None,
             is_overdue=overdue,
             created_by_id=row.created_by_id,
             created_at=row.created_at,
@@ -1064,14 +1067,7 @@ def export_health_xlsx(
     if employer_view:
         headers = [
             "Personel", "Görev", "Bölüm", "Muayene Türü", "Muayene Tarihi", "Sonraki Muayene",
-            "Uygunluk", "Hekim", "Tanı / Klinik Değerlendirme", "Laboratuvar Sonuç Özeti",
-            "Kronik Hastalıklar", "Geçmiş Hastalık / Ameliyat", "Aile Öyküsü", "Kullanılan İlaçlar",
-            "Alerjiler", "Sigara", "Sigara Paket-Yıl", "Alkol", "Mesleki Geçmiş",
-            "Geçmiş Mesleki Maruziyetler", "Güncel Yakınmalar",
-            "Özet", "Gizli Hekim Notu", "Bilgilendirme Onayı",
-            "Odyometri", "SFT", "Akciğer Grafisi", "Kan Kurşun", "Kurşun Değerlendirme",
-            "Önerilen Tetkikler", "Maruziyetler", "Takip Notu", "Diğer Biyolojik Tetkik",
-            "Çalışma Kısıtları", "Akıllı Özet", "Tetkik Özeti", "Rapor Dosyası",
+            "Uygunluk", "Hekim", "Çalışma Kısıtları", "Sonraki İşlem Tarihi",
         ]
         ws.append(headers)
 
@@ -1093,43 +1089,12 @@ def export_health_xlsx(
                 row.next_examination_date.isoformat() if row.next_examination_date else "",
                 excel_safe(FITNESS_LABELS.get(row.fitness_status, row.fitness_status.value)),
                 excel_safe(row.physician_name or ""),
-                excel_safe(view.diagnosis or ""),
-                excel_safe(view.laboratory_result_summary or ""),
-                excel_safe(view.anamnesis_chronic_diseases or ""),
-                excel_safe(view.anamnesis_past_medical_history or ""),
-                excel_safe(view.anamnesis_family_history or ""),
-                excel_safe(view.anamnesis_current_medications or ""),
-                excel_safe(view.anamnesis_allergies or ""),
-                excel_safe(view.anamnesis_smoking_status or ""),
-                row.anamnesis_smoking_pack_years if row.anamnesis_smoking_pack_years is not None else "",
-                excel_safe(view.anamnesis_alcohol_use or ""),
-                excel_safe(view.anamnesis_occupational_history or ""),
-                excel_safe(view.anamnesis_previous_exposures or ""),
-                excel_safe(view.anamnesis_current_complaints or ""),
-                excel_safe(view.summary or ""),
-                excel_safe(view.confidential_note or ""),
-                "Evet" if row.informed_consent else "Hayır",
-                excel_safe(f"{row.audiometry_date or ''} / {view.audiometry_result or ''}".strip(" /")),
-                excel_safe(f"{row.spirometry_date or ''} / {view.spirometry_result or ''}".strip(" /")),
-                excel_safe(f"{row.chest_xray_date or ''} / {view.chest_xray_result or ''}".strip(" /")),
-                excel_safe(f"{row.blood_lead_value if row.blood_lead_value is not None else ''} {row.blood_lead_unit or ''}".strip()),
-                excel_safe(row.blood_lead_eval or ""),
-                excel_safe(view.suggested_tests or ""),
-                excel_safe(view.exposures or ""),
-                excel_safe(view.follow_up_note or ""),
-                excel_safe(view.other_biological_test or ""),
                 excel_safe(view.restrictions or ""),
-                excel_safe(smart_summary(view, employee)),
-                excel_safe(tetkik_summary(view)),
-                excel_safe(row.report_file_name or ""),
+                row.next_examination_date.isoformat() if row.next_examination_date else "",
             ])
         ws.freeze_panes = "A2"
         ws.auto_filter.ref = ws.dimensions
-        widths = [
-            28, 22, 22, 24, 18, 18, 20, 24,
-            38, 38, 34, 34, 34, 34, 30, 18, 16, 24, 38, 38, 38,
-            36, 36, 18, 30, 30, 30, 24, 22, 36, 36, 36, 36, 40, 40, 40, 30,
-        ]
+        widths = [28, 22, 22, 24, 18, 18, 20, 24, 40, 18]
         for idx, width in enumerate(widths, start=1):
             ws.column_dimensions[get_column_letter(idx)].width = width
         buf = BytesIO()
@@ -1476,10 +1441,9 @@ def health_form_html(
     employee = db.get(Employee, record.employee_id)
     view = DecryptedRecordView(record)
     employer_view = is_workplace_manager_account(user)
-    # İşyeri/İK hesabı bu sayfayı yalnızca tam, salt-okunur görüntüleme ve
-    # indirme amacıyla açabilir. Kayıt yazma uçları bu bağımlılığa dahil
-    # edilmediği için aynı kullanıcı POST/PATCH/DELETE yapamaz.
-    full_health_view = user.role in PHYSICIAN_ONLY or employer_view
+    # İşveren hesabı yalnızca minimum gerekli görünümü alır; klinik alanlar
+    # yalnızca yetkili sağlık profesyonellerine açılır.
+    full_health_view = user.role in PHYSICIAN_ONLY
     is_ek2_record = record.record_type in (
         HealthRecordType.ENTRY_EXAM,
         HealthRecordType.PERIODIC_EXAM,
@@ -1494,7 +1458,7 @@ def health_form_html(
         )
     )
     document_note = (
-        "İşyeri / İK hesabı için tam sağlık kaydı görünümü — yalnızca görüntüleme ve indirme"
+        "İşyeri / İK hesabı için minimum gerekli salt-okunur görünüm"
         if employer_view
         else (
             "EK-2 kapsamında işyeri hekimi kaydı"
@@ -1525,10 +1489,10 @@ def health_form_html(
     exposures = view.exposures if full_health_view else None
     summary_txt = view.summary if full_health_view else None
     follow_up = view.follow_up_note if full_health_view else None
-    restrictions_txt = view.restrictions if full_health_view else None
+    restrictions_txt = view.restrictions if (full_health_view or employer_view) else None
     smart = smart_summary(view, employee) if full_health_view else ""
-    consent_txt = "Evet" if record.informed_consent else "Hayır"
-    if record.informed_consent_at:
+    consent_txt = ("Evet" if record.informed_consent else "Hayır") if full_health_view else ""
+    if record.informed_consent_at and full_health_view:
         consent_txt += f" ({record.informed_consent_at.strftime('%d.%m.%Y %H:%M')})"
 
     def safe(value) -> str:
@@ -1541,6 +1505,29 @@ def health_form_html(
             f"<div class='box'><div class='lab'>{safe(label)}</div>"
             f"<div class='val'>{safe(value) or '—'}</div></div>"
         )
+
+    clinical_sections = f"""
+<h3>Yapılandırılmış Anamnez</h3>
+<div class="grid">
+{''.join(cell(label, value or '') for label, value in anamnesis_lines)}
+{cell('Sigara paket-yıl', record.anamnesis_smoking_pack_years if record.anamnesis_smoking_pack_years is not None else '')}
+</div>
+<h3>Hekim Değerlendirmesi</h3>
+<p><strong>Tanı / değerlendirme:</strong> {safe(diagnosis_txt) or '—'}</p>
+<p><strong>Laboratuvar sonuç özeti:</strong> {safe(laboratory_summary) or '—'}</p>
+<h3>Tetkikler</h3>
+<div class="grid">
+{cell('Odyometri', f"{record.audiometry_date or ''} / {audiometry_txt or ''}".strip(' /'))}
+{cell('SFT', f"{record.spirometry_date or ''} / {spirometry_txt or ''}".strip(' /'))}
+{cell('Akciğer Grafisi', f"{record.chest_xray_date or ''} / {chest_txt or ''}".strip(' /'))}
+{cell('Kan Kurşun', f"{record.blood_lead_date or ''} / {record.blood_lead_value if record.blood_lead_value is not None else ''} {record.blood_lead_unit or ''} (ref {record.blood_lead_ref or '—'}) / {record.blood_lead_eval or ''}".strip(' /'))}
+{cell('Diğer Biyolojik Tetkik', other_bio or '')}
+{cell('Akıllı Özet', smart)}
+</div>
+<h3>Önerilen tetkikler / Maruziyet</h3>
+<p>{safe(suggested) or '—'}</p>
+<p>{safe(exposures) or '—'}</p>
+""" if full_health_view else ""
 
     company_name = safe(company.name if company else "")
     employee_name = safe(employee.full_name if employee else "")
@@ -1573,26 +1560,7 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 {cell('Uygunluk', FITNESS_LABELS.get(record.fitness_status, record.fitness_status.value))}
 {cell('Bilgilendirme Onayı', consent_txt)}
 </div>
-<h3>Yapılandırılmış Anamnez</h3>
-<div class="grid">
-{''.join(cell(label, value or '') for label, value in anamnesis_lines)}
-{cell('Sigara paket-yıl', record.anamnesis_smoking_pack_years if record.anamnesis_smoking_pack_years is not None else '')}
-</div>
-<h3>Hekim Değerlendirmesi</h3>
-<p><strong>Tanı / değerlendirme:</strong> {safe(diagnosis_txt) or '—'}</p>
-<p><strong>Laboratuvar sonuç özeti:</strong> {safe(laboratory_summary) or '—'}</p>
-<h3>Tetkikler</h3>
-<div class="grid">
-{cell('Odyometri', f"{record.audiometry_date or ''} / {audiometry_txt or ''}".strip(' /'))}
-{cell('SFT', f"{record.spirometry_date or ''} / {spirometry_txt or ''}".strip(' /'))}
-{cell('Akciğer Grafisi', f"{record.chest_xray_date or ''} / {chest_txt or ''}".strip(' /'))}
-{cell('Kan Kurşun', f"{record.blood_lead_date or ''} / {record.blood_lead_value if record.blood_lead_value is not None else ''} {record.blood_lead_unit or ''} (ref {record.blood_lead_ref or '—'}) / {record.blood_lead_eval or ''}".strip(' /'))}
-{cell('Diğer Biyolojik Tetkik', other_bio or '')}
-{cell('Akıllı Özet', smart)}
-</div>
-<h3>Önerilen tetkikler / Maruziyet</h3>
-<p>{safe(suggested) or '—'}</p>
-<p>{safe(exposures) or '—'}</p>
+{clinical_sections}
 <h3>Not / Kısıt / Takip</h3>
 <p><strong>Özet:</strong> {safe(summary_txt) or '—'}</p>
 <p><strong>Kısıtlamalar:</strong> {safe(restrictions_txt) or '—'}</p>

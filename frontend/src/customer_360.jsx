@@ -228,7 +228,7 @@ export function Customer360Page({
             <button type="button" className="mini secondary" disabled={busy} onClick={() => void exportReport('xlsx', true)}>
               <Download size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Detaylı Excel
             </button>
-            <button type="button" className="mini secondary" onClick={() => window.print()}>
+            <button type="button" className="mini secondary" disabled={busy || !data} onClick={() => window.print()}>
               <Printer size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Yazdır
             </button>
             <button type="button" className="mini" disabled={busy} onClick={load}>
@@ -371,7 +371,7 @@ export function Customer360Page({
             <Metric label="Eğitim Kaydı" value={counts.trainings} />
           </div>
 
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 16}}>
+          <div className="customer-360-columns" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 16}}>
             <Panel title="Profil" icon={Building2}>
               <dl style={{margin: 0, display: 'grid', gap: 8, fontSize: 14}}>
                 <div><dt style={{color: '#64748b', fontSize: 12}}>Yetkili</dt><dd style={{margin: '2px 0 0'}}>{c?.authorized_person || '—'}</dd></div>
@@ -441,7 +441,7 @@ export function Customer360Page({
             />
           </Panel>
 
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16}}>
+          <div className="customer-360-columns" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16}}>
             <Panel
               title="Son Ziyaretler"
               icon={CalendarDays}
