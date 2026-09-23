@@ -95,6 +95,14 @@ export function PwaShortcutPrompt() {
 
   const accept = useCallback(async () => {
     writeShortcutChoice('accepted', storage());
+
+    // iOS, ana ekrana ekleme işlemini web sayfasının JavaScript'ine açmaz.
+    // Android'deki beforeinstallprompt akışını iPhone'da zorlamıyoruz.
+    if (isIosDevice(window)) {
+      setHelp(shortcutInstructionText(true, mobile));
+      return;
+    }
+
     if (deferred && typeof deferred.prompt === 'function') {
       try {
         deferred.prompt();
@@ -119,7 +127,7 @@ export function PwaShortcutPrompt() {
     <div className="pwa-shortcut-overlay" role="dialog" aria-modal="true" aria-labelledby="pwa-shortcut-title">
       <div className="pwa-shortcut-card">
         <h2 id="pwa-shortcut-title">İSG Suite</h2>
-        <p>
+        <p className="pwa-shortcut-message">
           {help || 'Web sayfasının kısa yolu oluşturulsun mu?'}
         </p>
         <div className="pwa-shortcut-actions">
@@ -128,7 +136,9 @@ export function PwaShortcutPrompt() {
           ) : (
             <>
               <button type="button" className="pwa-no" onClick={() => close('dismissed')} onPointerUp={() => close('dismissed')}>Hayır</button>
-              <button type="button" className="pwa-yes" onClick={() => void accept()}>Evet</button>
+              <button type="button" className="pwa-yes" onClick={() => void accept()}>
+                {isIosDevice(window) ? 'Kurulum adımlarını göster' : 'Evet'}
+              </button>
             </>
           )}
         </div>
