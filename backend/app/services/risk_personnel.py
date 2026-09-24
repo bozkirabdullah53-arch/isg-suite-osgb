@@ -145,6 +145,7 @@ def match_detail(row: Any, employee: Any) -> dict:
     domain_overlap = sorted((person_domain & _DOMAIN_TOKENS) & (risk_domain & _DOMAIN_TOKENS))
     if not domain_overlap and (person_domain & {"aku", "batarya", "sarj", "sarjhane"}) and (risk_domain & {"kursun", "lead", "oksit", "elektrolit"}):
         domain_overlap = ["akü/kurşun görev ilişkisi"]
+        score = max(score, 70)
         reasons.append("Özel görev/tehlike terimi eşleşmesi: akü/kurşun görev ilişkisi")
     if not reasons and not domain_overlap:
         return {"matched": False, "level": "unmatched", "score": 0, "reasons": []}
