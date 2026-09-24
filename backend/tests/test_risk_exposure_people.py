@@ -50,6 +50,19 @@ def test_empty_scope_does_not_crash_or_make_up_workers():
     assert result['summary']['matched_worker_count'] == 0
 
 
+def test_battery_lead_roles_match_without_matching_hr():
+    row = risk(department_name='Üretim', activity='Kurşun oksit üretimi', risk_definition='Kurşun maruziyeti')
+    workers = [
+        employee(1, department='Üretim', job_title='Akü şarj operatörü'),
+        employee(2, department='Şarjhane', job_title='Kurşun oksit operatörü'),
+        employee(3, department='İK', job_title='İnsan kaynakları uzmanı'),
+    ]
+    count, source, matched = personnel_exposure_match(row, workers)
+    assert source == 'personnel_match'
+    assert count == 2
+    assert {key[2] for key in matched} == {1, 2}
+
+
 def test_roster_deduplicates_by_id_without_merging_same_names():
     out = roster([risk(), risk(2)], [employee(), employee(2)])
     assert out['summary']['matched_worker_count'] == 2

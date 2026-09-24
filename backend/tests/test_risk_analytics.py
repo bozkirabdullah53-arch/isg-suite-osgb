@@ -28,6 +28,11 @@ def _employee(employee_id, *, department=None, job_title=None, is_active=True, b
     )
 
 
+def test_battery_lead_is_chemical_risk():
+    assert classify_hazard_type('Kurşun maruziyeti') == 'chemical'
+    assert classify_hazard_type('Akü / batarya elektroliti') == 'chemical'
+
+
 def test_hazard_type_classifier_handles_turkish_terms():
     assert classify_hazard_type("Biyolojik Riskler", "Enfeksiyon") == "biological"
     assert classify_hazard_type("Kimyasal Riskler", "Solvent") == "chemical"

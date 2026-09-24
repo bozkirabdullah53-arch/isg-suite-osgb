@@ -29,6 +29,10 @@ _TOKEN_ALIASES = {
     "sarjhane": "sarj", "desarjhane": "desarj",
 }
 _TASK_PHRASES = {("zemin", "yikama"): "temizlik", ("zemin", "temizligi"): "temizlik"}
+_DOMAIN_TOKENS = frozenset({
+    "aku", "akumulator", "batarya", "sarj", "sarjhane", "kursun", "lead",
+    "oksit", "elektrolit", "asit", "hidrojen", "plaka", "pres",
+})
 
 
 def fold(value: object) -> str:
@@ -83,6 +87,7 @@ def employee_scope(employee: Any) -> dict:
         "department": getattr(employee, "department", None),
         "department_tokens": specific_tokens(getattr(employee, "department", None)),
         "job_tokens": task_tokens(getattr(employee, "job_title", None)),
+        "department_id": getattr(employee, "department_id", None),
     }
 
 
@@ -93,6 +98,10 @@ def risk_scope(row: Any) -> dict:
         "department_tokens": specific_tokens(getattr(row, "department_name", None)),
         # Sources, hazards and consequences do not establish who performs a task.
         "activity_tokens": task_tokens(getattr(row, "activity", None)),
+        "scope_tokens": specific_tokens(" ".join(str(getattr(row, field, None) or "") for field in (
+            "risk_source", "hazard_detail", "risk_definition", "affected_people", "affected_group",
+        ))),
+        "department_id": getattr(row, "department_id", None),
     }
 
 
@@ -108,6 +117,8 @@ def match_reasons(scope: dict, person: dict) -> list[str]:
     if branch_id is not None and branch_id != getattr(employee, "branch_id", None):
         return []
     reasons = []
+    if scope["department_id"] is not None and scope["department_id"] == person["department_id"]:
+        reasons.append("Bölüm kaydı eşleşiyor")
     if same_department(scope["department"], person["department"]):
         reasons.append("Bölüm bilgisi eşleşiyor: " + str(scope["department"]))
     tokens = overlap(person["job_tokens"], scope["activity_tokens"])
@@ -116,8 +127,40 @@ def match_reasons(scope: dict, person: dict) -> list[str]:
     return reasons
 
 
-def personnel_exposure_match(row: Any, employees: Iterable[Any], *, prepared_employees=None) -> tuple[int, str, set]:
+def match_detail(row: Any, employee: Any) -> dict:
+    """Return a conservative, explainable match without changing legacy counts."""
     scope = risk_scope(row)
-    people = prepared_employees if prepared_employees is not None else (employee_scope(e) for e in employees)
-    matched = {employee_key(person["employee"]) for person in people if match_reasons(scope, person)}
+    person = employee_scope(employee)
+    reasons = match_reasons(scope, person)
+    if not reasons:
+        return {"matched": False, "level": "unmatched", "score": 0, "reasons": []}
+    score = 0
+    if scope["department_id"] is not None and scope["department_id"] == person["department_id"]:
+        score += 55
+    elif same_department(scope["department"], person["department"]):
+        score += 50
+    elif overlap(scope["department_tokens"], person["department_tokens"]):
+        score += 40
+    activity_tokens = scope["activity_tokens"] | scope["scope_tokens"]
+    job_overlap = overlap(person["job_tokens"], activity_tokens)
+    if job_overlap:
+        score += 55
+    domain_overlap = sorted((person["job_tokens"] | person["department_tokens"]) & _DOMAIN_TOKENS & (activity_tokens | scope["department_tokens"]))
+    if domain_overlap:
+        score += 20
+        reasons.append("Özel görev/tehlike terimi eşleşmesi: " + ", ".join(domain_overlap))
+    if not domain_overlap and any(
+        min(len(left), len(right)) >= 4 and (left.startswith(right) or right.startswith(left))
+        for left in person["department_tokens"]
+        for right in scope["department_tokens"] | scope["activity_tokens"]
+    ):
+        score += 15
+        reasons.append("Sektör/bölüm kök terimi eşleşmesi")
+    level = "exact" if score >= 90 else "strong" if score >= 70 else "probable" if score >= 50 else "weak"
+    return {"matched": level in {"exact", "strong", "probable"}, "level": level, "score": min(score, 100), "reasons": reasons}
+
+
+def personnel_exposure_match(row: Any, employees: Iterable[Any]) -> tuple[int, str, set]:
+    scope = risk_scope(row)
+    matched = {employee_key(e) for e in employees if match_detail(row, e)["matched"]}
     return len(matched), "personnel_match" if matched else "unmatched", matched

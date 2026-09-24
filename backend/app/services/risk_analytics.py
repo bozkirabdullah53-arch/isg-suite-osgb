@@ -87,6 +87,15 @@ _CHEMICAL_TERMS = (
     "chemical",
     "refrigerant",
     "tehlikeli madde",
+    "kursun",
+    "lead",
+    "aku",
+    "akumulator",
+    "batarya",
+    "elektrolit",
+    "kursun oksit",
+    "sulf urik asit",
+    "sulfurik asit",
 )
 _PSYCHOSOCIAL_TERMS = (
     "psikososyal",

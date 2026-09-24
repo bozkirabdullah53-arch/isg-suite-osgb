@@ -3,7 +3,7 @@ from collections import Counter
 from typing import Any
 
 from app.services.risk_analytics import RISK_TYPE_META, classify_hazard_details, _is_cancelled, _safe_count
-from app.services.risk_personnel import employee_scope, match_reasons, risk_scope, fold
+from app.services.risk_personnel import employee_scope, match_detail, match_reasons, risk_scope, fold
 
 
 def build_exposure_roster(company: Any, *, risks, employees, hazard_map, category_map,
@@ -45,10 +45,10 @@ def build_exposure_roster(company: Any, *, risks, employees, hazard_map, categor
         else:
             scope = risk_scope(row)
             for eid, person in prepared_people.items():
-                reasons = match_reasons(scope, person)
-                if reasons:
+                detail = match_detail(row, person["employee"])
+                if detail["matched"]:
                     item["matched_worker_count"] += 1
-                    matches[eid].append({"risk_id": row.id, "reasons": reasons})
+                    matches[eid].append({"risk_id": row.id, "reasons": detail["reasons"], "match_level": detail["level"], "match_score": detail["score"]})
             item["source"] = "personnel_match" if item["matched_worker_count"] else "unmatched"
         sources[item["source"]] += 1
         risk_items.append(item)
