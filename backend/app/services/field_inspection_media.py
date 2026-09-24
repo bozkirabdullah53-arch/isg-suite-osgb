@@ -81,13 +81,17 @@ def render_marked_photo(*, analysis_bytes: bytes, annotations: Iterable[object])
         if getattr(annotation, "is_deleted", False):
             continue
         color = str(getattr(annotation, "color", "#dc2626") or "#dc2626")
-        x = int(_clamp(getattr(annotation, "x", 0)) * width)
-        y = int(_clamp(getattr(annotation, "y", 0)) * height)
+        # A normalized coordinate of exactly 1.0 maps to the exclusive image
+        # boundary; clamp it to the last drawable pixel before making boxes.
+        x = min(width - 1, int(_clamp(getattr(annotation, "x", 0)) * width))
+        y = min(height - 1, int(_clamp(getattr(annotation, "y", 0)) * height))
         w = int(_clamp(getattr(annotation, "width", 0)) * width)
         h = int(_clamp(getattr(annotation, "height", 0)) * height)
         shape = str(getattr(annotation, "shape_type", "rectangle"))
         if shape in {"rectangle", "region"}:
-            draw.rectangle((x, y, min(width - 1, x + w), min(height - 1, y + h)), outline=color, width=max(3, width // 350))
+            x1 = min(width - 1, max(x, x + w))
+            y1 = min(height - 1, max(y, y + h))
+            draw.rectangle((x, y, x1, y1), outline=color, width=max(3, width // 350))
         elif shape == "point":
             radius = max(8, min(width, height) // 80)
             draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=color, width=max(3, width // 350))

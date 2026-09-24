@@ -88,6 +88,25 @@ def _jpeg() -> bytes:
     return out.getvalue()
 
 
+def test_marked_photo_clamps_normalized_edge_coordinates():
+    from types import SimpleNamespace
+
+    from app.services.field_inspection_media import render_marked_photo
+
+    annotation = SimpleNamespace(
+        is_deleted=False,
+        color="#dc2626",
+        x=1.0,
+        y=1.0,
+        width=0.0,
+        height=0.0,
+        shape_type="rectangle",
+        label="",
+    )
+    marked = render_marked_photo(analysis_bytes=_jpeg(), annotations=[annotation])
+    with Image.open(BytesIO(marked)) as image:
+        assert image.size == (160, 100)
+
 def test_visual_field_end_to_end_and_safe_ai_failure(visual_client):
     headers, ids = _seed(visual_client)
     catalog = visual_client.get(f"/api/v1/field-inspections/catalog?company_id={ids['company_id']}", headers=headers)
