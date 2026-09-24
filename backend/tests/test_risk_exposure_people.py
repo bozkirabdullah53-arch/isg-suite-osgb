@@ -34,7 +34,8 @@ def roster(risks, employees, **scope):
     ('Şarj', 'Asit dolumu', 'Deşarj', 'Kontrol görevlisi', 0),
     ('Boya Üretim', 'Boya hazırlama', 'Gıda Üretim', 'Paketleme', 0),
     ('Elektrik Trafosu', 'Elektrik bakımı', 'Bakım', 'Elektrik teknisyeni', 1),
-    ('Üretim', 'Kurşun oksit üretimi', 'Üretim Hattı', 'Operatör', 1),
+    ('Üretim', 'Kurşun oksit üretimi', 'Üretim Hattı', 'Operatör', 0),
+    ('Oksit Üretim', 'Kurşun oksit üretimi', 'Oksit Üretim Hattı', 'Operatör', 1),
     ('Şarj Havuzları', 'Şarj işlemi', 'Şarjhane', 'Kontrol', 1),
 ])
 def test_matching_is_specific_and_keeps_meaningful_variations(rd, activity, ed, job, expected):

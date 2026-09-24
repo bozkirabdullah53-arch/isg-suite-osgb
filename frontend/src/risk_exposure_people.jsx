@@ -55,6 +55,7 @@ export function RiskExposurePeople({companyId, hazardType, riskId, onClose}) {
   const people = visibleExposurePeople(data, {riskId: filterRisk, query, includeUnmatched});
   const scopedRisks = (data?.risks || []).filter((risk) => !filterRisk || String(risk.id) === filterRisk);
   const pendingRisks = scopedRisks.filter((risk) => risk.source !== 'personnel_match');
+  const reviewRisks = scopedRisks.filter((risk) => risk.hazard_type === 'other');
   const scopedCount = (data?.employees || []).filter((person) => scopedMatches(person, filterRisk).length).length;
   const ids = validSelectedIds(data, selected);
   const selectedProgram = programs.find((program) => String(program.id) === programId);
@@ -126,16 +127,17 @@ export function RiskExposurePeople({companyId, hazardType, riskId, onClose}) {
           <button type="button" className="ra-people-close" aria-label="Çalışan listesini kapat" onClick={onClose} disabled={trainingBusy}><X size={22} /></button>
         </div>
         <div className="ra-people-body">
-          <p id="ra-people-description" className="ra-people-guidance">Liste, personelin bölüm ve görev bilgilerine dayalı otomatik eşleşmeleri gösterir. Eğitim için kişileri ve risk kapsamını kontrol edin. Eşleşme bulunmaması, maruziyet olmadığı anlamına gelmez.</p>
+          <p id="ra-people-description" className="ra-people-guidance">Bu kişiler otomatik eşleşme adaylarıdır; doğrulanmış maruziyet listesi değildir. Eğitim için yapılan işi ve saha kapsamını kontrol edin. Aday bulunmaması, maruziyet olmadığı anlamına gelmez.</p>
           {loading && <p role="status">Çalışanlar ve eşleşme gerekçeleri hazırlanıyor…</p>}
           {error && <p className="ra-people-error" role="alert">{error}</p>}
           {data && <>
-            <div className="ra-people-metrics"><div><strong>{scopedCount}</strong><span>Eşleşen farklı çalışan</span></div><div><strong>{scopedRisks.length}</strong><span>İlgili risk kaydı</span></div><div><strong>{pendingRisks.length}</strong><span>Çalışan eşleşmesi bekleyen kayıt</span></div><div><strong>{ids.length}</strong><span>Eğitim için seçilen</span></div></div>
+            <div className="ra-people-metrics"><div><strong>{scopedCount}</strong><span>Otomatik çalışan adayı</span></div><div><strong>{scopedRisks.length}</strong><span>İlgili risk kaydı</span></div><div><strong>{pendingRisks.length}</strong><span>Çalışanı belirlenemeyen kayıt</span></div><div><strong>{ids.length}</strong><span>Eğitim için seçilen</span></div></div>
             <div className="ra-people-filters">
               <label><span>Risk / faaliyet</span><select value={filterRisk} disabled={Boolean(riskId) || trainingBusy} onChange={(event) => { setFilterRisk(event.target.value); select([]); }}><option value="">Bu kapsamdaki tüm riskler</option>{(data.risks || []).map((risk) => <option key={risk.id} value={risk.id}>{risk.risk_code} · {risk.hazard} · {risk.activity || risk.department || ''}</option>)}</select></label>
               <label><span>Çalışan ara</span><div className="ra-people-search"><Search size={16} /><input aria-label="Ad, bölüm veya görev ara" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ad, bölüm veya görev" /></div></label>
             </div>
             {filterRisk && <div className="ra-people-risk-summary"><strong>{risks.get(Number(filterRisk))?.hazard}</strong><p>{risks.get(Number(filterRisk))?.risk_definition}</p><small>{risks.get(Number(filterRisk))?.department} · {risks.get(Number(filterRisk))?.activity}</small></div>}
+            {reviewRisks.length > 0 && <details className="ra-people-pending" open><summary><AlertTriangle size={16} /> {reviewRisks.length} kaydın tehlike türü inceleme bekliyor</summary><div>{reviewRisks.map((risk) => <p key={risk.id}><strong>{risk.risk_code} · {risk.hazard}</strong><br />{risk.classification_note}</p>)}</div></details>}
             {pendingRisks.length > 0 && <details className="ra-people-pending"><summary><AlertTriangle size={16} /> {pendingRisks.length} kayıtta çalışanları belirlemek gerekiyor</summary><div>{pendingRisks.map((risk) => <p key={risk.id}><strong>{risk.risk_code} · {risk.hazard}</strong><br />{risk.activity} · {risk.source === 'reported' ? `Beyan edilen sayı: ${risk.reported_worker_count}; kişi bağlantısı yok.` : 'Bölüm/görev bilgileriyle çalışan bulunamadı.'}</p>)}</div></details>}
             <div className="ra-people-selection"><label><input type="checkbox" checked={includeUnmatched} disabled={trainingBusy} onChange={(event) => setIncludeUnmatched(event.target.checked)} /> Eğitim listesine manuel eklemek için diğer aktif çalışanları da göster</label><div><button type="button" disabled={!people.length || trainingBusy} onClick={() => select([...new Set([...ids, ...people.map((person) => Number(person.id))])])}>Görünenleri seç ({people.length})</button><button type="button" disabled={!ids.length || trainingBusy} onClick={() => select([])}>Seçimi temizle</button></div></div>
             <div className="ra-people-list">

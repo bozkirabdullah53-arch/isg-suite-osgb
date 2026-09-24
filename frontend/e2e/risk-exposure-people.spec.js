@@ -20,7 +20,7 @@ const roster = (id, role) => ({
   ],
 });
 
-async function setup(page, role = 'safety_specialist', delayed = false) {
+async function setup(page, role = 'safety_specialist', delayed = false, review = null) {
   const errors = [], assignments = [], listRequests = [];
   let pending;
   page.on('pageerror', (error) => errors.push(error.message));
@@ -37,10 +37,18 @@ async function setup(page, role = 'safety_specialist', delayed = false) {
     if (request.method() === 'OPTIONS') return json(route, {});
     if (path === '/auth/me') return json(route, {id: 9, role, email: 'fixture@example.test', full_name: 'Test Yetkili', company_id: role === 'company_admin' ? 42 : null, osgb_id: 7, subscription_write_allowed: true});
     if (path === '/companies') return json(route, role === 'company_admin' ? [companies[0]] : companies);
-    if (path === '/risks/analytics') return json(route, overview(Number(url.searchParams.get('company_id'))));
+    if (path === '/risks/analytics') {
+      const payload = overview(Number(url.searchParams.get('company_id')));
+      if (review) { payload.classification_reviews = [review]; payload.summary.classification_review_count = 1; }
+      return json(route, payload);
+    }
     if (path === '/risks/analytics/exposures') {
       const id = Number(url.searchParams.get('company_id'));
       listRequests.push(id);
+      if (review && url.searchParams.get('risk_id') === String(review.id)) return json(route, {
+        company: companies.find((c) => c.id === id), scope: {label: review.hazard},
+        risks: [review], summary: {matched_worker_count: 0}, employees: [], can_assign_training: true,
+      });
       if (delayed && id === 42) { pending = () => json(route, roster(id, role)); return; }
       return json(route, roster(id, role));
     }
@@ -64,6 +72,7 @@ test('opens named reasons, filters a risk, builds a reviewed training list and p
   expect(state.listRequests).toHaveLength(0);
   await page.getByRole('button', {name: 'Kimyasal: 2 çalışanı göster'}).first().click();
   const dialog = page.getByRole('dialog', {name: 'Kimyasal'});
+  await expect(dialog.getByText('Bu kişiler otomatik eşleşme adaylarıdır', {exact: false})).toBeVisible();
   await expect(dialog.getByText('Ayşe Test', {exact: true})).toBeVisible();
   await expect(dialog.getByText('Mehmet Test', {exact: true})).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('isg:company-selected', {detail: {companyId: '42'}})));
@@ -86,6 +95,25 @@ test('opens named reasons, filters a risk, builds a reviewed training list and p
   await expect(assign).toBeDisabled();
   await dialog.getByRole('button', {name: 'Çalışan listesini kapat'}).click();
   await expect(dialog).toHaveCount(0);
+  expect(state.errors).toEqual([]);
+});
+
+test('conflicting source category is visible and opens the exact record without inventing workers', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  const review = {...risk, id: 77, risk_code: 'R-77', hazard: 'Kurşun transferi', hazard_type: 'other',
+    source: 'unmatched', matched_worker_count: 0,
+    classification_status: 'review_required', classification_note: 'Kaynak kategori: Biyolojik Riskler. Kimyasal etken ile çelişiyor; kaynak kaydı kontrol edin.'};
+  const state = await setup(page, 'safety_specialist', false, review);
+  await expect(page.getByText('Riske maruz kalan çalışan sayısı', {exact: true})).toHaveCount(0);
+  await page.locator('.ra-classification-review > summary').click();
+  await page.getByRole('button', {name: 'R-77 kaydını ve çalışan adaylarını incele'}).click();
+  const dialog = page.getByRole('dialog', {name: 'Kurşun transferi'});
+  await expect(dialog.getByText(review.classification_note)).toBeVisible();
+  await expect(dialog.getByText('Bu filtreyle eşleşen çalışan bulunamadı.', {exact: false})).toBeVisible();
+  await expect(dialog.getByRole('button', {name: 'Eğitime hazırla', exact: true})).toBeDisabled();
+  await expect(dialog.getByLabel('Risk / faaliyet')).toHaveValue('77');
+  await page.screenshot({path: 'test-results/risk-classification-review-mobile.png', fullPage: true});
+  expect(state.assignments).toEqual([]);
   expect(state.errors).toEqual([]);
 });
 

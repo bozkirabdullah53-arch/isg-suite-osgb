@@ -4,7 +4,8 @@ export function canViewExposurePeople(user) {
 }
 
 export function matchedWorkerCount(item) {
-  return Number(item?.matched_worker_count ?? item?.exposed_worker_count ?? 0);
+  // An aggregate/reported number cannot stand in for named candidates.
+  return Number(item?.matched_worker_count ?? 0);
 }
 
 export function scopedMatches(employee, riskId = '') {
@@ -34,7 +35,7 @@ export function exposureTrainingCsv(data, selectedIds, riskId = '') {
   const selected = new Set(validSelectedIds(data, selectedIds));
   const risks = new Map((data.risks || []).map((risk) => [risk.id, risk]));
   const scopeRisk = risks.get(Number(riskId));
-  const rows = [['İşyeri', 'Eğitim kapsamı', 'Ad soyad', 'Bölüm', 'Görev', 'İlgili riskler', 'Seçim dayanağı']];
+  const rows = [['İşyeri', 'Eğitim kapsamı', 'Ad soyad', 'Bölüm', 'Görev', 'İlgili riskler', 'Seçim dayanağı', 'Doğrulama durumu', 'Tür incelemesi']];
   for (const person of data.employees || []) {
     if (!selected.has(Number(person.id))) continue;
     const matches = scopedMatches(person, riskId);
@@ -42,6 +43,9 @@ export function exposureTrainingCsv(data, selectedIds, riskId = '') {
       person.department, person.job_title,
       matches.map((match) => { const risk = risks.get(match.risk_id); return `${risk?.risk_code || ''}: ${risk?.hazard || ''} — ${risk?.risk_definition || ''}`; }).join(' | '),
       matches.length ? [...new Set(matches.flatMap((match) => match.reasons))].join(' | ') : 'Manuel eğitim seçimi; otomatik maruziyet eşleşmesi yok',
+      'Eğitim hazırlığı; doğrulanmış maruziyet kaydı değildir',
+      [...new Set((scopeRisk ? [scopeRisk] : matches.map((match) => risks.get(match.risk_id)))
+        .filter((risk) => risk?.hazard_type === 'other').map((risk) => risk.classification_note))].join(' | '),
     ]);
   }
   return '\uFEFF' + rows.map((row) => row.map(csvCell).join(';')).join('\r\n');
