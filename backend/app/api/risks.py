@@ -1364,6 +1364,7 @@ def risk_analytics(
     company_risk_count = int(db.scalar(select(func.count()).select_from(RiskAssessment).where(RiskAssessment.company_id == effective)) or 0)
     lead_rows = []
     lead_high_count = 0
+    lead_person_count = 0
     if user.role == UserRole.WORKPLACE_PHYSICIAN:
         assigned_company_ids = set(company_ids_for_query(db, user, effective) or [])
         if effective not in assigned_company_ids:
@@ -1379,6 +1380,7 @@ def risk_analytics(
         ).all())
         if date_from or date_to:
             lead_rows = [row for row in lead_rows if (not date_from or row.examination_date >= date_from) and (not date_to or row.examination_date <= date_to)]
+        lead_person_count = len({row.employee_id for row in lead_rows})
         lead_high_count = sum(1 for row in lead_rows if bool(row.blood_lead_exceeds_limit) or str(row.blood_lead_eval or "").casefold().replace("ü", "u") in {"yuksek", "kritik", "high", "critical"})
     incident_summary = {
         "total": len(incident_rows),
@@ -1393,12 +1395,12 @@ def risk_analytics(
         "completed_dof_count": sum(1 for row in incident_dofs if str(row.status or "").casefold() in {"tamamlandı", "tamamlandi", "kapalı", "kapali", "closed"}),
     }
     health_signal = {
-        "lead_surveillance_present": bool(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else False,
-        "lead_records_count": len(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else 0,
-        "lead_high_signal_count": lead_high_count if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else 0,
-        "medical_review_recommended": bool(lead_high_count) if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else False,
+        "lead_surveillance_present": bool(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN and lead_person_count >= 5 else False,
+        "lead_records_count": lead_person_count if user.role == UserRole.WORKPLACE_PHYSICIAN and lead_person_count >= 5 else 0,
+        "lead_high_signal_count": lead_high_count if user.role == UserRole.WORKPLACE_PHYSICIAN and lead_person_count >= 5 else 0,
+        "medical_review_recommended": bool(lead_high_count) if user.role == UserRole.WORKPLACE_PHYSICIAN and lead_person_count >= 5 else False,
         "available": user.role == UserRole.WORKPLACE_PHYSICIAN and effective in set(company_ids_for_query(db, user, effective) or []),
-        "suppressed_for_small_group": user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) < 5,
+        "suppressed_for_small_group": user.role == UserRole.WORKPLACE_PHYSICIAN and lead_person_count < 5,
         "privacy_note": "Yalnız toplulaştırılmış gözetim sinyali; kişi, kan değeri ve klinik ayrıntı içermez.",
     }
     payload = build_risk_analytics(
@@ -1410,7 +1412,7 @@ def risk_analytics(
         nace_roadmap=roadmap,
         active_employee_count=active_employee_count,
         incident_summary=incident_summary,
-        health_signal=health_signal if not health_signal["suppressed_for_small_group"] else {"available": True, "privacy_note": "Sağlık sinyali küçük grup gizliliği nedeniyle gösterilmedi."},
+        health_signal=health_signal if not health_signal["suppressed_for_small_group"] else {"available": True, "suppressed_for_small_group": True, "privacy_note": "Sağlık sinyali küçük grup gizliliği nedeniyle gösterilmedi."},
         scope_metadata={
             "company_id": effective,
             "branch_id": branch_id,
