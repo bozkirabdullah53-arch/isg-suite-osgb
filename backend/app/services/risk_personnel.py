@@ -131,9 +131,24 @@ def match_detail(row: Any, employee: Any) -> dict:
     """Return a conservative, explainable match without changing legacy counts."""
     scope = risk_scope(row)
     person = employee_scope(employee)
-    reasons = match_reasons(scope, person)
-    if not reasons:
+    company_id = getattr(row, "company_id", None)
+    employee_company = getattr(employee, "company_id", None)
+    if company_id is not None and employee_company is not None and company_id != employee_company:
         return {"matched": False, "level": "unmatched", "score": 0, "reasons": []}
+    branch_id = getattr(row, "branch_id", None)
+    if branch_id is not None and branch_id != getattr(employee, "branch_id", None):
+        return {"matched": False, "level": "unmatched", "score": 0, "reasons": []}
+    reasons = match_reasons(scope, person)
+    activity_tokens = scope["activity_tokens"] | scope["scope_tokens"]
+    person_domain = set(words(person["employee"].job_title)) | set(words(person["employee"].department))
+    risk_domain = set(words(getattr(row, "activity", None))) | set(words(getattr(row, "risk_definition", None))) | set(words(getattr(row, "hazard_detail", None)))
+    domain_overlap = sorted((person_domain & _DOMAIN_TOKENS) & (risk_domain & _DOMAIN_TOKENS))
+    if not domain_overlap and (person_domain & {"aku", "batarya", "sarj", "sarjhane"}) and (risk_domain & {"kursun", "lead", "oksit", "elektrolit"}):
+        domain_overlap = ["akü/kurşun görev ilişkisi"]
+    if not reasons and not domain_overlap:
+        return {"matched": False, "level": "unmatched", "score": 0, "reasons": []}
+    if domain_overlap and not reasons:
+        reasons.append("Özel görev/tehlike terimi eşleşmesi: " + ", ".join(domain_overlap))
     score = 0
     if scope["department_id"] is not None and scope["department_id"] == person["department_id"]:
         score += 55
@@ -141,11 +156,9 @@ def match_detail(row: Any, employee: Any) -> dict:
         score += 50
     elif overlap(scope["department_tokens"], person["department_tokens"]):
         score += 40
-    activity_tokens = scope["activity_tokens"] | scope["scope_tokens"]
     job_overlap = overlap(person["job_tokens"], activity_tokens)
     if job_overlap:
         score += 55
-    domain_overlap = sorted((person["job_tokens"] | person["department_tokens"]) & _DOMAIN_TOKENS & (activity_tokens | scope["department_tokens"]))
     if domain_overlap:
         score += 20
         reasons.append("Özel görev/tehlike terimi eşleşmesi: " + ", ".join(domain_overlap))
@@ -160,7 +173,7 @@ def match_detail(row: Any, employee: Any) -> dict:
     return {"matched": level in {"exact", "strong", "probable"}, "level": level, "score": min(score, 100), "reasons": reasons}
 
 
-def personnel_exposure_match(row: Any, employees: Iterable[Any]) -> tuple[int, str, set]:
-    scope = risk_scope(row)
-    matched = {employee_key(e) for e in employees if match_detail(row, e)["matched"]}
+def personnel_exposure_match(row: Any, employees: Iterable[Any], *, prepared_employees=None) -> tuple[int, str, set]:
+    people = prepared_employees if prepared_employees is not None else [employee_scope(e) for e in employees]
+    matched = {employee_key(person["employee"]) for person in people if match_detail(row, person["employee"])["matched"]}
     return len(matched), "personnel_match" if matched else "unmatched", matched
