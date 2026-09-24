@@ -139,19 +139,19 @@ def match_detail(row: Any, employee: Any) -> dict:
     if branch_id is not None and branch_id != getattr(employee, "branch_id", None):
         return {"matched": False, "level": "unmatched", "score": 0, "reasons": []}
     reasons = match_reasons(scope, person)
+    score = 0
     activity_tokens = scope["activity_tokens"] | scope["scope_tokens"]
     person_domain = set(words(person["employee"].job_title)) | set(words(person["employee"].department))
     risk_domain = set(words(getattr(row, "activity", None))) | set(words(getattr(row, "risk_definition", None))) | set(words(getattr(row, "hazard_detail", None)))
     domain_overlap = sorted((person_domain & _DOMAIN_TOKENS) & (risk_domain & _DOMAIN_TOKENS))
     if not domain_overlap and (person_domain & {"aku", "batarya", "sarj", "sarjhane"}) and (risk_domain & {"kursun", "lead", "oksit", "elektrolit"}):
         domain_overlap = ["akü/kurşun görev ilişkisi"]
-        score = max(score, 70)
+        score = 70
         reasons.append("Özel görev/tehlike terimi eşleşmesi: akü/kurşun görev ilişkisi")
     if not reasons and not domain_overlap:
         return {"matched": False, "level": "unmatched", "score": 0, "reasons": []}
     if domain_overlap and not reasons:
         reasons.append("Özel görev/tehlike terimi eşleşmesi: " + ", ".join(domain_overlap))
-    score = 0
     if scope["department_id"] is not None and scope["department_id"] == person["department_id"]:
         score += 55
     elif same_department(scope["department"], person["department"]):
