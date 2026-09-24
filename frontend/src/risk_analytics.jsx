@@ -240,7 +240,12 @@ export function RiskAnalyticsPage({user, onNavigate}) {
     setError('');
     setData(null);
     try {
-      const result = await api(`/risks/analytics?company_id=${encodeURIComponent(id)}`);
+      // Risk analitiği büyük firmalarda yoğun bir salt-okunur hesaplamadır.
+      // Genel API retry politikasını tetikleyip ekranı tekrar tekrar bekletme.
+      const result = await api(`/risks/analytics?company_id=${encodeURIComponent(id)}`, {
+        timeoutMs: 120_000,
+        _retries: 0,
+      });
       if (requestId === analyticsRequestRef.current) {
         if (String(result.company?.id) !== String(id)) throw new Error('İşyeri kapsamı değişti. Yeniden seçim yapın.');
         setData(result);

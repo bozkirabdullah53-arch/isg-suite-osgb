@@ -127,10 +127,10 @@ def match_reasons(scope: dict, person: dict) -> list[str]:
     return reasons
 
 
-def match_detail(row: Any, employee: Any) -> dict:
+def match_detail(row: Any, employee: Any, *, prepared_scope=None, prepared_person=None) -> dict:
     """Return a conservative, explainable match without changing legacy counts."""
-    scope = risk_scope(row)
-    person = employee_scope(employee)
+    scope = prepared_scope or risk_scope(row)
+    person = prepared_person or employee_scope(employee)
     company_id = getattr(row, "company_id", None)
     employee_company = getattr(employee, "company_id", None)
     if company_id is not None and employee_company is not None and company_id != employee_company:
@@ -177,5 +177,6 @@ def match_detail(row: Any, employee: Any) -> dict:
 
 def personnel_exposure_match(row: Any, employees: Iterable[Any], *, prepared_employees=None) -> tuple[int, str, set]:
     people = prepared_employees if prepared_employees is not None else [employee_scope(e) for e in employees]
-    matched = {employee_key(person["employee"]) for person in people if match_detail(row, person["employee"])["matched"]}
+    scope = risk_scope(row)
+    matched = {employee_key(person["employee"]) for person in people if match_detail(row, person["employee"], prepared_scope=scope, prepared_person=person)["matched"]}
     return len(matched), "personnel_match" if matched else "unmatched", matched
