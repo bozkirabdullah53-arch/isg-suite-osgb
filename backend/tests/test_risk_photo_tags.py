@@ -260,6 +260,7 @@ def test_field_inspection_risk_and_dof_are_idempotent(client):
     created = client.post("/api/v1/risks", headers=headers, json=payload)
     assert created.status_code == 200, created.text
     row = created.json()
+    assert row["risk_code"] == f"RSK-{row['id']:04d}"
     assert row["record_origin"] == "field_inspection"
     assert row["client_reference"] == "field-risk-client-1"
     assert row["observation_location"] == "Pres önü"
