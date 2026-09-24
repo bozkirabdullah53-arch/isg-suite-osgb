@@ -342,6 +342,20 @@ def _next_code(db: Session, prefix: str, model, field) -> str:
     return f"{prefix}-{count + 1:04d}"
 
 
+def _assign_risk_code(db: Session, row: RiskAssessment) -> None:
+    """Use the global DB identity for globally unique risk codes.
+
+    Counting visible rows is not safe here: tenant row-level security can hide
+    another company's RSK-0001, while risk_code has a global unique constraint.
+    The primary-key sequence is shared by all tenants and avoids that collision.
+    """
+    row.risk_code = f"RSK-TMP-{uuid.uuid4().hex[:12].upper()}"
+    db.add(row)
+    db.flush()
+    row.risk_code = f"RSK-{row.id:04d}"
+    db.flush()
+
+
 def _media_file_type(ext: str) -> str:
     e = (ext or "").lower()
     if e in ALLOWED_PHOTO or e == ".bmp":
@@ -2184,11 +2198,8 @@ def migrate_isg_records(
         if dry_run:
             created += 1
             continue
-        code = _next_code(db, "RSK", RiskAssessment, RiskAssessment.risk_code)
-        while db.scalar(select(RiskAssessment).where(RiskAssessment.risk_code == code)):
-            code = f"RSK-{int(code.split('-')[1]) + 1:04d}"
         row = RiskAssessment(
-            risk_code=code,
+            risk_code="",
             company_id=rec.company_id,
             branch_id=rec.branch_id,
             hazard_id=hazard.id,
@@ -2210,7 +2221,7 @@ def migrate_isg_records(
             status=_legacy_status(rec.status),
             created_by_id=user.id,
         )
-        db.add(row)
+        _assign_risk_code(db, row)
         rec.status = RecordStatus.CANCELLED
         created += 1
     if not dry_run:
@@ -2603,12 +2614,8 @@ def create_risk(
         frequency=payload.residual_frequency,
         severity=payload.residual_severity,
     )
-    code = _next_code(db, "RSK", RiskAssessment, RiskAssessment.risk_code)
-    # uniqueness retry
-    while db.scalar(select(RiskAssessment).where(RiskAssessment.risk_code == code)):
-        code = f"RSK-{int(code.split('-')[1]) + 1:04d}"
     row = RiskAssessment(
-        risk_code=code,
+        risk_code="",
         company_id=payload.company_id,
         branch_id=payload.branch_id,
         record_origin=payload.record_origin,
@@ -2647,7 +2654,7 @@ def create_risk(
         status=payload.status or "Açık",
         created_by_id=user.id,
     )
-    db.add(row)
+    _assign_risk_code(db, row)
     db.commit()
     add_audit_log(
         db,
