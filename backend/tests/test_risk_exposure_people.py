@@ -113,12 +113,12 @@ def test_overview_and_named_roster_counts_agree_and_payload_is_minimal():
 def endpoint(monkeypatch):
     from app.api import risks as api
     from app.api import company_access
-    from app.models.entities import Base, Company, Employee, Hazard, HazardCategory, RiskAssessment, UserRole
+    from app.models.entities import Base, Branch, Company, Employee, Hazard, HazardCategory, RiskAssessment, UserRole
     from app.core.tenant_context import clear_tenant
 
     clear_tenant()
     engine = create_engine('sqlite://', poolclass=StaticPool, connect_args={'check_same_thread': False})
-    Base.metadata.create_all(engine, tables=[Company.__table__, Employee.__table__, Hazard.__table__, HazardCategory.__table__, RiskAssessment.__table__])
+    Base.metadata.create_all(engine, tables=[Company.__table__, Branch.__table__, Employee.__table__, Hazard.__table__, HazardCategory.__table__, RiskAssessment.__table__])
     db = Session(engine)
     db.add_all([Company(id=1, name='Yetkili firma'), Company(id=2, name='Başka firma'),
         HazardCategory(id=1, name='Kimyasal Riskler'), Hazard(id=1, category_id=1, name='Asit', code='K-1'),
@@ -174,3 +174,9 @@ def test_physician_can_read_but_does_not_gain_training_assignment_role(endpoint)
     response = client.get('/risks/analytics/exposures?company_id=1')
     assert response.status_code == 200
     assert response.json()['can_assign_training'] is False
+
+
+def test_risk_analytics_rejects_date_and_cross_company_branch_scope(endpoint):
+    client, _ = endpoint
+    assert client.get('/risks/analytics?company_id=1&date_from=2025-03-01&date_to=2025-02-01').status_code == 422
+    assert client.get('/risks/analytics?company_id=1&branch_id=999').status_code == 404

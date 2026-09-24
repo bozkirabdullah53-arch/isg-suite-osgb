@@ -44,9 +44,26 @@ def test_analytics_includes_aggregate_incident_and_health_signals_only():
     assert result["health_signal"]["lead_records_count"] == 4
     assert result["health_signal"]["medical_review_recommended"] is True
     assert result["health_signal"]["available"] is True
+    assert result["data_scope"] == {}
     payload = str(result)
     assert "blood_lead_value" not in payload
     assert "employee_name" not in payload
+
+
+def test_analytics_exposes_classification_conflict_and_scope_without_changing_risk_scores():
+    company = SimpleNamespace(id=9, name="Test", hazard_class="Çok Tehlikeli")
+    risk = _risk(11, 4, 25, 3)
+    result = build_risk_analytics(
+        company,
+        risks=[risk],
+        nace_roadmap={"identity": {"hazard_class": "Tehlikeli"}, "workplace": {}, "warnings": []},
+        scope_metadata={"hazard_class_conflict": True, "rule_version": "risk-analytics-v2", "branch_id": 4},
+    )
+    assert result["nace"]["company_hazard_class"] == "Çok Tehlikeli"
+    assert result["nace"]["catalog_hazard_class"] == "Tehlikeli"
+    assert result["nace"]["hazard_class_conflict"] is True
+    assert result["data_scope"]["rule_version"] == "risk-analytics-v2"
+    assert result["observed_risks"][0]["risk_score"] == 25
 
 
 def test_hazard_type_classifier_handles_turkish_terms():

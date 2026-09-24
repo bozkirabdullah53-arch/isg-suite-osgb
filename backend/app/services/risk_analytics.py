@@ -352,6 +352,7 @@ def build_risk_analytics(
     active_employee_count: int = 0,
     incident_summary: Mapping[str, Any] | None = None,
     health_signal: Mapping[str, Any] | None = None,
+    scope_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a read-only NACE and workplace risk analytics payload.
 
@@ -457,6 +458,14 @@ def build_risk_analytics(
         observed_rows.append(
             {
                 "id": getattr(row, "id", None),
+                "source_type": "risk_assessment",
+                "source_record_id": getattr(row, "id", None),
+                "source_date": getattr(row, "updated_at", None).isoformat() if getattr(row, "updated_at", None) else None,
+                "source_file": getattr(row, "source_file", None),
+                "source_sheet": getattr(row, "source_sheet", None),
+                "source_row": getattr(row, "source_row", None),
+                "revision_no": getattr(row, "revision_no", None),
+                "calculation_version": "risk-analytics-v2",
                 "risk_code": getattr(row, "risk_code", None),
                 "category": category_name,
                 "hazard_code": hazard_code,
@@ -588,6 +597,7 @@ def build_risk_analytics(
     company_id = getattr(company, "id", None)
     incident_summary = incident_summary or {}
     health_signal = health_signal or {}
+    scope_metadata = scope_metadata or {}
 
     return {
         "schema_version": ANALYTICS_SCHEMA_VERSION,
@@ -608,13 +618,20 @@ def build_risk_analytics(
             "section_name": nace_identity.get("section_name"),
             "hazard_class": nace_identity.get("hazard_class") or getattr(company, "hazard_class", None),
             "exact_catalog_match": bool(roadmap.get("exact_catalog_match")),
+            "hazard_class_conflict": bool(scope_metadata.get("hazard_class_conflict")),
+            "company_hazard_class": getattr(company, "hazard_class", None),
+            "catalog_hazard_class": nace_identity.get("hazard_class"),
         },
+        "data_scope": dict(scope_metadata),
+        "health_signal_available": bool(health_signal.get("available")),
         "incident_summary": {
             key: _safe_count(incident_summary.get(key))
-            for key in ("total", "accidents", "near_misses", "other_events", "injuries", "days_lost")
+            for key in ("total", "accidents", "near_misses", "other_events", "injuries", "days_lost", "events_with_root_cause", "dof_count", "open_dof_count", "completed_dof_count")
         },
+        "incident_summary_available": bool(scope_metadata.get("incident_summary_available", True)),
         "health_signal": {
             "available": bool(health_signal.get("available")),
+            "suppressed_for_small_group": bool(health_signal.get("suppressed_for_small_group")),
             "lead_surveillance_present": bool(health_signal.get("lead_surveillance_present")),
             "lead_records_count": _safe_count(health_signal.get("lead_records_count")),
             "lead_high_signal_count": _safe_count(health_signal.get("lead_high_signal_count")),

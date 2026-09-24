@@ -30,6 +30,8 @@ from app.models.entities import (
     Employee,
     HealthRecord,
     IncidentEvent,
+    IncidentDof,
+    IncidentRootCause,
     Hazard,
     HazardCategory,
     IsgModule,
@@ -1278,9 +1280,30 @@ def _analytics_records(db: Session, effective: int):
     return risks, hazard_map, category_map, active_employees
 
 
+def _analytics_scope(
+    db: Session,
+    user: User,
+    company_id: int,
+    branch_id: int | None,
+    date_from: date | None,
+    date_to: date | None,
+):
+    ensure_company_access(db, user, company_id)
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, "Başlangıç tarihi bitiş tarihinden sonra olamaz.")
+    if branch_id is not None:
+        branch = db.get(Branch, branch_id)
+        if not branch or branch.company_id != company_id:
+            raise HTTPException(404, "Şube bu işyeri kapsamında bulunamadı.")
+    return branch_id, date_from, date_to
+
+
 @router.get("/analytics")
 def risk_analytics(
     company_id: int | None = None,
+    branch_id: int | None = Query(default=None, gt=0),
+    date_from: date | None = None,
+    date_to: date | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*ANALYTICS_ROLES)),
 ):
@@ -1290,11 +1313,19 @@ def risk_analytics(
     sağlık/klinik veri döndürmez ve erişimi seçili işyeri kapsamıyla sınırlar.
     """
     effective = effective_company_id(db, user, company_id)
+    branch_id, date_from, date_to = _analytics_scope(db, user, effective, branch_id, date_from, date_to)
     company = db.get(Company, effective)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
 
     risks, hazard_map, category_map, active_employees = _analytics_records(db, effective)
+    company_risk_count = len(risks)
+    if branch_id is not None:
+        risks = [row for row in risks if row.branch_id == branch_id]
+        active_employees = [row for row in active_employees if row.branch_id == branch_id]
+    if date_from or date_to:
+        risks = [row for row in risks if (not date_from or row.created_at.date() >= date_from) and (not date_to or row.created_at.date() <= date_to)]
+    risks = [row for row in risks if str(row.status or "").casefold() not in {"iptal", "cancelled", "canceled"}]
     active_employee_count = len(active_employees)
     nace_code, nace_source = _resolve_company_nace(db, company)
     roadmap = build_risk_nace_roadmap(
@@ -1305,12 +1336,38 @@ def risk_analytics(
     )
     # Aggregate-only incident/health signals. Never expose personal health values
     # or incident narratives through risk analytics.
-    incident_rows = list(db.scalars(
-        select(IncidentEvent).where(IncidentEvent.company_id == effective)
+    incident_stmt = select(IncidentEvent).where(IncidentEvent.company_id == effective)
+    if branch_id is not None:
+        incident_stmt = incident_stmt.where(IncidentEvent.branch_id == branch_id)
+    if date_from:
+        incident_stmt = incident_stmt.where(IncidentEvent.event_date >= date_from)
+    if date_to:
+        incident_stmt = incident_stmt.where(IncidentEvent.event_date <= date_to)
+    incident_rows = list(db.scalars(incident_stmt).all())
+    incident_ids = [row.id for row in incident_rows]
+    root_cause_count = 0
+    if incident_ids:
+        root_cause_count = len(db.scalars(
+            select(IncidentRootCause.incident_id).where(
+                IncidentRootCause.incident_id.in_(incident_ids),
+                IncidentRootCause.root_cause.is_not(None),
+            )
+        ).all())
+    incident_dofs = list(db.scalars(
+        select(IncidentDof)
+        .join(IncidentEvent, IncidentEvent.id == IncidentDof.incident_id)
+        .where(IncidentEvent.company_id == effective)
+        .where(*([IncidentEvent.branch_id == branch_id] if branch_id is not None else []))
+        .where(*([IncidentEvent.event_date >= date_from] if date_from else []))
+        .where(*([IncidentEvent.event_date <= date_to] if date_to else []))
     ).all())
+    company_risk_count = int(db.scalar(select(func.count()).select_from(RiskAssessment).where(RiskAssessment.company_id == effective)) or 0)
     lead_rows = []
     lead_high_count = 0
     if user.role == UserRole.WORKPLACE_PHYSICIAN:
+        assigned_company_ids = set(company_ids_for_query(db, user, effective) or [])
+        if effective not in assigned_company_ids:
+            raise HTTPException(403, "Sağlık sinyali için işyeri ataması bulunamadı.")
         active_ids = {employee.id for employee in active_employees}
         lead_rows = list(db.scalars(
             select(HealthRecord).where(
@@ -1320,7 +1377,9 @@ def risk_analytics(
                 HealthRecord.blood_lead_value.is_not(None),
             )
         ).all())
-        lead_high_count = sum(1 for row in lead_rows if str(row.blood_lead_eval or "").casefold().replace("ü", "u") in {"yuksek", "kritik", "high", "critical"})
+        if date_from or date_to:
+            lead_rows = [row for row in lead_rows if (not date_from or row.examination_date >= date_from) and (not date_to or row.examination_date <= date_to)]
+        lead_high_count = sum(1 for row in lead_rows if bool(row.blood_lead_exceeds_limit) or str(row.blood_lead_eval or "").casefold().replace("ü", "u") in {"yuksek", "kritik", "high", "critical"})
     incident_summary = {
         "total": len(incident_rows),
         "accidents": sum(1 for row in incident_rows if row.event_type in {"is_kazasi", "accident"}),
@@ -1328,13 +1387,18 @@ def risk_analytics(
         "other_events": sum(1 for row in incident_rows if row.event_type not in {"is_kazasi", "accident", "ramak_kala", "near_miss"}),
         "injuries": sum(1 for row in incident_rows if bool(row.injury_occurred)),
         "days_lost": sum(max(0, int(row.report_days or 0)) for row in incident_rows if row.event_type in {"is_kazasi", "accident"}),
+        "events_with_root_cause": root_cause_count,
+        "dof_count": len(incident_dofs),
+        "open_dof_count": sum(1 for row in incident_dofs if str(row.status or "").casefold() not in {"tamamlandı", "tamamlandi", "kapalı", "kapali", "closed"}),
+        "completed_dof_count": sum(1 for row in incident_dofs if str(row.status or "").casefold() in {"tamamlandı", "tamamlandi", "kapalı", "kapali", "closed"}),
     }
     health_signal = {
-        "lead_surveillance_present": bool(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN else False,
-        "lead_records_count": len(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN else 0,
-        "lead_high_signal_count": lead_high_count if user.role == UserRole.WORKPLACE_PHYSICIAN else 0,
-        "medical_review_recommended": bool(lead_high_count) if user.role == UserRole.WORKPLACE_PHYSICIAN else False,
-        "available": user.role == UserRole.WORKPLACE_PHYSICIAN,
+        "lead_surveillance_present": bool(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else False,
+        "lead_records_count": len(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else 0,
+        "lead_high_signal_count": lead_high_count if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else 0,
+        "medical_review_recommended": bool(lead_high_count) if user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) >= 5 else False,
+        "available": user.role == UserRole.WORKPLACE_PHYSICIAN and effective in set(company_ids_for_query(db, user, effective) or []),
+        "suppressed_for_small_group": user.role == UserRole.WORKPLACE_PHYSICIAN and len(lead_rows) < 5,
         "privacy_note": "Yalnız toplulaştırılmış gözetim sinyali; kişi, kan değeri ve klinik ayrıntı içermez.",
     }
     payload = build_risk_analytics(
@@ -1346,7 +1410,27 @@ def risk_analytics(
         nace_roadmap=roadmap,
         active_employee_count=active_employee_count,
         incident_summary=incident_summary,
-        health_signal=health_signal,
+        health_signal=health_signal if not health_signal["suppressed_for_small_group"] else {"available": True, "privacy_note": "Sağlık sinyali küçük grup gizliliği nedeniyle gösterilmedi."},
+        scope_metadata={
+            "company_id": effective,
+            "branch_id": branch_id,
+            "date_from": date_from.isoformat() if date_from else None,
+            "date_to": date_to.isoformat() if date_to else None,
+            "risk_source": "structured_risk_assessment",
+            "report_file_presence_is_not_validation": True,
+            "hazard_class_conflict": bool(roadmap.get("identity", {}).get("hazard_class") and company.hazard_class and roadmap["identity"]["hazard_class"] != company.hazard_class),
+            "rule_version": "risk-analytics-v2",
+            "incident_summary_available": True,
+            "risk_source_count": len(risks),
+            "risk_source_complete": branch_id is None and date_from is None and date_to is None,
+            "report_files_are_not_parsed_as_assessments": True,
+            "risk_assessment_latest_at": max((row.updated_at for row in risks if row.updated_at), default=None).isoformat() if any(row.updated_at for row in risks) else None,
+            "assessment_status_counts": {
+                "open": sum(1 for row in risks if str(row.status or "").casefold() not in {"iptal", "cancelled", "canceled", "tamamlandı", "tamamlandi", "completed"}),
+                "completed": sum(1 for row in risks if str(row.status or "").casefold() in {"tamamlandı", "tamamlandi", "completed"}),
+                "cancelled": sum(1 for row in risks if str(row.status or "").casefold() in {"iptal", "cancelled", "canceled"}),
+            },
+        },
     )
     return payload
 

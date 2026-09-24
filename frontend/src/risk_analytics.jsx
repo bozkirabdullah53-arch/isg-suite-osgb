@@ -161,6 +161,10 @@ export function RiskAnalyticsPage({user, onNavigate}) {
   const [busy, setBusy] = useState(false);
   const [companyBusy, setCompanyBusy] = useState(true);
   const [error, setError] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [branchId, setBranchId] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -242,7 +246,11 @@ export function RiskAnalyticsPage({user, onNavigate}) {
     try {
       // Risk analitiği büyük firmalarda yoğun bir salt-okunur hesaplamadır.
       // Genel API retry politikasını tetikleyip ekranı tekrar tekrar bekletme.
-      const result = await api(`/risks/analytics?company_id=${encodeURIComponent(id)}`, {
+      const params = new URLSearchParams({company_id: String(id)});
+      if (branchId) params.set('branch_id', branchId);
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
+      const result = await api(`/risks/analytics?${params.toString()}`, {
         timeoutMs: 120_000,
         _retries: 0,
       });
@@ -269,6 +277,17 @@ export function RiskAnalyticsPage({user, onNavigate}) {
       return;
     }
     void loadAnalytics(companyId);
+  }, [companyId, branchId, dateFrom, dateTo]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBranches([]);
+    setBranchId('');
+    if (!companyId) return undefined;
+    api(`/branches?company_id=${encodeURIComponent(companyId)}`).then((rows) => {
+      if (!cancelled) setBranches(Array.isArray(rows) ? rows.filter((row) => row.is_active !== false) : []);
+    }).catch(() => { if (!cancelled) setBranches([]); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   function handleCompanyChange(event) {
@@ -325,6 +344,9 @@ export function RiskAnalyticsPage({user, onNavigate}) {
             </select>
           </label>
         )}
+        <label className="ra-company-select"><span>Şube</span><select value={branchId} onChange={(event) => setBranchId(event.target.value)} disabled={!branches.length}><option value="">Tüm işyeri</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
+        <label className="ra-date-filter"><span>Başlangıç</span><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label>
+        <label className="ra-date-filter"><span>Bitiş</span><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
         <div className="ra-toolbar-actions">
           {onNavigate && user?.role === 'safety_specialist' && <button type="button" className="ra-secondary-button" onClick={() => { if (companyId) persistSelectedCompanyId(companyId); onNavigate('risk'); }}>Risk kayıtlarına git</button>}
           <button type="button" className="ra-refresh-button" onClick={() => loadAnalytics()} disabled={!companyId || busy}><RefreshCw size={16} className={busy ? 'ra-spin' : ''} /> Yenile</button>
@@ -344,16 +366,22 @@ export function RiskAnalyticsPage({user, onNavigate}) {
               <p>{data.nace?.description || 'Firma kartında tam ve doğrulanmış NACE faaliyeti bulunmuyor.'}</p>
             </div>
             <div className="ra-nace-meta">
-              <div><span>Tehlike sınıfı</span><strong>{data.nace?.hazard_class || data.company?.hazard_class || '—'}</strong></div>
+              <div><span>Tehlike sınıfı</span><strong>{data.nace?.company_hazard_class || data.nace?.hazard_class || data.company?.hazard_class || '—'}</strong></div>
               <div><span>Çalışan</span><strong>{number(data.company?.active_employee_count)}</strong></div>
               <div><span>Risk kaydı</span><strong>{number(summary.risk_record_count)}</strong></div>
             </div>
           </section>
+          <div className="ra-notice"><Info size={17}/><p>Veri kapsamı: {data.data_scope?.risk_source_count ?? number(summary.risk_record_count)} yapılandırılmış risk satırı. {data.data_scope?.risk_source_complete ? 'Firma kapsamındaki kayıtlar tam.' : 'Seçili şube/tarih filtresi nedeniyle kapsam daraltıldı.'} Yüklenen kaynak dosya tek başına analiz edilmiş veya onaylanmış değerlendirme sayılmaz. Kural: {data.data_scope?.rule_version || '—'} · Son risk kaydı güncellemesi: {data.data_scope?.risk_assessment_latest_at ? new Date(data.data_scope.risk_assessment_latest_at).toLocaleString('tr-TR') : 'bilgi yok'}.</p></div>
+          {data.nace?.hazard_class_conflict && <div className="ra-alert ra-alert--warning" role="status"><AlertTriangle size={17}/><span>Firma kaydı tehlike sınıfı: {data.nace.company_hazard_class || 'belirtilmemiş'} · NACE kataloğu: {data.nace.catalog_hazard_class || 'belirtilmemiş'}. Değerler otomatik birleştirilmedi; yetkili incelemesi gerekli.</span></div>}
 
           <section className="ra-metric-grid" aria-label="Olay ve sağlık gözetimi özeti">
-            <MetricCard icon={AlertTriangle} label="İş kazası" value={number(data.incident_summary?.accidents)} note={`${number(data.incident_summary?.injuries)} yaralanma · ${number(data.incident_summary?.days_lost)} kayıp gün`} tone="orange" />
-            <MetricCard icon={Activity} label="Ramak kala" value={number(data.incident_summary?.near_misses)} note={`${number(data.incident_summary?.total)} toplam olay kaydı`} tone="blue" />
-            <MetricCard icon={ShieldCheck} label="Sağlık gözetimi sinyali" value={!data.health_signal?.available ? 'Hekim erişimi' : data.health_signal?.lead_surveillance_present ? `${number(data.health_signal.lead_records_count)} kayıt` : 'Kayıt yok'} note={data.health_signal?.available ? (data.health_signal?.medical_review_recommended ? 'İşyeri hekimi değerlendirmesi önerilir' : 'Kişisel klinik veri gösterilmez') : 'Sağlık sinyali yalnız işyeri hekimi rolüne açıktır'} tone={data.health_signal?.medical_review_recommended ? 'orange' : 'teal'} />
+            <MetricCard icon={AlertTriangle} label="İş kazası" value={data.incident_summary_available === false ? 'Veri yok' : number(data.incident_summary?.accidents)} note={`${number(data.incident_summary?.injuries)} yaralanma · ${number(data.incident_summary?.days_lost)} kayıp gün`} tone="orange" />
+            <MetricCard icon={Activity} label="Ramak kala" value={data.incident_summary_available === false ? 'Veri yok' : number(data.incident_summary?.near_misses)} note={`${number(data.incident_summary?.total)} toplam olay · ${number(data.incident_summary?.open_dof_count)} açık DÖF`} tone="blue" />
+            <MetricCard icon={ShieldCheck} label="Sağlık gözetimi sinyali" value={!data.health_signal?.available ? 'Hekim erişimi' : data.health_signal?.suppressed_for_small_group ? 'Gizlilik nedeniyle gösterilmiyor' : data.health_signal?.lead_surveillance_present ? `${number(data.health_signal.lead_records_count)} kayıt` : 'Kayıt yok'} note={data.health_signal?.available ? (data.health_signal?.medical_review_recommended ? 'İşyeri hekimi değerlendirmesi önerilir' : 'Kişisel klinik veri gösterilmez') : 'Sağlık sinyali yalnız yetkili işyeri hekimine açıktır'} tone={data.health_signal?.medical_review_recommended ? 'orange' : 'teal'} />
+          </section>
+          <section className="ra-metric-grid" aria-label="Olay nedenleri ve düzeltici faaliyetler">
+            <MetricCard icon={Info} label="Kök neden analizi" value={number(data.incident_summary?.events_with_root_cause)} note={`${number(data.incident_summary?.total)} olay kaydından`} tone="blue" />
+            <MetricCard icon={ShieldCheck} label="Olay DÖF'leri" value={number(data.incident_summary?.dof_count)} note={`${number(data.incident_summary?.completed_dof_count)} tamamlandı · ${number(data.incident_summary?.open_dof_count)} açık`} tone="teal" />
           </section>
           {data.health_signal?.lead_surveillance_present && <div className="ra-notice"><Info size={17} /><p>{data.health_signal.privacy_note} Sağlık gözetimi sinyali risk puanını otomatik değiştirmez ve kişi bazlı maruziyet kanıtı değildir.</p></div>}
 
