@@ -3236,7 +3236,11 @@ function App(){
     .filter((k)=>menuCatalog[k] && !((fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')) || (hideHomeMenuItem && k==='dashboard')))
     .map((k)=>{
       const [label, Icon]=menuCatalog[k];
-      return [k, label, Icon];
+      // OSGB menüsünde iki ayrı işlevi benzer "İşyeri ... Durum" adlarıyla sunma.
+      const osgbLabel=user.role==='company_admin' && k==='employer_oversight'
+        ? 'Denetim ve Uyum Takibi'
+        : label;
+      return [k, osgbLabel, Icon];
     });
   const menuWithSections=menu.map(([id,label,Icon])=>[
     id,
