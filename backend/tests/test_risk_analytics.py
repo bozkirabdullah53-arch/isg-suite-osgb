@@ -33,6 +33,22 @@ def test_battery_lead_is_chemical_risk():
     assert classify_hazard_type('Akü / batarya elektroliti') == 'chemical'
 
 
+def test_analytics_includes_aggregate_incident_and_health_signals_only():
+    result = build_risk_analytics(
+        SimpleNamespace(id=7, name='Akü Üretim', sgk_registry_no='x', hazard_class='Çok Tehlikeli', nace_code='27.20.01'),
+        incident_summary={"accidents": 2, "near_misses": 5, "injuries": 1, "days_lost": 3, "total": 8},
+        health_signal={"available": True, "lead_surveillance_present": True, "lead_records_count": 4, "lead_high_signal_count": 2, "medical_review_recommended": True},
+    )
+    assert result["incident_summary"]["accidents"] == 2
+    assert result["incident_summary"]["near_misses"] == 5
+    assert result["health_signal"]["lead_records_count"] == 4
+    assert result["health_signal"]["medical_review_recommended"] is True
+    assert result["health_signal"]["available"] is True
+    payload = str(result)
+    assert "blood_lead_value" not in payload
+    assert "employee_name" not in payload
+
+
 def test_hazard_type_classifier_handles_turkish_terms():
     assert classify_hazard_type("Biyolojik Riskler", "Enfeksiyon") == "biological"
     assert classify_hazard_type("Kimyasal Riskler", "Solvent") == "chemical"

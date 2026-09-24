@@ -350,6 +350,8 @@ def build_risk_analytics(
     category_map: Mapping[int, Any] | None = None,
     nace_roadmap: Mapping[str, Any] | None = None,
     active_employee_count: int = 0,
+    incident_summary: Mapping[str, Any] | None = None,
+    health_signal: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a read-only NACE and workplace risk analytics payload.
 
@@ -584,6 +586,8 @@ def build_risk_analytics(
     nace_identity = roadmap.get("identity") or {}
     workplace = roadmap.get("workplace") or {}
     company_id = getattr(company, "id", None)
+    incident_summary = incident_summary or {}
+    health_signal = health_signal or {}
 
     return {
         "schema_version": ANALYTICS_SCHEMA_VERSION,
@@ -604,6 +608,18 @@ def build_risk_analytics(
             "section_name": nace_identity.get("section_name"),
             "hazard_class": nace_identity.get("hazard_class") or getattr(company, "hazard_class", None),
             "exact_catalog_match": bool(roadmap.get("exact_catalog_match")),
+        },
+        "incident_summary": {
+            key: _safe_count(incident_summary.get(key))
+            for key in ("total", "accidents", "near_misses", "other_events", "injuries", "days_lost")
+        },
+        "health_signal": {
+            "available": bool(health_signal.get("available")),
+            "lead_surveillance_present": bool(health_signal.get("lead_surveillance_present")),
+            "lead_records_count": _safe_count(health_signal.get("lead_records_count")),
+            "lead_high_signal_count": _safe_count(health_signal.get("lead_high_signal_count")),
+            "medical_review_recommended": bool(health_signal.get("medical_review_recommended")),
+            "privacy_note": str(health_signal.get("privacy_note") or "Yalnız toplulaştırılmış sağlık gözetimi sinyali; kişisel klinik veri içermez."),
         },
         "summary": {
             "risk_record_count": len(observed_rows),

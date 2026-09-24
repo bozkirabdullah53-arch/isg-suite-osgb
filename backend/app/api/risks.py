@@ -28,6 +28,8 @@ from app.models.entities import (
     Branch,
     Company,
     Employee,
+    HealthRecord,
+    IncidentEvent,
     Hazard,
     HazardCategory,
     IsgModule,
@@ -1301,7 +1303,41 @@ def risk_analytics(
         nace_code_override=nace_code,
         nace_source=nace_source,
     )
-    return build_risk_analytics(
+    # Aggregate-only incident/health signals. Never expose personal health values
+    # or incident narratives through risk analytics.
+    incident_rows = list(db.scalars(
+        select(IncidentEvent).where(IncidentEvent.company_id == effective)
+    ).all())
+    lead_rows = []
+    lead_high_count = 0
+    if user.role == UserRole.WORKPLACE_PHYSICIAN:
+        active_ids = {employee.id for employee in active_employees}
+        lead_rows = list(db.scalars(
+            select(HealthRecord).where(
+                HealthRecord.company_id == effective,
+                HealthRecord.employee_id.in_(active_ids or {-1}),
+                HealthRecord.deleted_at.is_(None),
+                HealthRecord.blood_lead_value.is_not(None),
+            )
+        ).all())
+        lead_high_count = sum(1 for row in lead_rows if str(row.blood_lead_eval or "").casefold().replace("ü", "u") in {"yuksek", "kritik", "high", "critical"})
+    incident_summary = {
+        "total": len(incident_rows),
+        "accidents": sum(1 for row in incident_rows if row.event_type in {"is_kazasi", "accident"}),
+        "near_misses": sum(1 for row in incident_rows if row.event_type in {"ramak_kala", "near_miss"}),
+        "other_events": sum(1 for row in incident_rows if row.event_type not in {"is_kazasi", "accident", "ramak_kala", "near_miss"}),
+        "injuries": sum(1 for row in incident_rows if bool(row.injury_occurred)),
+        "days_lost": sum(max(0, int(row.report_days or 0)) for row in incident_rows if row.event_type in {"is_kazasi", "accident"}),
+    }
+    health_signal = {
+        "lead_surveillance_present": bool(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN else False,
+        "lead_records_count": len(lead_rows) if user.role == UserRole.WORKPLACE_PHYSICIAN else 0,
+        "lead_high_signal_count": lead_high_count if user.role == UserRole.WORKPLACE_PHYSICIAN else 0,
+        "medical_review_recommended": bool(lead_high_count) if user.role == UserRole.WORKPLACE_PHYSICIAN else False,
+        "available": user.role == UserRole.WORKPLACE_PHYSICIAN,
+        "privacy_note": "Yalnız toplulaştırılmış gözetim sinyali; kişi, kan değeri ve klinik ayrıntı içermez.",
+    }
+    payload = build_risk_analytics(
         company,
         risks=risks,
         employees=active_employees,
@@ -1309,7 +1345,10 @@ def risk_analytics(
         category_map=category_map,
         nace_roadmap=roadmap,
         active_employee_count=active_employee_count,
+        incident_summary=incident_summary,
+        health_signal=health_signal,
     )
+    return payload
 
 
 def require_exposure_reader(user: User = Depends(get_current_user)) -> User:

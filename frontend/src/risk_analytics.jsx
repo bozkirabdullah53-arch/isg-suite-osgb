@@ -350,6 +350,13 @@ export function RiskAnalyticsPage({user, onNavigate}) {
             </div>
           </section>
 
+          <section className="ra-metric-grid" aria-label="Olay ve sağlık gözetimi özeti">
+            <MetricCard icon={AlertTriangle} label="İş kazası" value={number(data.incident_summary?.accidents)} note={`${number(data.incident_summary?.injuries)} yaralanma · ${number(data.incident_summary?.days_lost)} kayıp gün`} tone="orange" />
+            <MetricCard icon={Activity} label="Ramak kala" value={number(data.incident_summary?.near_misses)} note={`${number(data.incident_summary?.total)} toplam olay kaydı`} tone="blue" />
+            <MetricCard icon={ShieldCheck} label="Sağlık gözetimi sinyali" value={!data.health_signal?.available ? 'Hekim erişimi' : data.health_signal?.lead_surveillance_present ? `${number(data.health_signal.lead_records_count)} kayıt` : 'Kayıt yok'} note={data.health_signal?.available ? (data.health_signal?.medical_review_recommended ? 'İşyeri hekimi değerlendirmesi önerilir' : 'Kişisel klinik veri gösterilmez') : 'Sağlık sinyali yalnız işyeri hekimi rolüne açıktır'} tone={data.health_signal?.medical_review_recommended ? 'orange' : 'teal'} />
+          </section>
+          {data.health_signal?.lead_surveillance_present && <div className="ra-notice"><Info size={17} /><p>{data.health_signal.privacy_note} Sağlık gözetimi sinyali risk puanını otomatik değiştirmez ve kişi bazlı maruziyet kanıtı değildir.</p></div>}
+
           {(data.nace_warnings || []).length > 0 && (
             <div className="ra-notice"><Info size={17} /><div>{data.nace_warnings.slice(0, 2).map((warning) => <p key={warning}>{warning}</p>)}</div></div>
           )}
