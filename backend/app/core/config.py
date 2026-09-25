@@ -183,9 +183,11 @@ class Settings(BaseSettings):
     vision_provider: str = "heuristic"  # heuristic | api | yolo
     vision_api_key: str | None = None
     vision_api_base_url: str | None = None
-    vision_api_model: str = "openai/gpt-5.4-mini"
+    vision_api_model: str = "openai/gpt-5.6-sol"
     vision_api_timeout_sec: int = 30
     vision_max_image_mb: int = 10
+    # Kullanıcı başına Türkiye takvim gününde ücretli AI fotoğraf analiz kotası. 0 = sınırsız.
+    vision_daily_limit_per_user: int = 2
     # GPS'li görsel saha denetimi — yeni akış varsayılan olarak açık, dış AI
     # çağrısı ise ayrıca izin + anahtar + provider bayraklarına bağlıdır.
     field_inspection_max_upload_mb: int = 15
@@ -198,7 +200,7 @@ class Settings(BaseSettings):
     field_ai_provider: str = "openai_compatible"
     field_ai_api_url: str = "https://api.openai.com/v1/chat/completions"
     field_ai_api_key: str | None = None
-    field_ai_model: str = "openai/gpt-5.4-mini"
+    field_ai_model: str = "openai/gpt-5.6-sol"
     field_ai_model_version: str = "configured"
     field_ai_prompt_version: str = "field-visual-v2"
     field_ai_timeout_seconds: int = 60
