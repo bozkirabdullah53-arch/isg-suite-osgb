@@ -81,6 +81,25 @@ def test_auth_path_has_stricter_bucket():
     assert client.post("/api/v1/auth/login").status_code == 429
 
 
+def test_x_real_ip_does_not_override_socket_peer():
+    async def ok(_request):
+        return PlainTextResponse("ok")
+
+    mini = Starlette(routes=[Route("/ping", ok)])
+    from app.core.rate_limit import MemoryRateLimitStore
+
+    mini.add_middleware(
+        SimpleRateLimitMiddleware,
+        requests_per_minute=1,
+        auth_requests_per_minute=1,
+        store=MemoryRateLimitStore(),
+    )
+    client = TestClient(mini)
+    assert client.get("/ping", headers={"X-Real-IP": "1.1.1.1"}).status_code == 200
+    # Header değişse de aynı socket peer aynı bucket'ta kalmalı.
+    assert client.get("/ping", headers={"X-Real-IP": "2.2.2.2"}).status_code == 429
+
+
 def test_xff_separates_clients():
     async def ok(_request):
         return PlainTextResponse("ok")
