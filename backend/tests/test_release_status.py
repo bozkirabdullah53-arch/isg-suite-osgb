@@ -4,17 +4,15 @@ from app.services import release_status as rs
 
 def test_public_health_is_minimal():
     body = rs.public_health_payload()
-    # Sürüm/environment herkese açıktan kaldırıldı (smoke test B3 bulgusu).
-    # Yalnızca status ve service kalır — recon yüzeyi en aza indirildi.
-    assert set(body.keys()) == {"status", "service"}
-    assert body["status"] in {"ok", "degraded"}
+    # NSL-202609: public probe sabit ve servis kimliği/bağımlılık durumu içermez.
+    assert body == {"status": "ok"}
     assert "version" not in body
     assert "environment" not in body
     assert "health_field_encryption_key" not in body
     assert "infra_cutover_remaining" not in body
 
 
-def test_public_health_marks_known_optional_remote_video_outage_degraded(monkeypatch):
+def test_public_health_does_not_expose_optional_dependency_degradation(monkeypatch):
     from app.services import remote_training_storage_guard as guard
 
     monkeypatch.setattr(
@@ -28,7 +26,7 @@ def test_public_health_marks_known_optional_remote_video_outage_degraded(monkeyp
             "fallback_active": True,
         },
     )
-    assert rs.public_health_payload()["status"] == "degraded"
+    assert rs.public_health_payload() == {"status": "ok"}
 
 
 def test_infra_detail_has_crypto_and_gaps():
@@ -55,9 +53,8 @@ def test_public_health_endpoint_exposes_no_feature_flags():
 
     r = TestClient(app).get("/health")
     assert r.status_code == 200
-    # version/environment artık public /health'te yok
-    assert set(r.json().keys()) == {"status", "service"}
-    assert r.json()["status"] in {"ok", "degraded"}
+    # NSL-202609: unauthenticated probe yalnız sabit liveness durumu verir.
+    assert r.json() == {"status": "ok"}
 
 
 def test_infra_detail_endpoint_requires_auth():

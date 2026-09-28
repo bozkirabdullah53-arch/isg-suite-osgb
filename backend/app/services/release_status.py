@@ -11,39 +11,15 @@ from app.services.job_queue import async_jobs_enabled, job_backend_label
 
 
 def public_health_payload() -> dict:
-    """Warmup / load balancer — minimal, recon-safe.
+    """Public load-balancer probe — intentionally constant and recon-safe.
 
-    Sürüm ve environment bilgisi herkese açık endpoint'ten kaldırıldı
-    (smoke test B3 bulgusu). Load balancer/warmup yalnızca status'a bakar.
-    Optional R2 degradation is exposed only as a generic status string; the
-    endpoint remains HTTP 200 so a working persistent-disk fallback does not
-    make Render evict an otherwise healthy service.
+    NSL-202609: the unauthenticated health endpoint must not disclose service
+    identity, dependency state, backup posture or a persistent degraded state.
+    Detailed diagnostics remain behind the authenticated /system/infra-detail
+    endpoint.  Keeping this probe dependency-free also prevents optional
+    infrastructure degradation from making Render evict a healthy API process.
     """
-    from app.services.remote_training_storage_guard import (
-        remote_training_storage_guard_status,
-    )
-
-    storage = remote_training_storage_guard_status()
-    degraded = bool(
-        storage.get("fallback_active")
-        and storage.get("credentials_configured")
-        and storage.get("probe_state") == "unreachable"
-    )
-    # RPO izleme: production'da son başarılı yedek çok eskiyse sağlık degraded olur.
-    # Geliştirme/test ortamlarında yedek beklenmediği için dikkate alınmaz.
-    if not degraded and (settings.environment or "").strip().lower() in ("production", "prod", "live"):
-        try:
-            from app.services.backup_management import database_backup_status
-
-            backup = database_backup_status()
-            if backup.get("enabled") and not backup.get("healthy"):
-                degraded = True
-        except Exception:  # pragma: no cover - sağlık ucu asla hata vermez
-            pass
-    return {
-        "status": "degraded" if degraded else "ok",
-        "service": settings.app_name,
-    }
+    return {"status": "ok"}
 
 
 def infra_detail_payload() -> dict:
