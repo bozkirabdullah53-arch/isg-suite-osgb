@@ -460,6 +460,13 @@ def validate_runtime_settings() -> None:
             "Production ortamında güçlü SECRET_KEY zorunludur (.env / Render env). "
             "Varsayılan anahtarla başlatılamaz."
         )
+    # Çoklu instance production'da bellek-içi rate limit saldırganın
+    # isteklerini worker'lara dağıtarak limiti katlamasına izin verir. Redis
+    # zorunlu tutulur; böylece auth ve genel limitler tüm instance'larda ortaktır.
+    if not (getattr(settings, "redis_url", None) or "").strip():
+        raise RuntimeError(
+            "Production ortamında REDIS_URL zorunludur; paylaşımlı rate-limit olmadan başlatılamaz."
+        )
     if bool(getattr(settings, "clamav_required", False)) and not (
         getattr(settings, "clamav_host", None) or ""
     ).strip():
