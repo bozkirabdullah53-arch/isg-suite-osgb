@@ -46,6 +46,7 @@ def test_required_without_host_fails_closed(monkeypatch):
 def test_production_required_without_host_blocks_startup(monkeypatch):
     monkeypatch.setattr(settings, "environment", "production")
     monkeypatch.setattr(settings, "secret_key", "strong-production-secret-key-at-least-32-chars")
+    monkeypatch.setattr(settings, "redis_url", "redis://localhost:6379/0")
     monkeypatch.setattr(settings, "clamav_required", True)
     monkeypatch.setattr(settings, "clamav_host", None)
 

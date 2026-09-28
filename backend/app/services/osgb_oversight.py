@@ -12,6 +12,21 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 import csv
+
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+def _csv_safe(value):
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    text = str(value)
+    return "'" + text if text.startswith(_CSV_FORMULA_PREFIXES) else text
+
+class _SafeCsvWriter:
+    def __init__(self, stream):
+        self._writer = csv.writer(stream)
+    def writerow(self, values):
+        return self._writer.writerow([_csv_safe(v) for v in values])
+
 import io
 import logging
 
@@ -959,7 +974,7 @@ def build_professional_performance_roster_csv(db: Session, osgb_id: int | None =
     period = overview.get("period") or {}
     period_label = period.get("label") or f"{period.get('month', '')}/{period.get('year', '')}"
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow(
         [
             "professional_id",
@@ -1005,7 +1020,7 @@ def build_professional_performance_detail_csv(db: Session, professional_id: int)
     report = build_professional_performance(db, professional_id)
     pro = report.get("professional") or {}
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow(
         [
             "professional_id",

@@ -109,6 +109,7 @@ def test_required_dual_success_writes_both_copies(tmp_path, monkeypatch):
 def test_production_required_remote_storage_needs_credentials(monkeypatch):
     monkeypatch.setattr(settings, "environment", "production")
     monkeypatch.setattr(settings, "secret_key", "strong-production-secret-key-at-least-32-chars")
+    monkeypatch.setattr(settings, "redis_url", "redis://localhost:6379/0")
     monkeypatch.setattr(settings, "object_storage_remote_required", True)
     monkeypatch.setattr(settings, "object_storage_force_local", False)
     monkeypatch.setattr(settings, "object_storage_bucket", None)
@@ -124,6 +125,7 @@ def test_production_required_remote_storage_needs_credentials(monkeypatch):
 def test_production_required_remote_storage_rejects_force_local(monkeypatch):
     monkeypatch.setattr(settings, "environment", "production")
     monkeypatch.setattr(settings, "secret_key", "strong-production-secret-key-at-least-32-chars")
+    monkeypatch.setattr(settings, "redis_url", "redis://localhost:6379/0")
     monkeypatch.setattr(settings, "object_storage_remote_required", True)
     monkeypatch.setattr(settings, "object_storage_force_local", True)
 

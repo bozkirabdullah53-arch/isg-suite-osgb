@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 from typing import Any
 
@@ -144,9 +145,23 @@ def send_email(
             msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
     try:
         server_class = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
-        with server_class(settings.smtp_host, settings.smtp_port, timeout=20) as server:
+        tls_context = ssl.create_default_context()
+        if not settings.smtp_use_ssl and not settings.smtp_use_tls:
+            raise RuntimeError("SMTP aktarım şifrelemesi zorunludur (TLS/SSL).")
+        with server_class(
+            settings.smtp_host,
+            settings.smtp_port,
+            timeout=20,
+            context=tls_context,
+        ) if settings.smtp_use_ssl else server_class(
+            settings.smtp_host,
+            settings.smtp_port,
+            timeout=20,
+        ) as server:
             if settings.smtp_use_tls and not settings.smtp_use_ssl:
-                server.starttls()
+                server.starttls(context=tls_context)
+                # STARTTLS sonrası kabiliyetleri yeniden müzakere et.
+                server.ehlo()
             if settings.smtp_username:
                 server.login(settings.smtp_username, settings.smtp_password or "")
             server.send_message(msg)

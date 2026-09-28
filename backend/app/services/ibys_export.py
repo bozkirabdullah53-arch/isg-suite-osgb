@@ -5,6 +5,21 @@ OSGB kapsamındaki işyerleri + personel CSV'lerini ZIP olarak üretir.
 from __future__ import annotations
 
 import csv
+
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+def _csv_safe(value):
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    text = str(value)
+    return "'" + text if text.startswith(_CSV_FORMULA_PREFIXES) else text
+
+class _SafeCsvWriter:
+    def __init__(self, stream):
+        self._writer = csv.writer(stream)
+    def writerow(self, values):
+        return self._writer.writerow([_csv_safe(v) for v in values])
+
 import io
 import zipfile
 from datetime import datetime
@@ -33,7 +48,7 @@ def _companies_for_osgb(
 
 def _csv_bytes(headers: list[str], rows: list[list[Any]]) -> bytes:
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow(headers)
     for row in rows:
         writer.writerow(row)

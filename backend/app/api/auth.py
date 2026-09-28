@@ -218,10 +218,11 @@ def login(
 
     mfa_on = bool(getattr(user, "mfa_enabled", False))
     mfa_secret = get_mfa_secret(user) if mfa_on else None
-    # MFA bayrağı açık ama gizli anahtar yoksa doğrulama ekranına düşmesin; kurulum zorunlu.
+    # Fail closed: MFA açık işaretliyse fakat secret okunamıyorsa ikinci faktörü
+    # sessizce kapatmak tam MFA bypass'a dönüşür. Erişimi reddet.
     if mfa_on and not mfa_secret:
-        user.mfa_enabled = False
-        mfa_on = False
+        logger.error("MFA secret unavailable for enabled user id=%s", user.id)
+        raise HTTPException(status_code=503, detail="MFA doğrulaması geçici olarak kullanılamıyor.")
 
     if mfa_on:
         register_success_login(db, user, ip=ip)
@@ -277,64 +278,11 @@ def skip_mfa_setup(
 
 
 @router.post("/mfa/restart-setup", response_model=TokenResponse)
-def restart_mfa_setup(
-    payload: MfaRestartSetupRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """Authenticator kurulumu yapılamadıysa: giriş bilgileriyle MFA’yı sıfırlar."""
-    ip = _client_ip(request)
-    identifier = str(payload.email).strip()
-    lookup_value = identifier.casefold()
-    try:
-        throttle_login(lookup_value, ip)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=429,
-            detail=str(exc),
-            headers={"Retry-After": str(LOGIN_WINDOW_MINUTES * 60)},
-        ) from exc
-
-    user = db.scalar(
-        select(User).where(
-            or_(
-                func.lower(User.email) == lookup_value,
-                func.lower(User.username) == lookup_value,
-            )
-        )
-    )
-    if not user or not verify_password(payload.password, user.hashed_password):
-        register_failed_login(db, user, email=identifier, ip=ip)
-        db.commit()
-        raise HTTPException(status_code=401, detail="E-posta/kullanıcı adı veya şifre hatalı.")
-    if not user.is_active:
-        raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
-    user = _sync_field(db, user)
-    ensure_login_scope(db, user)
-    if not role_requires_mfa(user.role):
-        raise HTTPException(status_code=400, detail="Bu hesap için MFA kurulumu gerekmez.")
-
-    user.mfa_enabled = False
-    user.mfa_secret_encrypted = None
-    user.mfa_recovery_hashes = None
-    clear_throttle(lookup_value, ip)
-    add_audit_log(
-        db,
-        user=user,
-        action="mfa_restart_setup",
-        entity_type="user",
-        entity_id=str(user.id),
-        description="MFA kurulum yeniden başlatıldı (şifre doğrulamalı)",
-        ip_address=ip,
-        module="auth",
-    )
-    register_success_login(db, user, ip=ip)
-    db.commit()
-    return TokenResponse(
-        mfa_setup_required=True,
-        mfa_token=create_purpose_token(
-            str(user.id), "mfa_setup", minutes=30, token_version=getattr(user, "token_version", 0) or 0
-        ),
+def restart_mfa_setup_disabled():
+    """NSL-202601: parola tek başına mevcut MFA faktörünü sıfırlayamaz."""
+    raise HTTPException(
+        status_code=403,
+        detail="MFA yeniden kurulum işlemi güvenlik nedeniyle devre dışıdır. Kurtarma kodu veya yönetici destek akışını kullanın.",
     )
 
 
