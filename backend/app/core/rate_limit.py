@@ -51,9 +51,9 @@ def _client_ip(request) -> str:
             candidate = parts[idx]
             if candidate:
                 return candidate
-    real = (request.headers.get("x-real-ip") or "").strip()
-    if real:
-        return real
+    # X-Real-IP tek başına güven sınırı değildir. XFF yoksa socket peer'e
+    # dönmek, doğrudan erişilebilen origin'de sahte X-Real-IP ile rate-limit
+    # anahtarı değiştirilmesini engeller.
     if request.client and request.client.host:
         return request.client.host
     return "unknown"
