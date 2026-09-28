@@ -173,10 +173,14 @@ def register_failed_login(db: Session, user: User | None, *, email: str, ip: str
     )
     if not user:
         return
-    user.failed_login_count = int(getattr(user, "failed_login_count", 0) or 0) + 1
-    if user.failed_login_count >= LOGIN_MAX_FAILURES:
-        user.locked_until = _utcnow() + timedelta(minutes=LOGIN_LOCK_MINUTES)
-        user.failed_login_count = 0
+    # NSL-202605: saldırgan yalnız kurbanın kullanıcı adını bilerek hesabı
+    # kilitleyememeli. Kalıcı kullanıcı kilidi yerine IP+hesap hız limiti
+    # uygulanır; başarısız sayaç yalnız görünürlük/audit amacıyla tutulur.
+    user.failed_login_count = min(
+        int(getattr(user, "failed_login_count", 0) or 0) + 1,
+        LOGIN_MAX_FAILURES,
+    )
+    user.locked_until = None
 
 
 def register_success_login(db: Session, user: User, *, ip: str | None) -> None:
