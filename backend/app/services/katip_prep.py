@@ -5,6 +5,21 @@ Eksik İSG-KATİP no veya yüklenmemiş sözleşme dosyası olan aktif görevlen
 from __future__ import annotations
 
 import csv
+
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+def _csv_safe(value):
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    text = str(value)
+    return "'" + text if text.startswith(_CSV_FORMULA_PREFIXES) else text
+
+class _SafeCsvWriter:
+    def __init__(self, stream):
+        self._writer = csv.writer(stream)
+    def writerow(self, values):
+        return self._writer.writerow([_csv_safe(v) for v in values])
+
 import io
 from typing import Any
 
@@ -127,7 +142,7 @@ def katip_prep_csv(
 ) -> tuple[bytes, str]:
     data = build_katip_prep(db, osgb_id=osgb_id, company_id=company_id)
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow(
         [
             "assignment_id",
