@@ -179,6 +179,11 @@ def _normalize_custom_base_url(raw: str) -> str:
     if parts.query or parts.fragment:
         raise ValueError("AI Base URL sorgu parametresi veya #fragment içeremez.")
     host = parts.hostname.lower()
+    # NSL-202604: custom HTTP hedefleri yalnız açıkça izin verilen dış HTTPS
+    # sağlayıcılara gidebilir. DNS rebinding/SSRF riskini azaltmak için production
+    # custom endpoint özelliği kapalıdır; katalogdaki sabit sağlayıcılar kullanılır.
+    if is_prod:
+        raise ValueError("Canlı ortamda özel AI Base URL kullanımı güvenlik nedeniyle devre dışıdır.")
     if host in {"localhost", "localhost.localdomain"} and is_prod:
         raise ValueError("Canlı ortamda localhost AI adresi kullanılamaz.")
     try:
