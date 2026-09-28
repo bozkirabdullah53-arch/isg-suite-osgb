@@ -169,7 +169,18 @@ def test_production_allows_strong_secret(monkeypatch):
     monkeypatch.setattr(settings, "secret_key", "x" * 40)
     monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
     monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
+    monkeypatch.setattr(settings, "redis_url", "redis://redis:6379/0")
     validate_runtime_settings()
+
+
+def test_production_requires_shared_redis(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "secret_key", "x" * 40)
+    monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
+    monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
+    monkeypatch.setattr(settings, "redis_url", None)
+    with pytest.raises(RuntimeError, match="REDIS_URL"):
+        validate_runtime_settings()
 
 
 def test_production_requires_postgresql(monkeypatch):
@@ -177,6 +188,7 @@ def test_production_requires_postgresql(monkeypatch):
     monkeypatch.setattr(settings, "secret_key", "x" * 40)
     monkeypatch.setattr(settings, "database_url", "sqlite:///./isgsuite.db")
     monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
+    monkeypatch.setattr(settings, "redis_url", "redis://redis:6379/0")
     with pytest.raises(RuntimeError, match="PostgreSQL"):
         validate_runtime_settings()
 
@@ -186,6 +198,7 @@ def test_production_requires_https_frontend(monkeypatch):
     monkeypatch.setattr(settings, "secret_key", "x" * 40)
     monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
     monkeypatch.setattr(settings, "frontend_origin", "http://www.isgsuite.tr")
+    monkeypatch.setattr(settings, "redis_url", "redis://redis:6379/0")
     with pytest.raises(RuntimeError, match="HTTPS"):
         validate_runtime_settings()
 
