@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.company_access import effective_company_id
 from app.api.deps import (
     get_current_user,
     reject_company_bound_admin_from_osgb_internal,
@@ -89,11 +90,11 @@ def current_subscription(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    effective_company = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective_company:
-        raise HTTPException(status_code=400, detail="Firma seçilmelidir.")
-    if not db.get(Company, effective_company):
-        raise HTTPException(status_code=404, detail="Firma bulunamadı.")
+    # Tek kaynaklı tenant doğrulaması: istemciden gelen company_id hiçbir rolde
+    # doğrudan güvenilir kabul edilmez. Saha profesyonelleri yalnız aktif
+    # görevlendirmelerindeki, işyeri hesabı yalnız kendi şirketindeki aboneliği
+    # görebilir; global yönetici için company_id zorunlu ve varlığı doğrulanır.
+    effective_company = effective_company_id(db, user, company_id)
     return get_or_create(db, effective_company)
 
 
