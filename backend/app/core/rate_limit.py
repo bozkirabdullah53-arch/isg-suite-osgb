@@ -343,8 +343,11 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
             except (ValueError, UnicodeError):
                 pass  # Request validation still owns malformed JSON responses.
         response = await call_next(request)
+        if login and response.status_code == 401:
+            logger.warning("auth_password_spray_observation source=%s identifier_present=%s configured_limit=%s", client, bool(identifier), settings.login_spray_account_limit)
         if login and identifier and response.status_code == 401:
             count, retry = await self._failed_accounts(spray_key, identifier)
+            logger.warning("auth_password_spray_counter source=%s distinct_accounts=%s", client, count)
             if count > settings.login_spray_account_limit:
                 return self._blocked(retry)
             if count == settings.login_spray_account_limit:
