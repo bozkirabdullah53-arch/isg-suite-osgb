@@ -10,6 +10,7 @@ Sertleştirme:
 from __future__ import annotations
 
 import logging
+import os
 import ipaddress
 import hashlib
 import hmac
@@ -51,6 +52,18 @@ def _client_ip(request) -> str:
     if xff:
         parts = [p.strip() for p in xff.split(",") if p.strip()]
         if parts:
+            if os.getenv("RENDER", "").lower() == "true":
+                # Render appends internal hops after the external client.
+                # Walk from the trusted end, ignoring private proxy addresses;
+                # never use the attacker-controlled leftmost value directly.
+                for part in reversed(parts):
+                    try:
+                        address = ipaddress.ip_address(part)
+                    except ValueError:
+                        continue
+                    if address.is_global:
+                        return str(address)
+                return "render-proxy-unknown"
             idx = max(0, len(parts) - _PROXY_TRUST_DEPTH)
             candidate = parts[idx]
             if candidate:
