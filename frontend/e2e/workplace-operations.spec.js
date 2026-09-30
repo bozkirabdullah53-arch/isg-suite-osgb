@@ -287,7 +287,7 @@ test('workplace manager sees own fitness restrictions without clinical data', as
   await expect(healthRow).toHaveCount(1);
   await expect(healthRow).toContainText('Gece vardiyasında çalışamaz');
   await expect(healthRow.getByText('Kısıtlı', {exact: true})).toBeVisible();
-  await expect(content.getByRole('button', {name: 'Excel İndir'})).toBeVisible();
+  await expect(content.getByRole('button', {name: 'Excel İndir'})).toHaveCount(0);
   await expect(content.getByRole('button', {name: /İşveren Belgesi/})).toBeVisible();
 
   for (const label of ['Yeni Kayıt', 'Düzenle', 'EK-2 / Klinik Dosya', 'Sil']) {
