@@ -4,21 +4,21 @@
 **Sistem:** ISGSuite OSGB  
 **Kapsam:** ÇSGB İBYS Başvuru Formu #5 ve #6 ile ilişkili hazırlıklar  
 **Tarih:** 30 Eylül 2026  
-**Durum:** Canlı doğrulama öncesi kontrollü hazırlık
+**Durum:** Canlı doğrulama ve altyapı eşleştirmesi devam ediyor
 
-## 1. Amaç
+## 1. Kabul ilkesi
 
-Bu belge, veri yedekleme ve veritabanı değişiklik yönetimi gerekliliklerinin yalnızca doküman seviyesinde değil; uygulama kodu, veritabanı, altyapı yapılandırması, testler ve üretim kanıtları ile doğrulanmasını sağlamak amacıyla hazırlanmıştır.
+Bir gereklilik, kodda bulunması tek başına "tamamlandı" kabul edilmez.
 
-**Kabul ilkesi:** Bir gereklilik, kodda bulunması tek başına "tamamlandı" kabul edilmez. Üretim için aşağıdaki zincirin kurulması gerekir:
+**Gereklilik → Prosedür → Kod → Veritabanı → Konfigürasyon → Test → Canlı doğrulama → Kanıt → Kabul**
 
-Gereklilik → Prosedür → Kod → Veritabanı → Konfigürasyon → Test → Canlı doğrulama → Kanıt → Kabul.
+Bu zincirin üretim kanıtı bulunmayan halkaları açık olarak işaretlenir.
 
-## 2. Mevcut teknik envanter
+## 2. Mevcut teknik yapı
 
-### 2.1 Yedekleme
+### Yedekleme kodu
 
-Mevcut repoda aşağıdaki bileşenler bulunmaktadır:
+Repo içinde mevcut:
 
 - `backend/scripts/backup_database.py`
 - `backend/scripts/backup_restore_drill.py`
@@ -32,24 +32,9 @@ Mevcut repoda aşağıdaki bileşenler bulunmaktadır:
 - `docs/IBYS_YEDEKLEME_PROSEDURU.md`
 - `backend/scripts/restore_database.md`
 
-Tanımlı mekanizmalar:
+### Değişiklik/audit kodu
 
-- günlük tam PostgreSQL yedeği
-- GFS günlük/haftalık/aylık saklama
-- Fernet tabanlı şifreli arşiv
-- R2/S3 off-site kopya
-- boyut + SHA-256 doğrulaması
-- backup retention
-- restore dry-run
-- aylık restore drill
-- haftalık backup bütünlük taraması
-- kritik hata bildirimi
-- backup audit olayları
-- RPO yaş kontrolü
-
-### 2.2 Veritabanı değişiklik yönetimi
-
-Mevcut repoda aşağıdaki bileşenler bulunmaktadır:
+Repo içinde mevcut:
 
 - `docs/IBYS_VERITABANI_DEGISIKLIK_PROSEDURU.md`
 - `backend/app/services/audit.py`
@@ -63,83 +48,98 @@ Mevcut repoda aşağıdaki bileşenler bulunmaktadır:
 - `change_request_events`
 - PostgreSQL append-only/hash-chain migration'ları
 
-Tanımlı mekanizmalar:
+## 3. Kritik canlı altyapı bulgusu — 30.09.2026
 
-- veri değişiklik talebi
-- kimlik doğrulama
-- doğrulama/onay/uygulama ayrımı
-- dört göz prensibi
-- alan beyaz listesi
-- old/new value kaydı
-- optimistic/concurrency kontrolü
-- dry-run
-- hard-delete gerekçesi
-- silme öncesi arşiv
-- audit trail
-- append-only audit log
-- hash chain
-- günlük hash-chain doğrulaması
+GitHub'daki `render.yaml` aşağıdaki cron servislerini tanımlıyor:
 
-## 3. Resmi kabul matrisi
+1. `isg-suite-db-backup-nightly`
+2. `isg-suite-workplace-backups-nightly`
+3. `isg-suite-backup-restore-drill-monthly`
+4. `isg-suite-backup-integrity-weekly`
+5. `isg-suite-audit-chain-verify-daily`
 
-| ID | Gereklilik | Teknik karşılık | Kanıt | Kabul kriteri | Durum |
-|---|---|---|---|---|---|
-| B-05-01 | Tutulan verilerin yedeklenmesi | PostgreSQL backup cron | Render cron + backup log | Başarılı günlük backup | 🟡 |
-| B-05-02 | Yedeklerin ayrı ortamda korunması | R2/S3 off-site | R2 object + checksum | Off-site kopya doğrulanmış | 🟡 |
-| B-05-03 | Yedek şifreleme | BACKUP_ENCRYPTION_KEY + Fernet | Config + test | Şifreli backup üretimi | 🟡 |
-| B-05-04 | Yedek bütünlüğü | SHA-256 | Backup integrity çıktısı | checksum eşleşiyor | 🟡 |
-| B-05-05 | Saklama politikası | GFS retention | Render config + test | 30 gün/12 hafta/12 ay | 🟡 |
-| B-05-06 | Geri yükleme | restore drill | QA JSON | Gerçek backup dry-run PASS | 🟡 |
-| B-05-07 | Backup başarısızlık alarmı | Notification/audit | Alarm + log | Kritik alarm üretiliyor | 🟡 |
-| B-05-08 | Tenant yedek izolasyonu | workplace backup | Tenant testleri | Başka firmanın verisi dahil değil | 🟡 |
-| B-05-09 | Değişiklik talebi | change_requests | UI/API + DB | Talep kayıtlı | 🟡 |
-| B-05-10 | Veri sahibi doğrulaması | identity verification | Change request kaydı | Doğrulama olmadan uygulama yok | 🟡 |
-| B-05-11 | 4 göz prensibi | change_request service | Negatif QA testleri | Kendi talebini onaylama mümkün değil | 🟡 |
-| B-05-12 | Old/new değer izlenebilirliği | audit_logs | Audit kaydı | Eski/yeni değer mevcut | 🟡 |
-| B-05-13 | Kör yazmanın önlenmesi | conflict/409 kontrolü | QA testi | Eski değer değişmişse uygulama durur | 🟡 |
-| B-05-14 | Hard-delete koruması | change_guard | QA | Gerekçesiz silme engellenir | 🟡 |
-| B-05-15 | Silme öncesi arşiv | archive_records_before_delete | Archive + audit | Arşiv başarısızsa silme durur | 🟡 |
-| B-05-16 | Audit bütünlüğü | append-only + hash chain | audit verification | chain/hash break = 0 | 🟡 |
-| B-05-17 | Şema değişikliklerinin izlenebilirliği | Alembic | migration history | Manuel SQL değişikliği yok | 🟡 |
-| B-05-18 | Hassas veri log güvenliği | audit serialization | KVKK/security test | Gereksiz sağlık verisi loglanmıyor | 🟠 |
-| B-05-19 | Üretim secret doğrulaması | Render secrets | Secret presence check | Anahtarlar mevcut ve güçlü | 🟡 |
-| B-05-20 | Canlı kanıt dosyası | QA/evidence bundle | tarihli JSON/log | Her kritik test kanıtlanmış | 🟠 |
+Ancak 30.09.2026 tarihinde Render workspace servis envanteri sorgulandığında canlıda ISGSuite repo için aşağıdakilerden yalnızca:
 
-**Not:** 🟡 = kod/config mevcut, üretim kanıtı ayrıca doğrulanmalı. 🟠 = ayrıca teknik kabul testi yapılmalı. Bu tablo canlı sistemde test yapılmadan "tamamlandı" olarak işaretlenmemelidir.
+- `isg-suite-workplace-backups-nightly`
+- `isg-suite-api-warmup-1u9t`
+- `isg-suite-api-1u9t`
+- `isg-suite-web-1u9t`
 
-## 4. Zorunlu üretim kabul testleri
+görüldü.
 
-### Yedekleme
+Bu nedenle **DB backup, restore drill, backup integrity ve audit-chain cron'ları canlıda aktif kabul edilmemelidir.**
 
-1. Son başarılı günlük backup zamanını doğrula.
-2. Backup dosyasının şifreli olduğunu doğrula.
-3. SHA-256 değerini doğrula.
-4. R2/S3 off-site nesnesini doğrula.
-5. Yerel/off-site checksum eşleşmesini doğrula.
-6. Tenant yedeğinde yalnız hedef firmanın verisinin bulunduğunu doğrula.
-7. Gerçek yedekten izole restore dry-run çalıştır.
-8. Kritik tablo ve kayıt sayılarında tutarlılık kontrolü yap.
-9. Başarısız backup senaryosunda kritik alarm üretimini test et.
-10. Test sonucunu tarih, sürüm, backup kimliği ve checksum ile kaydet.
+Bu bir **P0/P1 altyapı uyum açığıdır** ve Bakanlık sunumundan önce kapatılıp gerçek çalışma kanıtları alınmalıdır.
 
-### Veritabanı değişikliği
+### Canlıda doğrulanan olumlu bulgu
 
-1. Bir test kaydında değişiklik talebi oluştur.
-2. Talep eden kişinin kendi talebini onaylayamadığını doğrula.
-3. Doğrulayan kişinin onaylayamadığını doğrula.
-4. Onaylayan kişinin uygulayamadığını doğrula.
-5. Old/new değerlerin audit'e işlendiğini doğrula.
-6. Aynı kayıt arada değiştirilirse 409 conflict üretildiğini doğrula.
-7. Gerekçesiz hard-delete işlemini reddettir.
-8. Dry-run sonucunda canlı verinin değişmediğini doğrula.
-9. Silme öncesi arşivin oluştuğunu doğrula.
-10. Audit hash zincirini doğrula.
-11. Audit zincirini kasıtlı olarak bozulan test ortamında doğrulama alarmını test et.
-12. Sağlık verisi gibi özel nitelikli verilerin gereksiz içerikle audit log'a yazılmadığını doğrula.
+`isg-suite-workplace-backups-nightly` cron'u 28.09.2026 ve 29.09.2026 tarihlerinde başarıyla çalışmış; loglarda sırasıyla:
 
-## 5. Canlı doğrulama için gerekli kanıt paketi
+- `companies_seen=43`
+- `created=43`
+- `skipped=0`
+- `failed=0`
+- `purged=0`
 
-Bakanlık sunumu için teknik kanıtların aşağıdaki şekilde tarihli ve sürümlü tutulması hedeflenir:
+sonuçları görülmüştür.
+
+Bu yalnızca **işyeri backup cron'unun canlı çalıştığını** kanıtlar; tam PostgreSQL backup veya restore sisteminin canlı çalıştığını kanıtlamaz.
+
+## 4. Kabul matrisi
+
+| ID | Gereklilik | Teknik karşılık | Mevcut kanıt | Durum |
+|---|---|---|---|---|
+| B-05-01 | Tutulan verilerin yedeklenmesi | PostgreSQL backup cron | Render servisinde cron görünmüyor | 🔴 |
+| B-05-02 | Ayrı ortam/off-site koruma | R2/S3 | Kod + config var, canlı backup kanıtı yok | 🟠 |
+| B-05-03 | Yedek şifreleme | BACKUP_ENCRYPTION_KEY + Fernet | Kod/config var, canlı üretim kanıtı yok | 🟠 |
+| B-05-04 | Yedek bütünlüğü | SHA-256 | Kod var, canlı integrity cron görünmüyor | 🔴 |
+| B-05-05 | Saklama | GFS 30 gün/12 hafta/12 ay | render.yaml var, canlı cron yok | 🔴 |
+| B-05-06 | Geri yükleme | Restore drill | Kod var, canlı cron görünmüyor | 🔴 |
+| B-05-07 | Backup hata alarmı | Notification/audit | Kod var, canlı backup hata testi yok | 🟠 |
+| B-05-08 | Tenant izolasyonu | workplace backup | Canlı cron başarıyla çalışıyor | 🟡 |
+| B-05-09 | Değişiklik talebi | change_requests | Kod/UI mevcut | 🟡 |
+| B-05-10 | Veri sahibi doğrulaması | identity verification | Kod/prosedür mevcut | 🟡 |
+| B-05-11 | 4 göz prensibi | change_request service | Kod mevcut, canlı negatif QA bekliyor | 🟡 |
+| B-05-12 | Old/new izlenebilirliği | audit_logs | Kod/migration mevcut | 🟡 |
+| B-05-13 | Kör yazma engeli | conflict/409 | Kod/prosedür mevcut | 🟡 |
+| B-05-14 | Hard-delete koruması | change_guard | Kod/test mevcut | 🟡 |
+| B-05-15 | Silme öncesi arşiv | archive_records_before_delete | Kod mevcut | 🟡 |
+| B-05-16 | Audit bütünlüğü | append-only + hash chain | Kod mevcut, canlı günlük cron görünmüyor | 🔴 |
+| B-05-17 | Şema değişikliklerinin izlenebilirliği | Alembic | Repo migration yapısı mevcut | 🟡 |
+| B-05-18 | Hassas veri log güvenliği | audit serialization | Teknik inceleme/test gerekli | 🟠 |
+| B-05-19 | Production secret doğrulaması | Render secrets | Secret değerleri güvenlik nedeniyle içerik olarak okunmaz | 🟠 |
+| B-05-20 | Kanıt paketi | QA/evidence bundle | Henüz tamamlanmadı | 🟠 |
+
+## 5. Bakanlık öncesi zorunlu kapatma sırası
+
+### P0 — Önce
+
+1. Render'da PostgreSQL nightly backup cron'unu gerçek servis olarak oluştur/aktif et.
+2. Backup cron'unun gerçek yedek üretmesini doğrula.
+3. R2/S3 off-site kopyayı doğrula.
+4. SHA-256 doğrulamasını canlı backup üzerinde kanıtla.
+5. Şifreli backup üretimini kanıtla.
+
+### P1 — Ardından
+
+6. Restore drill cron'unu aktif et.
+7. Gerçek yedek üzerinde dry-run restore PASS kanıtı üret.
+8. Backup integrity cron'unu aktif et.
+9. Audit-chain verify cron'unu aktif et.
+10. Audit zincirinde canlı `chain_breaks=0`, `hash_breaks=0` kanıtı üret.
+
+### P1 — Değişiklik yönetimi
+
+11. Test veri kaydıyla değişiklik talebi oluştur.
+12. 4 göz prensibinin tüm negatif senaryolarını çalıştır.
+13. old/new değer ve gerekçe audit kaydını doğrula.
+14. 409 conflict testini çalıştır.
+15. hard-delete/dry-run/archive zincirini test et.
+16. Sağlık verisinin gereksiz şekilde audit log'a yazılmadığını test et.
+
+## 6. Kanıt dosyaları
+
+Hedef kanıt seti:
 
 - `backup-last-success.json`
 - `backup-offsite-verification.json`
@@ -150,47 +150,22 @@ Bakanlık sunumu için teknik kanıtların aşağıdaki şekilde tarihli ve sür
 - `hard-delete-safety.json`
 - `tenant-isolation-backup.json`
 - `production-configuration-check.json`
-- test çalıştırma tarihi/saatı
-- uygulama commit SHA
-- test ortamı
-- test sonucu
-- sorumlu
-- varsa hata ve düzeltme kaydı
 
-Kanıt dosyalarında TCKN, sağlık tanısı, parola, API anahtarı veya başka gereksiz hassas veri tutulmamalıdır.
+Kanıt dosyalarında TCKN, sağlık tanısı, parola, API anahtarı veya gereksiz kişisel veri bulunmamalıdır.
 
-## 6. Kritik açıklar / karar noktaları
+## 7. Üretime alma kuralı
 
-### 6.1 Off-site zorunluluk
-
-Repo yapılandırmasında `BACKUP_REMOTE_REQUIRED=false` kontrollü rollout amacıyla bırakılmıştır. Bakanlık sunumundan önce R2/S3 off-site yedekleme gerçek ortamda doğrulanmalı ve kabul kriterleri sağlandıktan sonra zorunlu moda geçiş ayrıca değerlendirilmelidir.
-
-### 6.2 Restore
-
-`BACKUP_RESTORE_ENABLED=false` üretimde güvenli varsayılan olarak bırakılmıştır. Gerçek restore yazımı yalnızca kontrollü bakım penceresinde ve onaylı süreçle yapılmalıdır. Normal kabul testi dry-run ile yapılmalıdır.
-
-### 6.3 WORM/değiştirilemez arşiv
-
-Mevcut prosedürde WORM/değiştirilemez arşiv gelecekteki geliştirme olarak belirtilmiştir. Bu, başvuru maddesinin açık bir şartı olarak doğrulanmadan zorunlu kabul edilmemeli; ancak yüksek güvence seçeneği olarak ayrıca değerlendirilmelidir.
-
-### 6.4 DR failover
-
-Otomatik DR failover mevcut kodda tamamlanmış kabul edilmemelidir. Mevcut sistemin RTO/RPO hedefleri ile fiili altyapı kapasitesi ayrıca doğrulanmalıdır.
-
-## 7. Değişiklik yönetimi kuralı
-
-Bu hazırlık branch'i üzerinde yapılan çalışmalar canlı sistemi doğrudan değiştirmez.
+Bu branch üzerindeki hazırlıklar canlı sistemi doğrudan değiştirmez.
 
 Üretime alınacak her değişiklik:
 
-1. kod değişikliği,
+1. diff incelemesi,
 2. test,
-3. diff incelemesi,
-4. kabul,
-5. kontrollü deploy,
-6. smoke/regresyon,
-7. kanıt kaydı
+3. kontrollü deploy,
+4. smoke/regresyon,
+5. canlı doğrulama,
+6. kanıt kaydı
 
-adımlarından geçirilmelidir.
+adımlarından geçirilir.
 
 **Temel ilke:** Mevcut çalışan ISGSuite fonksiyonları bozulmadan uyum hazırlığı yapılır.
