@@ -24,14 +24,21 @@ pencerelerde uygulanır. IPv4 /24, IPv6 /64 kullanılır. Ortak hastane/OSGB NAT
 kapasitesine göre ayarlanabilir. Bellek yedeği worker başına çalışır; merkezi
 koruma Redis gerektirir. Başlık güven zinciri dağıtımda doğrulanmalıdır.
 
+## Ek bağımlılık düzeltmesi
+
+GitHub bağımlılık denetimi mevcut üretim PyJWT 2.13.0 için güvenlik bulguları
+bildirdi. Hem backend hem kök manifestte PyJWT 2.14.0 sabitlendi. Üretim
+manifestiyle `pip-audit --strict` yeniden çalıştırıldı: bilinen açık bulunmadı.
+Sürüm kaynağı: https://github.com/jpadilla/pyjwt/releases/tag/2.14.0
+
 ## Doğrulama
 
 - Etkilenen backend güvenlik, giriş, e-posta, personel, rapor ve asistan testleri:
-  191 geçti; bir ilgisiz mevcut test ayrı tutuldu.
+  üretim bağımlılıkları ve PyJWT 2.14.0 ile son koşuda 195 geçti; bir ilgisiz mevcut test ayrı tutuldu.
 - Bireysel kayıt testinin eski `osgb_id is None` beklentisi mevcut bireysel özel
   çalışma alanı davranışıyla uyuşmuyor; ilk test koşusunda da başarısızdı.
   Bu değişiklikte üyelik davranışı veya o testin beklentisi değiştirilmedi.
-- MFA/refresh ek test koşusu: 27 geçti; son MFA oturum testleri ayrıca çalıştırıldı.
+- MFA/refresh ek test koşusu: 27 geçti; son MFA oturum testleri ayrıca çalıştırıldı (20 geçti).
 - Frontend asistan/giriş: 18 test geçti; HTML/CSS/form/meta etiketleri DOM oluşturmadı.
 - `npm run build` geçti. Staging Playwright kart kontrolü script tarafından staging
   dışında atlandı; canlı uçtan uca kontrol yapıldığı iddia edilmez.
