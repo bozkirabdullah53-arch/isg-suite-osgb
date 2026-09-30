@@ -4,7 +4,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {AssistantMessageText, autoActionDelayMs, browserSpeechRecognition, collapseRepeatedPhrase, finalSpeechTranscript, firstAutoAction, highlightTarget, isCoarsePointer, isSameVoiceCommand, isTranscriptionUnavailable, pickTurkishVoice, shouldUseBrowserSpeech, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
+import {AssistantMessageText, assistantApiText, autoActionDelayMs, browserSpeechRecognition, collapseRepeatedPhrase, finalSpeechTranscript, firstAutoAction, highlightTarget, isCoarsePointer, isSameVoiceCommand, isTranscriptionUnavailable, pickTurkishVoice, shouldUseBrowserSpeech, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
 
 describe('contextual assistant target guidance', () => {
   it('highlights a target without clicking it', () => {
@@ -98,5 +98,19 @@ describe('untrusted assistant HTML', () => {
     host.innerHTML = markup;
     expect(host.textContent).toBe(payload);
     expect(host.querySelector('img,script,style,form,meta')).toBeNull();
+  });
+});
+
+
+describe('HTML-encoded assistant API output', () => {
+  it('decodes for readable text and speech without constructing HTML', () => {
+    const apiText = '&lt;style&gt;body{display:none}&lt;/style&gt; &amp; &#x27;İSG&#x27;';
+    const expected = "<style>body{display:none}</style> & 'İSG'";
+    expect(assistantApiText(apiText)).toBe(expected);
+    expect(spokenReply({spoken: apiText})).toBe(expected);
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(React.createElement(AssistantMessageText, {text: assistantApiText(apiText)}));
+    expect(host.textContent).toBe(expected);
+    expect(host.querySelector('style')).toBeNull();
   });
 });

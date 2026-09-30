@@ -31,10 +31,16 @@ export function firstAutoAction(actions, allowedModules = []) {
   }) || null;
 }
 
+export function assistantApiText(value) {
+  const entities = {'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'"};
+  // Decode once as a string; never parse server output into DOM nodes.
+  return String(value || '').replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (entity) => entities[entity]);
+}
+
 export function spokenReply(result) {
-  const spoken = String(result?.spoken || '').trim();
+  const spoken = assistantApiText(result?.spoken).trim();
   if (spoken) return spoken;
-  return String(result?.message || '').trim();
+  return assistantApiText(result?.message).trim();
 }
 
 export function isCoarsePointer(scope = typeof window === 'undefined' ? null : window) {
@@ -478,7 +484,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
         _retries: 0,
         signal: controller.signal,
       });
-      const responseText = result?.message || 'Bu işlem için doğrulanmış bir açıklama bulunamadı.';
+      const responseText = assistantApiText(result?.message) || 'Bu işlem için doğrulanmış bir açıklama bulunamadı.';
       const speechText = spokenReply(result) || responseText;
       const autoAction = firstAutoAction(result?.actions, allowedModules);
       setMessages((current) => [...current, {role: 'assistant', text: responseText, source: result?.source, actions: result?.actions || []}]);

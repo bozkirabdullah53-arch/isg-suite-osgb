@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from html import escape, unescape
 from typing import Any
 
 import httpx
@@ -164,6 +165,18 @@ def _modules(user) -> set[str]:
         return WORKPLACE_MANAGER_MODULES
     return ROLE_MODULES.get(_role(user), set())
 
+
+def _safe_response_text(value: str) -> str:
+    # Decode obfuscated markup, then encode exactly once at the API boundary.
+    # JSON remains text even if another client later uses an HTML renderer.
+    text = str(value)
+    for _ in range(5):
+        decoded = unescape(text)
+        if decoded == text:
+            break
+        text = decoded
+    return escape(text, quote=True)
+
 def sanitize_context(raw: dict[str, Any] | None, user) -> dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     page = raw.get("currentPage") if isinstance(raw.get("currentPage"), dict) else {}
@@ -296,9 +309,9 @@ def answer(*, question: str, raw_context: dict[str, Any], user) -> dict[str, Any
         message = provider_message
         spoken = provider_message
     logger.info("contextual assistant request request_id=%s user_id=%s page_id=%s source=%s", current_request_id(), getattr(user, "id", None), page["id"], source)
-    payload = {"message": message, "source": source, "domain": "app", "actions": actions[:2]}
+    payload = {"message": _safe_response_text(message), "source": source, "domain": "app", "actions": actions[:2]}
     if spoken:
-        payload["spoken"] = spoken[:500]
+        payload["spoken"] = _safe_response_text(spoken[:500])
     return payload
 
 

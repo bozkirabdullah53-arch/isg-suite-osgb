@@ -106,6 +106,8 @@ class Settings(BaseSettings):
     rate_limit_auth_rpm: int = 30
     login_source_window_limit: int = 60
     login_subnet_window_limit: int = 200
+    # Failed attempts against distinct accounts, not successful NAT traffic.
+    login_spray_account_limit: int = 10
     # Güvenilir proxy zinciri derinliği: X-Forwarded-For zincirinin
     # kaç girişinin güvenilir sayılacağı (Render/Cloudflare = 1). İstemci
     # spoof edemez çünkü proxy en sağıdaki girişi ekler/kontrol eder.

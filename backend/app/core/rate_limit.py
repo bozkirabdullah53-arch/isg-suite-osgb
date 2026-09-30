@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import logging
 import ipaddress
+import hashlib
+import hmac
+import math
 from collections import defaultdict, deque
 from time import monotonic, time
 from typing import Protocol
@@ -72,10 +75,14 @@ class RateLimitStore(Protocol):
     async def hit(self, key: str, *, limit: int, window_sec: int = 60) -> tuple[bool, int]:
         """(allowed, retry_after_sec)."""
 
+    async def failed_accounts(self, key: str, *, member: str | None = None, window_sec: int = 600) -> tuple[int, int]:
+        """Sliding count of distinct failed accounts and time until one expires."""
+
 
 class MemoryRateLimitStore:
     def __init__(self) -> None:
         self.hits: dict[str, deque] = defaultdict(deque)
+        self.accounts: dict[str, dict[str, float]] = {}
         self._last_prune = monotonic()
 
     def _prune(self, now: float) -> None:
@@ -85,6 +92,9 @@ class MemoryRateLimitStore:
         dead = [k for k, window in self.hits.items() if not window or now - window[-1] > 600]
         for k in dead:
             self.hits.pop(k, None)
+        for k in list(self.accounts):
+            if not self.accounts[k] or now - max(self.accounts[k].values()) >= 600:
+                self.accounts.pop(k, None)
 
     async def hit(self, key: str, *, limit: int, window_sec: int = 60) -> tuple[bool, int]:
         now = monotonic()
@@ -102,6 +112,22 @@ class MemoryRateLimitStore:
             return False, retry
         window.append(now)
         return True, 0
+
+    async def failed_accounts(self, key: str, *, member: str | None = None, window_sec: int = 600) -> tuple[int, int]:
+        now = monotonic()
+        self._prune(now)
+        if key not in self.accounts and member is None:
+            return 0, 0
+        if len(self.accounts) >= 100_000 and key not in self.accounts:
+            # Preserve protection if the bounded fallback is saturated.
+            return 100_000, window_sec
+        accounts = self.accounts.setdefault(key, {})
+        for old in [m for m, stamp in accounts.items() if now - stamp >= window_sec]:
+            accounts.pop(old)
+        if member is not None:
+            accounts[member] = now
+        retry = max(1, math.ceil(window_sec - (now - min(accounts.values())))) if accounts else 0
+        return len(accounts), retry
 
 
 class RedisRateLimitStore:
@@ -121,6 +147,26 @@ class RedisRateLimitStore:
             retry = max(1, int(ttl)) if ttl and ttl > 0 else window_sec
             return False, retry
         return True, 0
+
+    async def failed_accounts(self, key: str, *, member: str | None = None, window_sec: int = 600) -> tuple[int, int]:
+        # Server time and a single atomic operation keep all workers consistent.
+        script = """
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
+local window = tonumber(ARGV[1])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window)
+if ARGV[2] ~= '' then
+  redis.call('ZADD', KEYS[1], now, ARGV[2])
+  redis.call('EXPIRE', KEYS[1], window + 1)
+end
+local count = redis.call('ZCARD', KEYS[1])
+local first = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+local retry = 0
+if count > 0 then retry = math.max(1, math.ceil(tonumber(first[2]) + window - now)) end
+return {count, retry}
+"""
+        count, retry = await self._client.eval(script, 1, f"{_REDIS_KEY_PREFIX}{key}:failed-accounts", window_sec, member or "")
+        return int(count), int(retry)
 
 
 _store: RateLimitStore | None = None
@@ -206,6 +252,24 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
     def store(self) -> RateLimitStore:
         return self._store if self._store is not None else get_rate_limit_store()
 
+    async def _failed_accounts(self, key: str, member: str | None = None) -> tuple[int, int]:
+        global _backend_name
+        # Always mirror locally so a Redis outage does not erase recent history.
+        local = await self._runtime_fallback.failed_accounts(key, member=member)
+        try:
+            shared = await self.store.failed_accounts(key, member=member)
+            return max((local, shared), key=lambda result: result[0])
+        except Exception:
+            _backend_name = "memory-fallback"
+            return local
+
+    @staticmethod
+    def _blocked(retry: int):
+        return JSONResponse(
+            {"detail": "Çok fazla istek gönderildi. Lütfen kısa süre sonra tekrar deneyin."},
+            status_code=429, headers={"Retry-After": str(retry or 60)},
+        )
+
     async def dispatch(self, request, call_next):
         global _backend_name
 
@@ -214,6 +278,13 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client = _client_ip(request)
+        login = request.method == "POST" and path.rstrip("/") == "/api/v1/auth/login"
+        spray_key = f"{client}:login-spray"
+        if login:
+            count, retry = await self._failed_accounts(spray_key)
+            if count >= settings.login_spray_account_limit:
+                logger.warning("auth_password_spray_blocked source=%s distinct_accounts=%s", client, count)
+                return self._blocked(retry)
         auth = _is_auth(path)
         limit = self.auth_limit if auth else self.limit
         key = f"{client}:auth" if auth else f"{client}:{path}"
@@ -249,4 +320,20 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
                 status_code=429,
                 headers={"Retry-After": str(retry or 60)},
             )
-        return await call_next(request)
+        identifier = None
+        if login:
+            try:
+                payload = await request.json()
+                value = payload.get("email") if isinstance(payload, dict) else None
+                if isinstance(value, str) and value.strip():
+                    identifier = hmac.new(settings.secret_key.encode(), value.strip().casefold().encode(), hashlib.sha256).hexdigest()
+            except (ValueError, UnicodeError):
+                pass  # Request validation still owns malformed JSON responses.
+        response = await call_next(request)
+        if login and identifier and response.status_code == 401:
+            count, retry = await self._failed_accounts(spray_key, identifier)
+            if count > settings.login_spray_account_limit:
+                return self._blocked(retry)
+            if count == settings.login_spray_account_limit:
+                logger.warning("auth_password_spray_detected source=%s distinct_accounts=%s", client, count)
+        return response
