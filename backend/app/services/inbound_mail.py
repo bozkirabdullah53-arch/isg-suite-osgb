@@ -16,7 +16,6 @@ import imaplib
 import logging
 import hashlib
 import poplib
-import ssl
 import re
 import time
 
@@ -180,7 +179,6 @@ def _connect_imap_with_retry():
                     settings.inbound_mail_host,
                     int(settings.inbound_mail_port),
                     timeout=int(settings.inbound_mail_timeout_sec),
-                    ssl_context=ssl.create_default_context(),
                 )
             else:
                 client = imaplib.IMAP4(
@@ -188,7 +186,7 @@ def _connect_imap_with_retry():
                     int(settings.inbound_mail_port),
                     timeout=int(settings.inbound_mail_timeout_sec),
                 )
-                client.starttls(ssl_context=ssl.create_default_context())
+                client.starttls()
             client.login(settings.inbound_mail_username, settings.inbound_mail_password)
             return client
         except (OSError, EOFError, imaplib.IMAP4.error) as exc:
@@ -210,10 +208,9 @@ def _connect_pop3_with_retry():
         client = None
         try:
             if settings.inbound_mail_use_ssl:
-                client = poplib.POP3_SSL(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec), context=ssl.create_default_context())
+                client = poplib.POP3_SSL(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec))
             else:
                 client = poplib.POP3(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec))
-                client.stls(context=ssl.create_default_context())
             client.user(settings.inbound_mail_username)
             client.pass_(settings.inbound_mail_password)
             return client

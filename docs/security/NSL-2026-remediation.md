@@ -7,7 +7,7 @@ Kod testlerinin geçmesi canlı sistemde tüm bulguların kapandığı anlamına
 | Bulgu | Uygulama durumu | Kalan doğrulama / işlem |
 |---|---|---|
 | NSL-202601 MFA atlatma | Önceki restart-setup 403 koruması korundu. Etkin MFA için kurulum tokenı reddedilir; enable tekrar çalıştırılamaz. Enable/disable token sürümünü artırır, access ve refresh birlikte yenilenir. Disable eski kurtarma kodlarını siler. Girişteki yeniden QR düğmesi kaldırıldı. | Yayından sonra yetkili test hesabıyla tekrar test. Rapor döneminde etkilenen hesaplar varsa kurtarma kodları ve oturumlar hesap sahibi doğrulanarak yenilenmeli. |
-| NSL-202602 posta aktarımı | Mevcut zorunlu SMTP TLS koruması korundu. POP3 artık STLS olmadan kullanıcı adı/parola göndermez; POP3S/IMAPS ve STARTTLS varsayılan güvenilir sertifika doğrulaması kullanır. | Sağlayıcı TLS/HTTPS sunmalı veya posta hizmeti taşınmalı. Eski şifresiz sağlayıcıyla bağlantı güvenlik nedeniyle başarısız olur. |
+| NSL-202602 posta aktarımı | Mevcut zorunlu SMTP TLS koruması korundu. POP3/IMAP TLS güçlendirmesi `security/nsl-mail-tls-provider-pending` dalında hazır; bu yayına dahil değil. | Sağlayıcı TLS/HTTPS sunmalı veya posta hizmeti taşınmalı. Gelen posta bağlantısı kesilmemesi için TLS geçişi doğrulandıktan sonra ayrı düzeltme yayımlanmalı. Bu bulgu açık kalır. |
 | NSL-202603 parola püskürtme | Mevcut paylaşımlı dakikalık auth sınırına 10 dakikalık kaynak ve alt ağ sınırları eklendi; 429 ve Retry-After döner. Login hesap+IP kontrolü aynı proxy IP çözümünü kullanır. Redis hata verirse yerel koruma sürer. | Çoklu worker için REDIS_URL çalışmalı. TRUST_PROXY_HEADERS yalnız başlıkları güvenle yeniden yazan proxy arkasında açık tutulmalı. |
 | NSL-202604 asistan HTML | Mevcut React metin gösterimi korunup ortak metin bileşeni ve gerçek DOM regresyon testiyle sabitlendi. Asistan mesajları HTML olarak yorumlanmaz. | Yayındaki frontend aynı sürüme gelmeli. JSON metin yanıtlarını kullanan diğer istemciler de HTML olarak yorumlamamalı. CSP'nin inline stillerini tüm uygulamada kaldırmak ayrı uyumluluk çalışmasıdır. |
 | NSL-202605 hesap kilitleme | Önceki anonim hatalı girişlerin kalıcı hesap kilidi oluşturmaması korundu; başka kaynaktan doğru giriş test edildi. Kaynak ve alt ağ limiti ek koruma sağlar. | Yetkili test hesabıyla canlı retest. |
@@ -70,3 +70,16 @@ Ek frontend test koşusu: 18 geçti; üretim derlemesi geçti.
 HTTPS DNS sorgusuyla `_dmarc.isgsuite.tr` ve `_dmarc.isgsuite.com.tr`
 NXDOMAIN olarak doğrulandı. İsimtescil paneli için mevcut connector bulunmuyor;
 posta/TLS/DKIM ve DNS değişiklikleri yönetim erişimi gerektiriyor.
+
+## 30 Eylül 2026 uygulama yayını kapsamı
+
+Kullanıcı uygulama düzeltmelerinin canlıya alınmasını istedi. TLS sağlayıcı
+erişimi engellendiği için gelen posta değişikliği ve buna özgü regresyon testi
+ayrı dalda korunarak bu yayından çıkarıldı. Mevcut SMTP TLS koruması
+korunur; posta aktarımı bulgusunun tamamen kapandığı iddia edilmez.
+
+Son kapsamlı CI (5206943): frontend test/lint/build/E2E/audit, backend
+SQLite/Postgres ve tüm güvenlik/eğitim workflow kontrolleri başarılı.
+Kapsam ayrıldıktan sonra CI tekrar çalıştırılacak. Yayın başarısı ve canlı
+kontroller ayrı kanıtlarla doğrulanmalı. Sağlayıcı bulguları NSL-202602,
+NSL-202606 ve NSL-202607 açık kalır.
