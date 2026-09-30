@@ -2,6 +2,8 @@
 """Personel Excel içe aktarma — esnek başlık + şablon."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 import re
 import unicodedata
 from datetime import date, datetime
@@ -196,6 +198,15 @@ def _normalize_special_status(value: str | None) -> str | None:
 
 
 def parse_employees_workbook(content: bytes) -> list[dict]:
+    # Reject formulas explicitly instead of silently importing cached results.
+    formula_book = load_workbook(BytesIO(content), data_only=False)
+    try:
+        for row in _personnel_sheet(formula_book).iter_rows():
+            for cell in row:
+                if cell.data_type == "f":
+                    raise ValueError(f"Excel dosyasında formül kullanılamaz ({cell.coordinate}). Değeri metin veya sayı olarak girin.")
+    finally:
+        formula_book.close()
     wb = load_workbook(BytesIO(content), data_only=True)
     try:
         ws = _personnel_sheet(wb)
@@ -357,5 +368,5 @@ def build_import_template_xlsx() -> bytes:
     ws.page_setup.fitToHeight = 0
 
     buf = BytesIO()
-    wb.save(buf)
+    save_export_workbook(wb, buf)
     return buf.getvalue()

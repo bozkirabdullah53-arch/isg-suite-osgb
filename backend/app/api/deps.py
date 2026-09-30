@@ -45,6 +45,9 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
     if tv != user_tv:
         raise credentials_error
 
+    if purpose == "mfa_setup" and user.mfa_enabled:
+        raise credentials_error
+
     if purpose == "access":
         bind_user_tenant(user)
         apply_rls_user(db, user)

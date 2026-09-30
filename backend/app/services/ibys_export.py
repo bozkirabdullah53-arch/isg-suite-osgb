@@ -4,21 +4,7 @@ OSGB kapsamındaki işyerleri + personel CSV'lerini ZIP olarak üretir.
 """
 from __future__ import annotations
 
-import csv
-
-_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
-
-def _csv_safe(value):
-    if value is None or isinstance(value, (int, float, bool)):
-        return value
-    text = str(value)
-    return "'" + text if text.startswith(_CSV_FORMULA_PREFIXES) else text
-
-class _SafeCsvWriter:
-    def __init__(self, stream):
-        self._writer = csv.writer(stream)
-    def writerow(self, values):
-        return self._writer.writerow([_csv_safe(v) for v in values])
+from app.services.spreadsheet_safety import SafeCsvWriter as _SafeCsvWriter
 
 import io
 import zipfile

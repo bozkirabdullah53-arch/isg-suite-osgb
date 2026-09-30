@@ -1,3 +1,5 @@
+
+from app.services.spreadsheet_safety import save_export_workbook
 from io import BytesIO
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -100,7 +102,7 @@ def export_employees_excel(
             "Aktif" if r.is_active else "Pasif",
         ])
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     return StreamingResponse(
         stream,

@@ -1,6 +1,8 @@
 """KKD zimmet API — PRO KKD Takip parity (multi-tenant)."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -1057,7 +1059,7 @@ def export_assignments_excel(
             r.risk_note or "",
         ])
     buf = BytesIO()
-    wb.save(buf)
+    save_export_workbook(wb, buf)
     buf.seek(0)
     return StreamingResponse(
         buf,

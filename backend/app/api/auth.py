@@ -17,6 +17,7 @@ from app.core.auth_cookies import (
     set_refresh_cookie,
 )
 from app.core.config import settings
+from app.core.rate_limit import _client_ip as trusted_client_ip
 from app.core.database import get_db
 from app.core.security import ALGORITHM, create_access_token, create_refresh_token, decode_access_token, get_password_hash, verify_password
 from app.models.entities import Company, User, UserRole
@@ -56,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 
 def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
+    return trusted_client_ip(request)
 
 
 def _sync_field(db: Session, user: User) -> User:

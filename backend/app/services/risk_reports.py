@@ -1,6 +1,8 @@
 """Risk değerlendirme PDF / Excel raporları — İSG PRO reports.py Suite uyarlaması."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 import json
 import logging
 from datetime import datetime
@@ -2241,7 +2243,7 @@ def build_risk_excel(
     _apply_excel_page_chrome(ws3, team_line=team_line, doc_label=f"Risk İstatistikleri — {getattr(company, 'name', '')}")
 
     out = BytesIO()
-    wb.save(out)
+    save_export_workbook(wb, out)
     out.seek(0)
     return out.read()
 
@@ -2332,6 +2334,6 @@ def build_dof_excel(
     ws.oddFooter.center.text = CREATOR_LINE
 
     out = BytesIO()
-    wb.save(out)
+    save_export_workbook(wb, out)
     out.seek(0)
     return out.read()

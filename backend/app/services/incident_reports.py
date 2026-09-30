@@ -1,6 +1,8 @@
 """Olay / ramak kala PDF ve Excel raporları — PRO rapor uyarlaması."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -159,7 +161,7 @@ def build_incident_excel(*, rows: list, company_names: dict[int, str] | None = N
     ws.freeze_panes = "A2"
 
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     return stream.read()
 
@@ -212,7 +214,7 @@ def build_capa_board_excel(*, rows: list[dict]) -> bytes:
     ws.auto_filter.ref = ws.dimensions
     ws.freeze_panes = "A2"
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     return stream.read()
 

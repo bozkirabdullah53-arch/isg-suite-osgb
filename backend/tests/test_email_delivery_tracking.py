@@ -34,7 +34,11 @@ class _FakeSmtp:
     def __exit__(self, *_args):
         return False
 
-    def starttls(self):
+    def starttls(self, *, context=None):
+        assert context is not None
+        return None
+
+    def ehlo(self):
         return None
 
     def login(self, *_args):

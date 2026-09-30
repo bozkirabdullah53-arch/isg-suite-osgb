@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {autoActionDelayMs, browserSpeechRecognition, collapseRepeatedPhrase, finalSpeechTranscript, firstAutoAction, highlightTarget, isCoarsePointer, isSameVoiceCommand, isTranscriptionUnavailable, pickTurkishVoice, shouldUseBrowserSpeech, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
+import {AssistantMessageText, autoActionDelayMs, browserSpeechRecognition, collapseRepeatedPhrase, finalSpeechTranscript, firstAutoAction, highlightTarget, isCoarsePointer, isSameVoiceCommand, isTranscriptionUnavailable, pickTurkishVoice, shouldUseBrowserSpeech, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
 
 describe('contextual assistant target guidance', () => {
   it('highlights a target without clicking it', () => {
@@ -84,5 +86,17 @@ describe('contextual assistant target guidance', () => {
         {isFinal: true, 0: {transcript: 'Eğitim sayfası'}},
       ],
     })).toBe('Eğitim sayfası');
+  });
+});
+
+
+describe('untrusted assistant HTML', () => {
+  it('renders HTML, CSS, forms and redirects as literal text', () => {
+    const payload = '<img src=x onerror="alert(1)"><script>alert(1)</script><style>body{display:none}</style><form action="/auth/login"></form><meta http-equiv="refresh" content="0">';
+    const markup = renderToStaticMarkup(React.createElement(AssistantMessageText, {text: payload}));
+    const host = document.createElement('div');
+    host.innerHTML = markup;
+    expect(host.textContent).toBe(payload);
+    expect(host.querySelector('img,script,style,form,meta')).toBeNull();
   });
 });

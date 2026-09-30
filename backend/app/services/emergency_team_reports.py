@@ -1,6 +1,8 @@
 """0.9.134 — Acil durum ekipleri Excel / PDF / görevlendirme yazısı çıktıları."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
@@ -172,7 +174,7 @@ def build_teams_excel(*, company, teams_data: list[dict]) -> bytes:
         sheet.oddFooter.right.text = "Sayfa &P / &N"
 
     out = BytesIO()
-    wb.save(out)
+    save_export_workbook(wb, out)
     out.seek(0)
     return out.read()
 

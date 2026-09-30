@@ -113,6 +113,11 @@ export function finalSpeechTranscript(event) {
   return collapseRepeatedPhrase(text);
 }
 
+// API and model output is untrusted text. React escapes it; never parse HTML here.
+export function AssistantMessageText({text}) {
+  return <p>{String(text ?? '')}</p>;
+}
+
 function Panel({active, user, allowedModules, onNavigate}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -537,7 +542,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
         <div className="contextual-assistant-messages" ref={listRef} aria-live="polite">
           {messages.map((message, index) => <article key={`${message.role}-${index}`} className={`contextual-assistant-message contextual-assistant-message--${message.role}`}>
             <div className="contextual-assistant-message__icon">{message.role === 'assistant' ? <Sparkles size={14} /> : <MessageCircle size={14} />}</div>
-            <div><p>{message.text}</p>{message.source && <small className="contextual-assistant-source">{message.source === 'ai' ? 'AI + uygulama bağlamı' : 'Doğrulanmış uygulama bilgisi'}</small>}{message.actions?.length > 0 && <div className="contextual-assistant-actions">{message.actions.map((action, actionIndex) => <button type="button" key={`${action.type}-${actionIndex}`} onClick={() => runAction(action)}><Target size={14} />{actionLabel(action)}<ChevronRight size={13} /></button>)}</div>}</div>
+            <div><AssistantMessageText text={message.text} />{message.source && <small className="contextual-assistant-source">{message.source === 'ai' ? 'AI + uygulama bağlamı' : 'Doğrulanmış uygulama bilgisi'}</small>}{message.actions?.length > 0 && <div className="contextual-assistant-actions">{message.actions.map((action, actionIndex) => <button type="button" key={`${action.type}-${actionIndex}`} onClick={() => runAction(action)}><Target size={14} />{actionLabel(action)}<ChevronRight size={13} /></button>)}</div>}</div>
           </article>)}
           {busy && <div className="contextual-assistant-thinking"><OhsCharacter state="thinking" compact /><span>Sayfayı ve izinlerinizi kontrol ediyorum<Loader2 size={14} /></span></div>}
         </div>

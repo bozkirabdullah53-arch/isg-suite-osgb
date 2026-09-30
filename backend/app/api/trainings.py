@@ -1,3 +1,5 @@
+
+from app.services.spreadsheet_safety import save_export_workbook
 import hashlib
 import logging
 from datetime import date, datetime
@@ -700,7 +702,7 @@ def export_trainings_xlsx(
             ]
         )
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     stamp = datetime.now().strftime("%Y%m%d")
     return StreamingResponse(

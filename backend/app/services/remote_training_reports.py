@@ -1,6 +1,8 @@
 """PDF and Excel outputs for the remote-training participation register."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -211,7 +213,7 @@ def build_remote_training_status_xlsx(
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
     output = BytesIO()
-    wb.save(output)
+    save_export_workbook(wb, output)
     return output.getvalue()
 
 

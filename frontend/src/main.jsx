@@ -416,29 +416,6 @@ function Login({done,onApply,onSpecialistApply}){
     finally{setBusy(false)}
   }
 
-  async function restartMfaSetup(){
-    setErr('');setMsg('');setBusy(true);
-    try{
-      if(!email||!password){
-        setErr('Kurulum için önce giriş e-posta ve şifrenizi girin.');
-        setMode('login');
-        return;
-      }
-      const r=await api('/auth/mfa/restart-setup',{method:'POST',body:JSON.stringify({email,password}),_retries:2});
-      if(!(r.mfa_setup_required&&r.mfa_token)){
-        setErr('MFA kurulumu başlatılamadı.');
-        return;
-      }
-      setMfaToken(r.mfa_token);
-      setMfaSetupToken(r.mfa_token);
-      const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
-      setSetupInfo(setup);
-      setCode('');
-      setMode('mfa_setup');
-    }catch(x){setErr(x.message||'MFA kurulumu başlatılamadı.')}
-    finally{setBusy(false)}
-  }
-
   async function submitMfaSetup(e){
     e.preventDefault();setErr('');setBusy(true);
     try{
@@ -544,14 +521,9 @@ function Login({done,onApply,onSpecialistApply}){
               <label>Doğrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
               {err&&<div className="error">{err}</div>}
               <button disabled={busy}>Doğrula</button>
-              <div style={{marginTop:14,padding:'12px 12px',borderRadius:10,background:'#f0fdfa',border:'1px solid #99f6e4'}}>
-                <p style={{margin:'0 0 10px',fontSize:13,color:'#0f766e',fontWeight:600}}>
-                  Telefonda Authenticator yok / QR görmediniz mi?
-                </p>
-                <button type="button" className="secondary" disabled={busy} onClick={restartMfaSetup} style={{width:'100%',justifyContent:'center'}}>
-                  QR ve gizli anahtarı göster (kurulumu başlat)
-                </button>
-              </div>
+              <p style={{marginTop:14,fontSize:13,color:'#0f766e'}}>
+                Authenticator'a erişemiyorsanız kurtarma kodunuzu kullanın. İkisine de erişemiyorsanız yöneticinizle iletişime geçin.
+              </p>
               <p style={{marginTop:10,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('login');setCode('');setErr('')}}>Girişe dön</button></p>
             </form>
           )}
@@ -2045,6 +2017,8 @@ function SecurityPage({user}){
     e.preventDefault();setMessage('');
     try{
       const r=await api('/security/mfa/enable',{method:'POST',body:JSON.stringify({code:mfaCode})});
+      setAccessToken(r.access_token);
+      setRefreshCookieMode(!!r.refresh_cookie);
       setRecoveryCodes(r.recovery_codes||[]);
       setMfaSetup(null);setMfaCode('');
       await loadMfa();
@@ -2055,6 +2029,8 @@ function SecurityPage({user}){
     e.preventDefault();setMessage('');
     try{
       const r=await api('/security/mfa/disable',{method:'POST',body:JSON.stringify(disableForm)});
+      setAccessToken(r.access_token);
+      setRefreshCookieMode(!!r.refresh_cookie);
       setDisableForm({password:'',code:''});
       await loadMfa();
       setMessage(r.message||'MFA kapatıldı.');

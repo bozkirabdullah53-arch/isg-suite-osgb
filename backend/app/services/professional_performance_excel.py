@@ -7,6 +7,8 @@ sheets for gaps/checks are provided.
 """
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from datetime import date, datetime
 from io import BytesIO
 from typing import Any, Iterable
@@ -216,7 +218,7 @@ def _apply_score_rules(ws, cell_range: str) -> None:
 
 def _save(wb: Workbook) -> bytes:
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     return stream.getvalue()
 
 

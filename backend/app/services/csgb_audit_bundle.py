@@ -1,6 +1,8 @@
 """ÇSGB denetim paketi — tek tık ZIP (checklist PDF + JSON kanıt özetleri)."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 import json
 import zipfile
 from datetime import date, datetime
@@ -384,7 +386,7 @@ def _annual_plan_artifacts(db: Session, company_id: int, year: int | None = None
                 ]
             )
         stream = BytesIO()
-        wb.save(stream)
+        save_export_workbook(wb, stream)
         out[f"06-yillik-plan-{y}.xlsx"] = stream.getvalue()
 
     eval_row = db.scalar(

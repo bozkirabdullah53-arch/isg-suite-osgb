@@ -1,6 +1,8 @@
 """0.9.141 — Yıllık plan değerlendirme Excel/PDF (plan kayıtlarını değiştirmez)."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -161,7 +163,7 @@ def build_eval_xlsx(
         w6.append([key, kpis.get(key), formulas.get(key, "")])
 
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     return stream.getvalue()
 
 
