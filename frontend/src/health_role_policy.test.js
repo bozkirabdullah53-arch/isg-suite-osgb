@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
+  employerHealthDetails,
   canEditHealthRecords,
   canLoadHealthAnalysis,
   canViewEmployerFitness,
@@ -37,5 +38,20 @@ describe('health role request policy', () => {
     expect(canViewHealthRecords(dsp)).toBe(true);
     expect(canViewEmployerFitness(physician)).toBe(true);
     expect(canViewEmployerFitness(dsp)).toBe(false);
+  });
+});
+
+
+describe('employer clinical confidentiality', () => {
+  it('keeps fitness restrictions but excludes notes, report names and future clinical fields', () => {
+    const details = employerHealthDetails([
+      ['Personel', 'Ayşe Örnek'], ['Uygunluk', 'Kısıtlı'],
+      ['Kısıtlamalar', 'Gece vardiyasında çalışamaz'],
+      ['Özet', 'Gizli hekim notu'], ['Rapor dosyası', 'Klinik rapor.pdf'],
+      ['Yeni klinik alan', 'Gizli laboratuvar sonucu'],
+    ]);
+    expect(details).toHaveLength(3);
+    expect(details.flat().join(' ')).toContain('Gece vardiyasında çalışamaz');
+    expect(details.flat().join(' ')).not.toMatch(/Gizli|Klinik rapor/);
   });
 });

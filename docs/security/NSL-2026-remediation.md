@@ -50,3 +50,23 @@ Kod düzeltmeleri ayrı branch/PR'dadır. Posta/DNS bulguları sağlayıcı tara
 kapatılmadan raporun tümünün kapandığı söylenemez. Yayın öncesinde posta TLS
 geçişi planlanmalı: bağlantı sorunu düz metin kimlik doğrulamaya dönerek giderilmemeli.
 Canlı retest gerçek kullanıcı hesaplarını kilitlemeden, yetkili test hesabıyla yapılmalı.
+
+## Yayın öncesi ek inceleme
+
+Render hesabındaki API ve web servisleri doğrulandı; yayın onayı alındı.
+Ana branch'in önceki CI çalışmasında da aynı yedi E2E kontrolü başarısızdı.
+Beş risk testi şirket ve yeni şube seçicilerini tek locator ile eşleştiriyordu.
+Locator şirketin etiketine daraltıldı; işyeri hesabının bağlı şirketi koruma
+kontrolü korundu. İki sağlık testi eski klinik görünürlüğünü bekliyordu;
+güncel, sunucuda da uygulanan işveren veri-minimize politikasını doğrulayacak
+şekilde güncellendi. Kontroller kapatılmadı veya atlanmadı.
+
+İşveren sağlık detayında blacklist yerine açık alan listesi kullanılır:
+personel, görev, bölüm, muayene türü/tarihleri, uygunluk, hekim ve çalışma
+kısıtları. Klinik özet, rapor dosya adı ve gelecekte eklenebilecek klinik alanlar
+bu diyalogda gösterilmez. Klinik kayıtları ve hekim yetkileri değiştirilmedi.
+Ek frontend test koşusu: 18 geçti; üretim derlemesi geçti.
+
+HTTPS DNS sorgusuyla `_dmarc.isgsuite.tr` ve `_dmarc.isgsuite.com.tr`
+NXDOMAIN olarak doğrulandı. İsimtescil paneli için mevcut connector bulunmuyor;
+posta/TLS/DKIM ve DNS değişiklikleri yönetim erişimi gerektiriyor.

@@ -3,6 +3,7 @@ import {AlertTriangle, Download, FileText, HeartPulse, Plus, Printer, RefreshCw,
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 import {
+  employerHealthDetails,
   canEditHealthRecords,
   canLoadHealthAnalysis,
   canViewEmployerFitness,
@@ -722,14 +723,7 @@ export function HealthPage({user}) {
     ['Akıllı özet', detailRow.smart_summary], ['Tetkik özeti', detailRow.tetkik_summary],
     ['Rapor dosyası', detailRow.report_file_name || (detailRow.has_report ? 'Mevcut' : 'Yok')],
   ] : [];
-  const employerDetail = detail.filter(([label]) => ![
-    'Hekim tanısı / değerlendirme', 'Laboratuvar sonuç özeti', 'Kronik hastalıklar',
-    'Geçmiş hastalık / ameliyat', 'Aile öyküsü', 'Kullanılan ilaçlar', 'Alerjiler',
-    'Sigara', 'Sigara paket-yıl', 'Alkol', 'Mesleki geçmiş', 'Geçmiş maruziyetler',
-    'Güncel yakınmalar', 'Hekim notu', 'Odyometri', 'SFT', 'Akciğer grafisi',
-    'Kan kurşun', 'Kurşun değerlendirme', 'Tıbbi gözetim eşiği', 'Önerilen tetkikler',
-    'Maruziyetler', 'Takip notu', 'Diğer biyolojik tetkik', 'Akıllı özet', 'Tetkik özeti',
-  ].includes(label));
+  const employerDetail = employerHealthDetails(detail);
 
   if (!canView) {
     return (
