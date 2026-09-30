@@ -37,6 +37,33 @@ _REDIS_KEY_PREFIX = "isg:rl:"
 # spoof değerleri yok sayılır.
 _PROXY_TRUST_DEPTH = int(getattr(settings, "proxy_trust_depth", 1))
 
+# Cloudflare official ranges, verified 2026-09-30: https://www.cloudflare.com/ips/
+# Used only on Render, whose public ingress passes through Cloudflare.
+_RENDER_EDGE_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32",
+))
+
 
 def _client_ip(request) -> str:
     # ISG-009: TRUST_PROXY_HEADERS=false ise proxy header'larına hiç bakılmaz;
@@ -54,14 +81,15 @@ def _client_ip(request) -> str:
         if parts:
             if os.getenv("RENDER", "").lower() == "true":
                 # Render appends internal hops after the external client.
-                # Walk from the trusted end, ignoring private proxy addresses;
+                # Walk from the trusted end, ignoring private and known Cloudflare proxy addresses;
                 # never use the attacker-controlled leftmost value directly.
                 for part in reversed(parts):
                     try:
                         address = ipaddress.ip_address(part)
                     except ValueError:
                         continue
-                    if address.is_global:
+                    address = getattr(address, "ipv4_mapped", None) or address
+                    if address.is_global and not any(address in network for network in _RENDER_EDGE_NETWORKS):
                         return str(address)
                 return "render-proxy-unknown"
             idx = max(0, len(parts) - _PROXY_TRUST_DEPTH)
@@ -343,11 +371,8 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
             except (ValueError, UnicodeError):
                 pass  # Request validation still owns malformed JSON responses.
         response = await call_next(request)
-        if login and response.status_code == 401:
-            logger.warning("auth_password_spray_observation source=%s identifier_present=%s configured_limit=%s", client, bool(identifier), settings.login_spray_account_limit)
         if login and identifier and response.status_code == 401:
             count, retry = await self._failed_accounts(spray_key, identifier)
-            logger.warning("auth_password_spray_counter source=%s distinct_accounts=%s", client, count)
             if count > settings.login_spray_account_limit:
                 return self._blocked(retry)
             if count == settings.login_spray_account_limit:
