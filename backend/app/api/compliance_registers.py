@@ -1,6 +1,8 @@
 """6331 uyum sicilleri API — periyodik kontrol, acil plan, ortam ölçüm, İSG kurulu, belge onay."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 import json
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -132,7 +134,7 @@ def _xlsx(rows: list[list], sheet: str, filename: str) -> StreamingResponse:
                 cell.fill = fill
                 cell.font = Font(bold=True, color="FFFFFF")
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     return StreamingResponse(
         stream,
@@ -1571,7 +1573,7 @@ def export_committee(
             m.next_meeting_date.isoformat() if m.next_meeting_date else "",
         ])
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     stamp = datetime.now().strftime("%Y%m%d")
     return StreamingResponse(

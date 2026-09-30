@@ -1,6 +1,8 @@
 """Sağlık gözetimi API — İSG PRO 2026 Sağlık Gözetimi / Analiz parity."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 import logging
 from datetime import date, datetime, timedelta
 from html import escape as html_escape
@@ -706,7 +708,7 @@ def export_lead_xlsx(
     for column, width in zip("ABCDEFGHIJ", (28, 24, 22, 20, 20, 22, 28, 32, 28, 20)):
         ws.column_dimensions[column].width = width
     buf = BytesIO()
-    wb.save(buf)
+    save_export_workbook(wb, buf)
     buf.seek(0)
     employer_view = is_workplace_manager_account(user)
     append_health_access(
@@ -1098,7 +1100,7 @@ def export_health_xlsx(
         for idx, width in enumerate(widths, start=1):
             ws.column_dimensions[get_column_letter(idx)].width = width
         buf = BytesIO()
-        wb.save(buf)
+        save_export_workbook(wb, buf)
         buf.seek(0)
         append_health_access(
             db,
@@ -1190,7 +1192,7 @@ def export_health_xlsx(
     for e in analysis["missing_employees"]:
         wa.append([e["full_name"], e.get("job_title") or "", e.get("department") or ""])
     buf = BytesIO()
-    wb.save(buf)
+    save_export_workbook(wb, buf)
     buf.seek(0)
     append_health_access(
         db, actor=user, company_id=effective, action="records_export", request=request,

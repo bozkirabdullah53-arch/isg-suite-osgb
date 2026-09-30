@@ -62,7 +62,7 @@ async function setup(page, role = 'safety_specialist', delayed = false, review =
     return json(route, []);
   });
   await page.goto('/#m=risk_analytics');
-  if (role !== 'company_admin') await page.locator('.ra-company-select select').selectOption('42');
+  if (role !== 'company_admin') await page.locator('label.ra-company-select').filter({has: page.locator('span', {hasText: /^İşyeri seçin$/})}).locator('select').selectOption('42');
   await expect(page.getByRole('button', {name: 'Kimyasal: 2 çalışanı göster'}).first()).toBeVisible();
   return {errors, assignments, listRequests, release: () => pending?.()};
 }
@@ -145,7 +145,8 @@ test('physician can inspect on mobile without gaining training assignment contro
 
 test('workplace account keeps its company and the desktop dialog is usable', async ({page}) => {
   const state = await setup(page, 'company_admin');
-  await expect(page.locator('.ra-company-select')).toHaveCount(0);
+  await expect(page.locator('.ra-bound-company')).toContainText(companies[0].name);
+  await expect(page.locator('label.ra-company-select').filter({has: page.locator('span', {hasText: /^İşyeri seçin$/})}).locator('select')).toHaveCount(0);
   await page.getByRole('button', {name: 'Kimyasal: 2 çalışanı göster'}).first().click();
   await expect(page.getByRole('dialog').getByText('Ayşe Test', {exact: true})).toBeVisible();
   await page.screenshot({path: 'test-results/risk-people-desktop.png', fullPage: true});

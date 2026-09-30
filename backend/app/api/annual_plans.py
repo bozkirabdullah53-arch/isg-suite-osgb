@@ -1,6 +1,8 @@
 """Yıllık plan API — İSG PRO 2026 Planlama Merkezi parity."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 import logging
 from datetime import date, datetime
 from io import BytesIO
@@ -473,7 +475,7 @@ def export_plan_xlsx(
         ws.column_dimensions[get_column_letter(i)].width = w
 
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     fname = f"yillik-plan-{y}-{effective}.xlsx"
     return StreamingResponse(

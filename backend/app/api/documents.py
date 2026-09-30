@@ -1,3 +1,5 @@
+
+from app.services.spreadsheet_safety import save_export_workbook
 import logging
 from datetime import datetime
 from io import BytesIO
@@ -108,7 +110,7 @@ def export_documents_xlsx(
             ]
         )
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     stamp = datetime.now().strftime("%Y%m%d")
     return StreamingResponse(

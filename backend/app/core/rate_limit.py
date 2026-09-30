@@ -10,6 +10,7 @@ Sertleştirme:
 from __future__ import annotations
 
 import logging
+import ipaddress
 from collections import defaultdict, deque
 from time import monotonic, time
 from typing import Protocol
@@ -81,7 +82,7 @@ class MemoryRateLimitStore:
         if now - self._last_prune < 30:
             return
         self._last_prune = now
-        dead = [k for k, window in self.hits.items() if not window or now - window[-1] > 60]
+        dead = [k for k, window in self.hits.items() if not window or now - window[-1] > 600]
         for k in dead:
             self.hits.pop(k, None)
 
@@ -216,16 +217,32 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
         auth = _is_auth(path)
         limit = self.auth_limit if auth else self.limit
         key = f"{client}:auth" if auth else f"{client}:{path}"
-        try:
-            allowed, retry = await self.store.hit(key, limit=limit, window_sec=60)
-        except Exception as exc:
-            logger.warning("Rate limit store error; using memory fallback: %s", exc)
-            _backend_name = "memory-fallback"
-            allowed, retry = await self._runtime_fallback.hit(
-                key,
-                limit=limit,
-                window_sec=60,
-            )
+        checks = [(key, limit, 60)]
+        if request.method == "POST" and path.rstrip("/") in (
+            "/api/v1/auth/login", "/api/v1/auth/mfa/verify",
+        ):
+            # Shared across accounts and workers; also slow sustained spraying
+            # that stays below the per-minute limit. Keep NAT capacity tunable.
+            checks.append((f"{client}:login-window", settings.login_source_window_limit, 600))
+            try:
+                network = ipaddress.ip_network(
+                    f"{client}/{64 if ':' in client else 24}", strict=False
+                )
+            except ValueError:
+                network = None
+            if network is not None:
+                checks.append((f"{network}:login-subnet", settings.login_subnet_window_limit, 600))
+        for check_key, check_limit, window_sec in checks:
+            try:
+                allowed, retry = await self.store.hit(check_key, limit=check_limit, window_sec=window_sec)
+            except Exception as exc:
+                logger.warning("Rate limit store error; using memory fallback: %s", exc)
+                _backend_name = "memory-fallback"
+                allowed, retry = await self._runtime_fallback.hit(
+                    check_key, limit=check_limit, window_sec=window_sec,
+                )
+            if not allowed:
+                break
         if not allowed:
             return JSONResponse(
                 {"detail": "Çok fazla istek gönderildi. Lütfen kısa süre sonra tekrar deneyin."},

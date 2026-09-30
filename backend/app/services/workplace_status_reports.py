@@ -1,6 +1,8 @@
 """İşyeri Durum Merkezi PDF ve Excel çıktıları."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -113,7 +115,7 @@ def build_workplace_status_excel(payload: dict) -> bytes:
             cell.alignment = Alignment(vertical="top", wrap_text=True)
 
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     return stream.getvalue()
 
 
@@ -424,7 +426,7 @@ def build_company_file_excel(payload: dict) -> bytes:
     # raporun diğer sekmelerinden ayırır; veri ve formül davranışına etkisi yoktur.
     cover["A1"].fill = teal
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     return stream.getvalue()
 
 

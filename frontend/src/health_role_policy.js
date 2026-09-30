@@ -19,3 +19,12 @@ export function canViewEmployerFitness(user) {
 export function canLoadHealthAnalysis(role) {
   return role === 'workplace_physician';
 }
+
+/** Only these employer-facing fields may enter the read-only detail dialog. */
+export function employerHealthDetails(details = []) {
+  const allowed = new Set([
+    'Personel', 'Görev', 'Bölüm', 'Muayene türü', 'Muayene tarihi',
+    'Sonraki muayene', 'Uygunluk', 'İşyeri hekimi', 'Kısıtlamalar',
+  ]);
+  return details.filter(([label]) => allowed.has(label));
+}

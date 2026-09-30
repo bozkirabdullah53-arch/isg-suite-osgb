@@ -240,7 +240,7 @@ test('the existing QR link keeps its sidebar and manual refresh', async ({page})
   expect(state.errors).toEqual([]);
 });
 
-test('workplace manager sees every own employee health record in a full read-only view', async ({page}) => {
+test('workplace manager sees own fitness restrictions without clinical data', async ({page}) => {
   const clinicalSecrets = [
     'KLINIK_OZET_GIZLI',
     'ODYO_SONUCU_GIZLI',
@@ -282,12 +282,12 @@ test('workplace manager sees every own employee health record in a full read-onl
   await page.goto('/#m=health');
   const content = page.locator('main.content');
   await expect(content.getByRole('heading', {name: 'Sağlık Gözetimi'})).toBeVisible();
-  await expect(content.getByText('İşyeri sağlık takip görünümü — salt okunur')).toBeVisible();
+  await expect(content.getByText('Çalışma uygunluğu özeti — salt okunur')).toBeVisible();
   const healthRow = content.locator('tbody tr').filter({hasText: 'Ayşe Örnek'});
   await expect(healthRow).toHaveCount(1);
   await expect(healthRow).toContainText('Gece vardiyasında çalışamaz');
   await expect(healthRow.getByText('Kısıtlı', {exact: true})).toBeVisible();
-  await expect(content.getByRole('button', {name: 'Excel İndir'})).toBeVisible();
+  await expect(content.getByRole('button', {name: 'Excel İndir'})).toHaveCount(0);
   await expect(content.getByRole('button', {name: /İşveren Belgesi/})).toBeVisible();
 
   for (const label of ['Yeni Kayıt', 'Düzenle', 'EK-2 / Klinik Dosya', 'Sil']) {
@@ -295,18 +295,18 @@ test('workplace manager sees every own employee health record in a full read-onl
   }
   await expect(content.getByRole('button', {name: /Sağlık Sayfası/})).toBeVisible();
   await expect(content.getByRole('button', {name: /Sayfayı İndir/})).toBeVisible();
-  await expect(content.getByRole('button', {name: /Rapor/})).toBeVisible();
-  await content.getByRole('button', {name: 'Tüm Sağlık Bilgileri'}).click();
+  await expect(content.getByRole('button', {name: 'Rapor', exact: true})).toHaveCount(0);
+  await content.getByRole('button', {name: 'Çalışma Uygunluğu ve Kısıtlar', exact: true}).click();
   const detail = page.getByRole('dialog');
   for (const secret of clinicalSecrets) {
-    await expect(detail).toContainText(secret);
+    await expect(detail).not.toContainText(secret);
   }
-  await expect(detail.getByRole('button', {name: 'Raporu İndir'})).toBeVisible();
+  await expect(detail.getByRole('button', {name: 'Raporu İndir'})).toHaveCount(0);
   await expect(detail.getByRole('button', {name: 'Sayfayı İndir'})).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 
-test('workplace manager sees the scoped blood-lead warning and bulk register', async ({page}) => {
+test('workplace manager cannot view clinical blood-lead values or bulk register', async ({page}) => {
   const state = await setup(page, {
     email: 'yetkili@example.com',
     employees: [{
@@ -342,22 +342,12 @@ test('workplace manager sees the scoped blood-lead warning and bulk register', a
 
   await page.goto('/#m=health');
   const content = page.locator('main.content');
-  // getByText case-insensitive substring eşleştirir; sekme düğmesi "Kan Kurşunu
-  // Takibi" da eşleştiği için panel başlığı rol ile doğrulanır.
-  await expect(content.getByRole('heading', {name: 'Kan kurşunu takibi'})).toBeVisible();
-  await expect(content.getByText(/Bağlayıcı biyolojik sınır: 70/)).toBeVisible();
-  await expect(content.getByText(/Uyarı: bağlayıcı kan kurşunu sınırını aşan/)).toBeVisible();
-  await expect(content.getByText('Sınır aşıldı', {exact: true}).first()).toBeVisible();
-  await content.getByRole('button', {name: /Kan kurşunu toplu listesini aç/}).click();
-  await expect(content.getByRole('heading', {name: 'Kan kurşunu toplu listesi'})).toBeVisible();
+  await expect(content.getByText('Çalışma uygunluğu özeti — salt okunur')).toBeVisible();
   await expect(content.locator('tbody tr').filter({hasText: 'Mehmet Akücü'})).toHaveCount(1);
-  // Paneldeki "Kurşun Excel indir" düğmesi substring eşleşmesin diye exact.
-  await expect(content.getByRole('button', {name: 'Excel indir', exact: true})).toBeVisible();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    content.getByRole('button', {name: 'Excel indir', exact: true}).click(),
-  ]);
-  expect(download.suggestedFilename()).toBe('kan-kursunu-listesi.xlsx');
+  await expect(content.getByRole('heading', {name: 'Kan kurşunu takibi'})).toHaveCount(0);
+  await expect(content.getByRole('button', {name: /Kan kurşunu toplu listesini aç/})).toHaveCount(0);
+  await expect(content.getByText('Sınır aşıldı', {exact: true})).toHaveCount(0);
+  await expect(content.getByText('74', {exact: true})).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
 

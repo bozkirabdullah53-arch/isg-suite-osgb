@@ -1,6 +1,8 @@
 """Onaylanmış görsel saha denetimi için PDF ve Excel çıktıları."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -314,5 +316,5 @@ def build_field_inspection_excel(*, inspection, company, site, area, equipment, 
         for item in list(getattr(inspection, "revision_history", None) or [])
     ] or [["—", "—", "—", "—", "—", "Audit kaydı bulunmuyor."]])
     output = BytesIO()
-    wb.save(output)
+    save_export_workbook(wb, output)
     return output.getvalue()

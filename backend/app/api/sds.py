@@ -1,6 +1,8 @@
 """0.9.119 — SDS/PKD kimyasal ürün sicili; 0.9.120 — GHS tehlike etiketi checklist."""
 from __future__ import annotations
 
+from app.services.spreadsheet_safety import save_export_workbook
+
 from datetime import date, datetime, timedelta
 from io import BytesIO
 import json
@@ -290,7 +292,7 @@ def export_sds_xlsx(
             ]
         )
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     stamp = datetime.now().strftime("%Y%m%d")
     return StreamingResponse(
@@ -635,7 +637,7 @@ def export_pkd_xlsx(
             ]
         )
     stream = BytesIO()
-    wb.save(stream)
+    save_export_workbook(wb, stream)
     stream.seek(0)
     stamp = datetime.now().strftime("%Y%m%d")
     return StreamingResponse(

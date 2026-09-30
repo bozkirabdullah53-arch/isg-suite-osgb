@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_mfa_setup_user, require_roles
 from app.api.tenant_access import accessible_company_ids_for_admin
 from app.core.database import get_db
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.security import get_password_hash, verify_password
 from app.models.entities import AuditLog, User, UserRole
 from app.schemas.security import PasswordChangeRequest
 from app.services.audit import add_audit_log
@@ -111,11 +111,14 @@ def mfa_setup(
 def mfa_enable(
     payload: MfaEnableRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_mfa_setup_user),
 ):
     import pyotp
 
+    if user.mfa_enabled:
+        raise HTTPException(status_code=400, detail="MFA zaten açık.")
     secret = get_mfa_secret(user)
     if not secret:
         raise HTTPException(status_code=400, detail="Önce MFA kurulumu başlatın.")
@@ -125,6 +128,9 @@ def mfa_enable(
     codes, hashes_json = generate_recovery_codes()
     user.mfa_enabled = True
     user.mfa_recovery_hashes = hashes_json
+    from app.services.token_revoke import bump_token_version
+
+    bump_token_version(user)
     add_audit_log(
         db,
         user=user,
@@ -136,15 +142,13 @@ def mfa_enable(
         module="security",
     )
     db.commit()
-    # Kurulum token'ından sonra tam erişim ver
+    # Rotate access and refresh together after invalidating old sessions.
+    from app.api.auth import _issue_access
+
     return {
         "message": "MFA etkinleştirildi.",
         "recovery_codes": codes,
-        "access_token": create_access_token(
-            str(user.id), token_version=getattr(user, "token_version", 0) or 0
-        ),
-        "token_type": "bearer",
-        "password_change_required": bool(getattr(user, "password_change_required", False)),
+        **_issue_access(user, response).model_dump(),
     }
 
 
@@ -152,6 +156,7 @@ def mfa_enable(
 def mfa_disable(
     payload: MfaDisableRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -167,6 +172,9 @@ def mfa_disable(
     user.mfa_enabled = False
     user.mfa_secret_encrypted = None
     user.mfa_recovery_hashes = None
+    from app.services.token_revoke import bump_token_version
+
+    bump_token_version(user)
     add_audit_log(
         db,
         user=user,
@@ -178,7 +186,9 @@ def mfa_disable(
         module="security",
     )
     db.commit()
-    return {"message": "MFA kapatıldı."}
+    from app.api.auth import _issue_access
+
+    return {"message": "MFA kapatıldı.", **_issue_access(user, response).model_dump()}
 
 
 @router.get("/audit-logs")
