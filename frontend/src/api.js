@@ -196,7 +196,7 @@ let _wakeInFlight = null;
 let _lastWakeOkAt = 0;
 
 /**
- * Render cold-start: /health 200 olana kadar dener (en fazla ~45 sn).
+ * Render cold-start: /live başarılı olana kadar dener (en fazla ~45 sn).
  * Son başarılı uyandırmadan 20 sn içinde tekrar beklemez.
  */
 export async function wakeApi() {
@@ -208,14 +208,14 @@ export async function wakeApi() {
     let delay = 900;
     while (Date.now() < deadline) {
       try {
-        const response = await fetch(`${API_ROOT}/health`, {
+        const response = await fetch(`${API_URL}/live`, {
           method: "GET",
           cache: "no-store",
           mode: "cors",
           credentials: "omit",
           signal: requestSignal(Math.min(5000, Math.max(1, deadline - Date.now()))),
         });
-        if (response.ok) {
+        if (response.status === 204) {
           _lastWakeOkAt = Date.now();
           return true;
         }
@@ -327,6 +327,7 @@ function localizeValidationMsg(rawMsg) {
 async function parseError(response) {
   const data = await response.json().catch(() => ({}));
   const detail = data.detail;
+  if (detail && typeof detail === 'object' && typeof detail.message === 'string') return detail.message;
   if (typeof detail === "string" && detail.trim()) return detail;
   if (Array.isArray(detail)) {
     return detail
@@ -422,7 +423,11 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
       });
       if (!response.ok) {
         if (isTransientGatewayStatus(response.status) && attempt < retries) continue;
+        const errorData = await response.clone().json().catch(() => ({}));
         const err = new Error(await parseError(response));
+        if (errorData?.detail?.code === 'login_captcha_required') {
+          err.loginCaptchaSiteKey = errorData.detail.site_key;
+        }
         err.httpStatus = response.status;
         throw err;
       }
@@ -541,7 +546,11 @@ export async function api(path, options = {}) {
             return api(path, {...options, _didRefresh: true, _retries: 0});
           }
         }
+        const errorData = await response.clone().json().catch(() => ({}));
         const err = new Error(await parseError(response));
+        if (errorData?.detail?.code === 'login_captcha_required') {
+          err.loginCaptchaSiteKey = errorData.detail.site_key;
+        }
         err.httpStatus = response.status;
         err.httpPath = path;
         err.httpMethod = method;

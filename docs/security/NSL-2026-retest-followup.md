@@ -1,5 +1,11 @@
 # NSL verification follow-up — 2026-09-30
 
+2026-10-01 update: the user confirms 202602/202606/202607 remain open and
+202603/202609 remain partial. The account threshold now has a prepared CAPTCHA
+follow-up, and `/health` has prepared administrator authentication with a separate
+empty `/live` probe. These are not deployed closure claims. See
+[the ordered rollout and evidence requirements](NSL-2026-account-health-rollout.md).
+
 The external tester confirmed closure of MFA bypass (202601), account lockout (202605), and spreadsheet formula injection (202608). Other findings remain externally open until verification is accepted.
 
 ## Password spray (202603)

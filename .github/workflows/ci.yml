@@ -41,6 +41,7 @@ jobs:
           pytest -q tests/test_pentest_retest.py
           tests/test_pentest_remediation.py tests/test_contextual_assistant.py
           tests/test_rate_limit_runtime_fallback.py tests/test_release_status.py
+          tests/test_login_account_captcha.py
 
   backend-sqlite:
     runs-on: ubuntu-latest

@@ -74,9 +74,7 @@ async function installRoutes(page, {readiness = readyPayload, initialRows = []} 
   let versionCalls = 0;
   let approvalBody = null;
   let rows = [...initialRows];
-  await page.route('**/health', async (route) => {
-    await route.fulfill({status: 200, contentType: 'application/json', body: '{"ok":true}'});
-  });
+  await page.route('**/live', (route) => route.fulfill({status: 204, body: ''}));
   await page.route('**/api/v1/trainings/101/presentation-readiness', async (route) => {
     readinessCalls += 1;
     await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(readiness)});

@@ -125,7 +125,7 @@ async function installRoutes(page, readinessPayload = readyPayload) {
     body: JSON.stringify(body),
   });
 
-  await page.route('**/health', (route) => json(route, {ok: true}));
+  await page.route('**/live', (route) => route.fulfill({status: 204, body: ''}));
   await page.route('**/api/v1/auth/me', (route) => json(route, {
     id: 2,
     full_name: 'OSGB Yönetici',
