@@ -99,3 +99,15 @@ the full backend suite as passing. This change has no production retest evidence
 Turnstile integration follows the provider's server validation and CSP guidance:
 - https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
 - https://developers.cloudflare.com/turnstile/reference/content-security-policy/
+
+PR dependency audit also reported CVE-2026-101918 in the existing PyJWT 2.14.0
+pin and identified 2.15.0 as the fixed version. The pin is updated in this PR;
+token, refresh/MFA and targeted security checks must pass with that version.
+The provider release is https://github.com/jpadilla/pyjwt/releases/tag/2.15.0.
+
+Local verification with PyJWT 2.15.0: targeted account/security/Redis suite 59
+passed, token/revoke suite 5 passed, refresh-cookie suite 3 passed; frontend
+364 tests passed and build passed. The broader authentication test
+`test_specialist_register_does_not_create_osgb` still fails because registration
+returns an OSGB ID where the test expects none. The same assertion fails with
+the prior 2.14.0 package; this PR does not change that registration behavior.
