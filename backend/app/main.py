@@ -305,6 +305,7 @@ def _health_access(token: str | None = Depends(_optional_health_bearer), db: Ses
 
 
 @app.get("/live", status_code=204, include_in_schema=False)
+@app.get("/api/v1/live", status_code=204, include_in_schema=False)
 def live():
     return Response(status_code=204, headers={"Cache-Control": "no-store"})
 

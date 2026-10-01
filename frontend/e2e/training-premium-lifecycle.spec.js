@@ -23,7 +23,7 @@ async function installPolicy(page, lifecycle) {
     contentType: 'application/json',
     body: JSON.stringify(lifecycle),
   }));
-  await page.route('**/health', (route) => route.fulfill({status: 200, contentType: 'application/json', body: '{"ok":true}'}));
+  await page.route('**/live', (route) => route.fulfill({status: 204, body: ''}));
 }
 
 async function injectTrainingPage(page, trainingId) {

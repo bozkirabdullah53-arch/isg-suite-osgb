@@ -35,10 +35,11 @@ async function setup(page, {
     status, contentType: 'application/json', body: JSON.stringify(body),
     headers: {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'},
   });
-  await page.route('**/health', (route) => json(route, {status: 'ok'}));
+  await page.route('**/live', (route) => route.fulfill({status: 204, body: ''}));
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace('/api/v1', '').replace(/\/$/, '');
+    if (path === '/live') return route.fulfill({status: 204, body: ''});
     if (request.method() === 'OPTIONS') return json(route, {});
     if (path === '/auth/me') return json(route, {
       id: 9, email, full_name: 'İşyeri Yetkilisi', role: 'company_admin',

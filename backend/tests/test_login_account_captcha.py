@@ -212,6 +212,9 @@ def test_protected_health_requires_auth_but_liveness_has_no_body(client, monkeyp
     live = client.get("/live")
     assert live.status_code == 204
     assert live.content == b""
+    api_live = client.get("/api/v1/live")
+    assert api_live.status_code == 204
+    assert api_live.content == b""
     assert client.get("/api/v1/system/health").status_code == 401
 
 

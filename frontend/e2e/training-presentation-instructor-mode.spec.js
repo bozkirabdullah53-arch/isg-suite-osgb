@@ -125,7 +125,7 @@ async function installRoutes(page, {status = 'generated', approvalRecord = null}
     generated_at: '2026-08-08T20:01:00Z',
     approved_at: approvalRecord?.created_at || null,
   };
-  await page.route('**/health', (route) => route.fulfill({status: 200, contentType: 'application/json', body: '{"ok":true}'}));
+  await page.route('**/live', (route) => route.fulfill({status: 204, body: ''}));
   await page.route('**/api/v1/trainings/101/presentation-readiness', (route) => route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(readiness)}));
   await page.route('**/api/v1/trainings/101/presentation-versions', (route) => route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({training_id: 101, count: 1, rows: [version], read_only_history: true})}));
   await page.route('**/api/v1/trainings/101/presentation-versions/501', (route) => route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({...version, manifest: traceableManifest()})}));

@@ -208,7 +208,7 @@ export async function wakeApi() {
     let delay = 900;
     while (Date.now() < deadline) {
       try {
-        const response = await fetch(`${API_ROOT}/live`, {
+        const response = await fetch(`${API_URL}/live`, {
           method: "GET",
           cache: "no-store",
           mode: "cors",

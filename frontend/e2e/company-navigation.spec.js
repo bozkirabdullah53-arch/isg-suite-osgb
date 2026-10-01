@@ -26,7 +26,7 @@ async function boot(page, route, {theme = 'modern', logged = true} = {}) {
     const url = new URL(request.url());
     const path = url.pathname.replace(/^\/api\/v1/, '');
     const json = (body) => requestRoute.fulfill({json: body});
-    if (url.pathname.includes('/api/v1/') || path === '/health') {
+    if (url.pathname.includes('/api/v1/') || path === '/live') {
       calls.push({path, query: url.search, method: request.method()});
       if (path === '/auth/login' && request.method() === 'POST') return json({access_token: token, refresh_cookie: false});
       if (path === '/auth/logout' && request.method() === 'POST') return json({ok: true});
@@ -34,7 +34,7 @@ async function boot(page, route, {theme = 'modern', logged = true} = {}) {
         failures.push(`Unexpected write: ${request.method()} ${path}`);
         return requestRoute.fulfill({status: 400, json: {detail: 'Unexpected test write'}});
       }
-      if (path === '/health') return json({status: 'ok'});
+      if (path === '/live') return requestRoute.fulfill({status: 204, body: ''});
       if (path === '/auth/me') return json({id: 2, full_name: 'Test Yönetici', role: 'company_admin', osgb_id: 4});
       if (path === '/dashboard/summary') return json({});
       if (path === '/companies') return json(companies);

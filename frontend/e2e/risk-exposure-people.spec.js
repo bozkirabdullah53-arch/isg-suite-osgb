@@ -30,10 +30,11 @@ async function setup(page, role = 'safety_specialist', delayed = false, review =
     localStorage.setItem('isg_pwa_shortcut_choice_v2', JSON.stringify({choice: 'dismissed', time: Date.now()}));
   });
   const json = (route, body) => route.fulfill({contentType: 'application/json', headers: {'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*'}, body: JSON.stringify(body)});
-  await page.route('**/health', (route) => json(route, {status: 'ok'}));
+  await page.route('**/live', (route) => route.fulfill({status: 204, body: ''}));
   await page.route('**/api/v1/**', (route) => {
     const request = route.request(), url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '').replace(/\/$/, '');
+    if (path === '/live') return route.fulfill({status: 204, body: ''});
     if (request.method() === 'OPTIONS') return json(route, {});
     if (path === '/auth/me') return json(route, {id: 9, role, email: 'fixture@example.test', full_name: 'Test Yetkili', company_id: role === 'company_admin' ? 42 : null, osgb_id: 7, subscription_write_allowed: true});
     if (path === '/companies') return json(route, role === 'company_admin' ? [companies[0]] : companies);

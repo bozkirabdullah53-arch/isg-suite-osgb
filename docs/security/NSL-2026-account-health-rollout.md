@@ -52,13 +52,15 @@ rejected by Siteverify; frontend retries discard the old token.
    Use `isgsuite.tr,www.isgsuite.tr` only if these are the actual login origins;
    add other owned login origins explicitly if required. Keep
    `LOGIN_CAPTCHA_ENABLED=false` and `HEALTH_AUTH_REQUIRED=false` for the first deploy.
-2. Deploy backend support first. Confirm direct API `/live` returns empty HTTP 204
+2. Deploy backend support first. Confirm direct API `/live` and `/api/v1/live` return empty HTTP 204
    and existing login/MFA still works. Deploy frontend support, the `/live` static
    rewrite before the SPA fallback and the CSP script/frame allowlist for
    `https://challenges.cloudflare.com`. Existing `'self'` frame support is preserved.
-   This repository uses an imperative Render static site: a render.yaml edit alone
-   does not prove the live routes or headers changed. Verify the Render settings.
-3. Confirm custom-origin `/live` is the backend's empty 204, not HTML HTTP 200.
+   Frontend wakeup uses `/api/v1/live`, covered by the existing `/api/*` rewrite,
+   so a new static route is not needed for ordinary startup. This repository uses
+   an imperative Render static site: a render.yaml edit alone does not prove the
+   live CSP or additional `/live` route changed. Verify the Render settings.
+3. Confirm custom-origin `/api/v1/live` is the backend's empty 204, not HTML HTTP 200.
    Frontend wakeup requires that exact status. Change the API Render health check
    from `/health` to `/live`, then verify the service is healthy.
 4. Enable `LOGIN_CAPTCHA_ENABLED=true` and `LOGIN_ACCOUNT_WINDOW_LIMIT=10` only

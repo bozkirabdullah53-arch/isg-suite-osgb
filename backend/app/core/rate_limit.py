@@ -30,7 +30,7 @@ from app.core.cors_policy import is_production_environment
 
 logger = logging.getLogger(__name__)
 
-_EXEMPT_PREFIXES = ("/health", "/live")
+_EXEMPT_PREFIXES = ("/health", "/live", "/api/v1/live")
 _AUTH_PREFIXES = ("/api/v1/auth",)
 _REDIS_KEY_PREFIX = "isg:rl:"
 
