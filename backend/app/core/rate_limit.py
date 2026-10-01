@@ -18,15 +18,19 @@ import math
 from collections import defaultdict, deque
 from time import monotonic, time
 from typing import Protocol
+from uuid import uuid4
+
+import anyio
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.cors_policy import is_production_environment
 
 logger = logging.getLogger(__name__)
 
-_EXEMPT_PREFIXES = ("/health",)
+_EXEMPT_PREFIXES = ("/health", "/live", "/api/v1/live")
 _AUTH_PREFIXES = ("/api/v1/auth",)
 _REDIS_KEY_PREFIX = "isg:rl:"
 
@@ -119,6 +123,9 @@ class RateLimitStore(Protocol):
     async def failed_accounts(self, key: str, *, member: str | None = None, window_sec: int = 600) -> tuple[int, int]:
         """Sliding count of distinct failed accounts and time until one expires."""
 
+    async def account_attempt(self, key: str, *, limit: int) -> tuple[bool, int]:
+        """Atomically reserve one password verification in a rolling ten-minute window."""
+
 
 class MemoryRateLimitStore:
     def __init__(self) -> None:
@@ -170,6 +177,9 @@ class MemoryRateLimitStore:
         retry = max(1, math.ceil(window_sec - (now - min(accounts.values())))) if accounts else 0
         return len(accounts), retry
 
+    async def account_attempt(self, key: str, *, limit: int) -> tuple[bool, int]:
+        return await self.hit(key, limit=limit, window_sec=600)
+
 
 class RedisRateLimitStore:
     """Sabit 60 sn pencere — Redis INCR (çoklu worker paylaşımı)."""
@@ -209,9 +219,57 @@ return {count, retry}
         count, retry = await self._client.eval(script, 1, f"{_REDIS_KEY_PREFIX}{key}:failed-accounts", window_sec, member or "")
         return int(count), int(retry)
 
+    async def account_attempt(self, key: str, *, limit: int) -> tuple[bool, int]:
+        # Reservation precedes password verification, so concurrent requests
+        # across workers cannot all observe an empty failure counter.
+        script = """
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - 600)
+local count = redis.call('ZCARD', KEYS[1])
+if count >= tonumber(ARGV[1]) then
+  local first = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+  return {0, math.max(1, math.ceil(tonumber(first[2]) + 600 - now))}
+end
+redis.call('ZADD', KEYS[1], now, ARGV[2])
+redis.call('EXPIRE', KEYS[1], 601)
+return {1, 0}
+"""
+        allowed, retry = await self._client.eval(
+            script, 1, f"{_REDIS_KEY_PREFIX}{key}:account-attempts", limit, uuid4().hex,
+        )
+        return bool(allowed), int(retry)
+
 
 _store: RateLimitStore | None = None
 _backend_name = "memory"
+_account_runtime_fallback = MemoryRateLimitStore()
+
+
+async def login_account_budget(key: str, limit: int) -> tuple[bool, int]:
+    """Count every password verification across IPs; reserve before hashing.
+
+    Redis reservations are atomic and shared by workers. Mirroring the bounded local
+    store preserves recent protection if Redis stops responding. The account
+    key is HMAC-digested and contains no submitted identifier.
+    """
+    global _backend_name
+    local = await _account_runtime_fallback.hit(key, limit=limit, window_sec=600)
+    try:
+        store = get_rate_limit_store()
+        if is_production_environment(settings.environment) and isinstance(store, MemoryRateLimitStore):
+            return False, max(1, local[1] or 600)
+        # A stalled shared counter must not pin authentication threads forever.
+        with anyio.fail_after(2):
+            shared = await store.account_attempt(key, limit=limit)
+        if not local[0] or not shared[0]:
+            return False, max(local[1], shared[1])
+        return True, 0
+    except Exception:
+        _backend_name = "memory-fallback"
+        # A local worker cannot know the global count. Require a human
+        # challenge immediately instead of granting a fresh per-worker budget.
+        return False, max(1, local[1] or 600)
 
 
 def rate_limit_backend() -> str:
@@ -262,7 +320,8 @@ def get_rate_limit_store() -> RateLimitStore:
 
 def reset_rate_limit_store_for_tests(store: RateLimitStore | None = None) -> None:
     """Testlerde store'u sıfırla / enjekte et."""
-    global _store, _backend_name
+    global _store, _backend_name, _account_runtime_fallback
+    _account_runtime_fallback = MemoryRateLimitStore()
     _store = store if store is not None else MemoryRateLimitStore()
     _backend_name = "memory" if store is None or isinstance(store, MemoryRateLimitStore) else "redis"
 

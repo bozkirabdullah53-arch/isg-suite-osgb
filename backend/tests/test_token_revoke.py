@@ -11,6 +11,15 @@ from app.core.security import create_access_token
 from app.services.token_revoke import bump_token_version, is_jti_revoked, revoke_jti
 
 
+def test_deeply_nested_jwt_is_rejected_without_server_error(client):
+    import jwt
+    from app.core.security import ALGORITHM, jwt_signing_key
+    payload = ('{"nested":' + '[' * 1500 + '0' + ']' * 1500 + '}').encode()
+    token = jwt.api_jws.encode(payload, jwt_signing_key(), algorithm=ALGORITHM)
+    response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     db_file = tmp_path / "revoke.db"
