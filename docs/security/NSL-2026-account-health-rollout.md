@@ -1,6 +1,7 @@
 # NSL account and health follow-up — 2026-10-01
 
-This change is prepared for review, not evidence of production or external closure.
+The implementation was published in two stages through PRs #479 and #478 on
+2026-10-01. Deployment is not evidence of external finding closure.
 The user confirmed 202602, 202606 and 202607 are open, 202603 remains partial because
 IP-only protection permits distributed guesses, and 202609 remains partial because
 `/health` is anonymous. The user's `NSL-02609` reference is treated as NSL-202609.
@@ -11,10 +12,10 @@ The user selected CAPTCHA after the account threshold rather than an account loc
 | Finding | Current status | Required closure evidence |
 | --- | --- | --- |
 | NSL-202602 | Open; provider/mail TLS work pending | Validated encrypted mailbox authentication, send and receive; provider remediation of exposed plaintext endpoints |
-| NSL-202603 | Partial in production; account CAPTCHA implementation prepared | Enable configured account protection, then verify distributed requests and normal password/MFA login in production |
+| NSL-202603 | Partial; backend/frontend support published, CAPTCHA not enabled | Supply real Turnstile keys, enable account protection, then verify distributed requests and normal password/MFA login in production |
 | NSL-202606 | Open; DNS/provider work pending | Provider-issued DKIM selector/key, aligned real messages and enforced DMARC after legitimate sender validation |
 | NSL-202607 | Open; provider platform work pending | Provider upgrade or migration plus external retest of the affected platform |
-| NSL-202609 | Partial in production; authenticated health implementation prepared | Protected `/health` on custom and direct API origins; verified Render probe on `/live`; external acceptance of minimal public liveness |
+| NSL-202609 | Health protection rollout in progress; Render probe moved to `/live` | Protected `/health` on custom and direct API origins; verified Render probe on `/live`; external acceptance of minimal public liveness |
 
 Read-only observation on 2026-10-01: `https://www.isgsuite.tr/health` returned HTTP 200
 with exactly `{"status":"ok"}`. Google DNS-over-HTTPS returned MX
@@ -57,9 +58,10 @@ rejected by Siteverify; frontend retries discard the old token.
    rewrite before the SPA fallback and the CSP script/frame allowlist for
    `https://challenges.cloudflare.com`. Existing `'self'` frame support is preserved.
    Frontend wakeup uses `/api/v1/live`, covered by the existing `/api/*` rewrite,
-   so a new static route is not needed for ordinary startup. This repository uses
-   an imperative Render static site: a render.yaml edit alone does not prove the
-   live CSP or additional `/live` route changed. Verify the Render settings.
+   so a new static route is not needed for ordinary startup. Render marks the
+   services Blueprint managed; verify the live settings rather than assuming
+   that committing render.yaml has applied them. The live CSP was saved directly
+   and confirmed in the public response on 2026-10-01.
 3. Confirm custom-origin `/api/v1/live` is the backend's empty 204, not HTML HTTP 200.
    Frontend wakeup requires that exact status. Change the API Render health check
    from `/health` to `/live`, then verify the service is healthy.
@@ -96,7 +98,7 @@ widget token invalidation and rejection of HTML liveness fallback.
 The full backend test command was interrupted by automatic approval review because
 an existing test attempted a request to a cloud metadata endpoint. It was not
 rerun. Use the targeted security suite and recorded frontend checks; do not report
-the full backend suite as passing. This change has no production retest evidence yet.
+the full backend suite as passing. Production evidence must be recorded separately.
 
 Turnstile integration follows the provider's server validation and CSP guidance:
 - https://developers.cloudflare.com/turnstile/get-started/server-side-validation/

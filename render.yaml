@@ -6,7 +6,7 @@ services:
     rootDir: backend
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: sh start.sh
-    healthCheckPath: /health
+    healthCheckPath: /live
     branch: master
     disk:
       name: isg-suite-api-data
@@ -17,6 +17,8 @@ services:
         value: 3.11.11
       - key: ENVIRONMENT
         value: production
+      - key: HEALTH_AUTH_REQUIRED
+        value: "true"
       # Verified NACE records must always use the frozen five-topic snapshot;
       # cross-sector legacy aliases are not allowed to select live exam questions.
       - key: TRAINING_EXACT_NACE_EXAM_STRICT
