@@ -14,6 +14,7 @@ function jsonResponse(body, status = 200) {
 describe('API temporary outage recovery', () => {
   let api;
   let apiWithBearer;
+  let wakeApi;
   let auth;
 
   beforeEach(async () => {
@@ -24,7 +25,7 @@ describe('API temporary outage recovery', () => {
     auth = await import('./auth_session.js');
     auth.setAccessToken(tokenWithExpiry());
     auth.setRefreshCookieMode(true);
-    ({api, apiWithBearer} = await import('./api.js'));
+    ({api, apiWithBearer, wakeApi} = await import('./api.js'));
   });
 
   afterEach(() => {
@@ -34,12 +35,20 @@ describe('API temporary outage recovery', () => {
     vi.restoreAllMocks();
   });
 
+  it('does not treat an HTML SPA fallback as backend liveness', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>SPA</html>', {
+      status: 200, headers: {'Content-Type': 'text/html'},
+    })));
+    const result = expect(wakeApi()).resolves.toBe(false);
+    await Promise.all([result, vi.runAllTimersAsync()]);
+  });
+
   it.each([502, 503, 504])('recovers a read after HTTP %s without reporting a resolved error', async (status) => {
     let attempts = 0;
     const fetchMock = vi.fn(async (url, options) => {
-      if (String(url).endsWith('/health')) {
+      if (String(url).endsWith('/live')) {
         expect(options.signal).toBeDefined();
-        return jsonResponse({status: 'ok'});
+        return new Response(null, {status: 204});
       }
       expect(String(url)).toMatch(/\/trainings\/meta$/);
       attempts += 1;
@@ -54,7 +63,7 @@ describe('API temporary outage recovery', () => {
   it('recovers an explicit bearer read after a gateway error', async () => {
     let attempts = 0;
     vi.stubGlobal('fetch', vi.fn(async (url) => {
-      if (String(url).endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (String(url).endsWith('/live')) return new Response(null, {status: 204});
       attempts += 1;
       return attempts === 1 ? jsonResponse({}, 502) : jsonResponse({id: 7});
     }));
@@ -74,7 +83,7 @@ describe('API temporary outage recovery', () => {
     vi.stubGlobal('fetch', fetchMock);
     await expect(api(path, {method, _retries: 3})).rejects.toMatchObject({httpStatus: status});
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith(path))).toHaveLength(1);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/health'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/live'))).toBe(false);
   });
 
   it.each([502, 503, 504])('does not report transient remote video progress HTTP %s as an EISA incident', async (status) => {
@@ -88,7 +97,7 @@ describe('API temporary outage recovery', () => {
 
   it('reports a persistent gateway error once after exhausting the read retry budget', async () => {
     const fetchMock = vi.fn(async (url) => (
-      String(url).endsWith('/health') ? jsonResponse({status: 'ok'}) : jsonResponse({}, 502)
+      String(url).endsWith('/live') ? new Response(null, {status: 204}) : jsonResponse({}, 502)
     ));
     vi.stubGlobal('fetch', fetchMock);
     const result = expect(api('/auth/me', {_retries: 1})).rejects.toMatchObject({httpStatus: 502});

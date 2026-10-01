@@ -2,6 +2,18 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {api, uploadFile} from './api.js';
 import {clearAccessToken, getAccessToken} from './auth_session.js';
 
+describe('login CAPTCHA response', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it('makes the server challenge available to the login form', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({detail: {
+      code: 'login_captcha_required', message: 'Güvenlik doğrulaması gerekiyor.', site_key: 'public-key',
+    }}, 429)));
+    await expect(api('/auth/login', {method: 'POST', body: '{}'})).rejects.toMatchObject({
+      message: 'Güvenlik doğrulaması gerekiyor.', loginCaptchaSiteKey: 'public-key', httpStatus: 429,
+    });
+  });
+});
+
 function tokenWithExpiry(exp) {
   const payload = btoa(JSON.stringify({exp})).replace(/=/g, '');
   return 'header.' + payload + '.signature';
@@ -29,7 +41,7 @@ describe('uploadFile oturum sürekliliği', () => {
     localStorage.setItem('isg_token', tokenWithExpiry(Math.floor(Date.now() / 1000) + 30));
     const fetchMock = vi.fn(async (url, options = {}) => {
       const requestUrl = String(url);
-      if (requestUrl.endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (requestUrl.endsWith('/live')) return new Response(null, {status: 204});
       if (requestUrl.endsWith('/auth/refresh')) return jsonResponse({access_token: 'fresh-token'});
       expect(options.headers.Authorization).toBe('Bearer fresh-token');
       expect(options.body).toBeInstanceOf(FormData);
@@ -50,7 +62,7 @@ describe('uploadFile oturum sürekliliği', () => {
     const uploadHeaders = [];
     const fetchMock = vi.fn(async (url, options = {}) => {
       const requestUrl = String(url);
-      if (requestUrl.endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (requestUrl.endsWith('/live')) return new Response(null, {status: 204});
       if (requestUrl.endsWith('/auth/refresh')) return jsonResponse({access_token: 'fresh-token'});
       uploadAttempts += 1;
       uploadHeaders.push(options.headers.Authorization);
@@ -83,7 +95,7 @@ describe('api güvenli yeniden deneme politikası', () => {
   it('GET isteğini geçici gateway hatasından sonra yeniden dener', async () => {
     let readAttempts = 0;
     const fetchMock = vi.fn(async (url) => {
-      if (String(url).endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (String(url).endsWith('/live')) return new Response(null, {status: 204});
       readAttempts += 1;
       return readAttempts === 1 ? jsonResponse({detail: 'temporary'}, 502) : jsonResponse({ok: true});
     });
@@ -97,7 +109,8 @@ describe('api güvenli yeniden deneme politikası', () => {
     const fetchMock = vi.fn(async (url) => {
       // Token'lı oturumda ağ hatası EİSA istemci raporu da tetikler (ayrı fetch);
       // sayım yalnız hedef yazma isteği üzerinden yapılır.
-      if (String(url).endsWith('/eisa/error-reports') || String(url).endsWith('/health')) {
+      if (String(url).endsWith('/live')) return new Response(null, {status: 204});
+      if (String(url).endsWith('/eisa/error-reports')) {
         return jsonResponse({});
       }
       throw new TypeError('Failed to fetch');
@@ -127,7 +140,7 @@ describe('api güvenli yeniden deneme politikası', () => {
     sessionStorage.setItem('isg_token', token);
     let authAttempts = 0;
     const fetchMock = vi.fn(async (url) => {
-      if (String(url).endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (String(url).endsWith('/live')) return new Response(null, {status: 204});
       authAttempts += 1;
       return authAttempts === 1 ? jsonResponse({detail: 'temporary'}, 502) : jsonResponse({id: 1});
     });
@@ -167,7 +180,7 @@ describe('anonim oturum davranışı', () => {
 
   it('anonimken genel auth/legal yollarına izin verir', async () => {
     const fetchMock = vi.fn(async (url) => {
-      if (String(url).endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (String(url).endsWith('/live')) return new Response(null, {status: 204});
       return jsonResponse({access_token: tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600)});
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -182,7 +195,7 @@ describe('anonim oturum davranışı', () => {
     let meCalls = 0;
     const fetchMock = vi.fn(async (url) => {
       const requestUrl = String(url);
-      if (requestUrl.endsWith('/health')) return jsonResponse({status: 'ok'});
+      if (requestUrl.endsWith('/live')) return new Response(null, {status: 204});
       if (requestUrl.endsWith('/auth/refresh')) {
         return jsonResponse({access_token: tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600)});
       }

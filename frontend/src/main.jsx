@@ -21,6 +21,7 @@ import {clearOfflineQueue} from './field_offline';
 import {clearFieldInspectionCache} from './field_inspection_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
 import {LoginShowcase} from './login_showcase';
+import {LoginCaptcha} from './login_captcha';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
 import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversight';
 import {WorkplaceHomePage} from './workplace_home';
@@ -357,6 +358,9 @@ function EisaQuestionBankPage({user}){
 }
 
 function Login({done,onApply,onSpecialistApply}){
+  const[captchaSiteKey,setCaptchaSiteKey]=useState('');
+  const[captchaToken,setCaptchaToken]=useState('');
+  const[captchaReset,setCaptchaReset]=useState(0);
   const resetFromUrl=useMemo(()=>{
     try{const h=window.location.hash.startsWith('#')?window.location.hash.slice(1):window.location.hash;return new URLSearchParams(h).get('sifre-sifirla')||new URLSearchParams(window.location.search).get('sifre-sifirla')}catch{return null}
   },[]);
@@ -378,7 +382,7 @@ function Login({done,onApply,onSpecialistApply}){
   async function submitLogin(e){
     e.preventDefault();setErr('');setBusy(true);
     try{
-      const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password}),_retries:3});
+      const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password,captcha_token:captchaToken||null}),_retries:0});
       if(r.access_token){
         setAccessToken(r.access_token);
         setRefreshCookieMode(!!r.refresh_cookie);
@@ -400,8 +404,11 @@ function Login({done,onApply,onSpecialistApply}){
         }
       }
       setErr('Giriş yanıtı beklenmeyen biçimde.');
-    }catch(x){setErr(x.message)}
-    finally{setBusy(false)}
+    }catch(x){
+      setErr(x.message);
+      if(x.loginCaptchaSiteKey)setCaptchaSiteKey(x.loginCaptchaSiteKey);
+    }
+    finally{setBusy(false);setCaptchaToken('');setCaptchaReset(n=>n+1)}
   }
 
   async function submitMfa(e){
@@ -481,9 +488,14 @@ function Login({done,onApply,onSpecialistApply}){
             <form onSubmit={submitLogin}>
               <label>E-posta veya kullanıcı adı</label><input value={email} onChange={e=>setEmail(e.target.value)} type="text" placeholder="" autoComplete="username" required/>
               <LoginPasswordInput label="Şifre" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/>
+              {captchaSiteKey&&<>
+                <p>Girişe devam etmek için güvenlik doğrulamasını tamamlayın.</p>
+                <LoginCaptcha siteKey={captchaSiteKey} resetKey={captchaReset} onToken={setCaptchaToken} onError={setErr}/>
+                <button type="button" className="linkish" onClick={()=>{setErr('');setCaptchaReset(n=>n+1)}}>Doğrulamayı yeniden yükle</button>
+              </>}
               {err&&<div className="error">{err}</div>}
               {msg&&<p style={{color:'#166534',fontSize:13}}>{msg}</p>}
-              <button disabled={busy}>Giriş Yap</button>
+              <button disabled={busy||!!captchaSiteKey&&!captchaToken}>Giriş Yap</button>
               <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('forgot');setErr('');setMsg('')}}>Şifremi unuttum</button></p>
             </form>
           )}

@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -18,7 +20,7 @@ from app.core.access_log import StructuredAccessLogMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.cors_policy import build_cors_origins, is_production_environment
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import Base, SessionLocal, engine, get_db
 # Register the additive remote-training tables before development/test
 # ``create_all``. Production remains Alembic-only, so 0088 is still the
 # authoritative schema change there.
@@ -289,7 +291,25 @@ for router in (
     app.include_router(router, prefix="/api/v1")
 
 
+_optional_health_bearer = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+
+def _health_access(token: str | None = Depends(_optional_health_bearer), db: Session = Depends(get_db)):
+    if not settings.health_auth_required:
+        return
+    if not token:
+        raise HTTPException(401, "Oturum doğrulanamadı.", headers={"WWW-Authenticate": "Bearer"})
+    from app.api.deps import get_current_user, require_roles
+    from app.models.entities import UserRole
+    require_roles(UserRole.GLOBAL_ADMIN)(get_current_user(token, db))
+
+
+@app.get("/live", status_code=204, include_in_schema=False)
+def live():
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/health")
-def health():
+def health(_access=Depends(_health_access)):
     from app.services.release_status import public_health_payload
     return public_health_payload()

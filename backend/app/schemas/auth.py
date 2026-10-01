@@ -8,6 +8,7 @@ class LoginRequest(BaseModel):
     # e-posta adresi veya kullanıcı adı olabilir (ör. A.bozkir).
     email: str = Field(min_length=1, max_length=255)
     password: str
+    captcha_token: str | None = Field(default=None, max_length=2048)
 
 
 class RegisterRequest(BaseModel):
