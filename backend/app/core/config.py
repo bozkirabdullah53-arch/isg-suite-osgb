@@ -108,6 +108,14 @@ class Settings(BaseSettings):
     login_subnet_window_limit: int = 200
     # Failed attempts against distinct accounts, not successful NAT traffic.
     login_spray_account_limit: int = 10
+    # Activate only after real Turnstile keys and browser CSP are validated.
+    login_captcha_enabled: bool = False
+    login_account_window_limit: int = 10
+    turnstile_site_key: str = ""
+    turnstile_secret_key: str = ""
+    turnstile_allowed_hostnames: str = ""
+    # Switch Render's probe to /live before enabling this.
+    health_auth_required: bool = False
     # Güvenilir proxy zinciri derinliği: X-Forwarded-For zincirinin
     # kaç girişinin güvenilir sayılacağı (Render/Cloudflare = 1). İstemci
     # spoof edemez çünkü proxy en sağıdaki girişi ekler/kontrol eder.
@@ -455,6 +463,12 @@ def _validate_backup_offsite_credentials() -> None:
 
 def validate_runtime_settings() -> None:
     """Üretimde zayıf secret veya zorunlu altyapı eksiğiyle başlamayı engelle."""
+    if settings.login_captcha_enabled:
+        if not (settings.turnstile_site_key.strip() and settings.turnstile_secret_key.strip()
+                and settings.turnstile_allowed_hostnames.strip()):
+            raise RuntimeError("LOGIN_CAPTCHA_ENABLED için Turnstile site/secret anahtarları ve izinli alan adları zorunludur.")
+        if settings.login_account_window_limit < 1:
+            raise RuntimeError("LOGIN_ACCOUNT_WINDOW_LIMIT en az 1 olmalıdır.")
     env = (settings.environment or "").strip().lower()
     if env not in ("production", "prod", "live"):
         return

@@ -51,6 +51,7 @@ from app.services.auth_security import (
 from app.services.audit import add_audit_log
 from app.services.access_scope import ensure_login_scope
 from app.services.token_revoke import is_jti_revoked, revoke_jti
+from app.services.login_captcha import enforce_login_captcha, login_protection_configuration
 
 router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
 logger = logging.getLogger(__name__)
@@ -168,6 +169,11 @@ def register(
     return _issue_access(user, response)
 
 
+@router.get("/login-protection")
+def login_protection():
+    return login_protection_configuration()
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(
     payload: LoginRequest,
@@ -195,6 +201,12 @@ def login(
             )
         )
     )
+    if settings.login_captcha_enabled:
+        captcha_user_id = user.id if user else None
+        # Only a lookup occurred above. Return its checked-out connection
+        # before Redis/provider I/O; user attributes reload after verification.
+        db.rollback()
+        enforce_login_captcha(lookup_value, captcha_user_id, payload.captcha_token, ip)
     if user and is_locked(user):
         register_failed_login(db, user, email=identifier, ip=ip)
         db.commit()
