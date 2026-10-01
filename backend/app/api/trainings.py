@@ -263,14 +263,14 @@ def _err_detail(data) -> str:
 
 
 @router.get("/sectors")
-def list_sectors():
-    """Canlı uyumlu sektör listesi (auth zorunlu değil)."""
+def list_sectors(user: User = Depends(get_current_user)):
+    """Canlı uyumlu sektör listesi; oturum açmış kullanıcılar içindir."""
     return sectors_list_for_api(include_legacy_nace_aliases=True)
 
 
 @router.get("/layout-info")
-def training_layout_info():
-    """Canlı deploy doğrulama — eski API’de bu uç yoktur."""
+def training_layout_info(user: User = Depends(get_current_user)):
+    """Eğitim belge yerleşimi metadata'sı; anonim erişim kapalıdır."""
     return {
         "pdf_layout": "pro-2026",
         "attendance_title": "KATILIMCI İMZA FORMU",

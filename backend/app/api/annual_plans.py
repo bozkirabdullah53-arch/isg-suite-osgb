@@ -132,7 +132,7 @@ def _refresh_delayed(db: Session, items: list[AnnualPlanItem]) -> None:
 
 
 @router.get("/meta")
-def annual_plan_meta():
+def annual_plan_meta(user: User = Depends(get_current_user)):
     return {
         "categories": [{"code": k, "label": v} for k, v in CATEGORIES.items()],
         "statuses": [
