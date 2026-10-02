@@ -1742,7 +1742,13 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     if (!cid) return;
     const rows = await api(`/trainings/remote/programs?company_id=${Number(cid)}`);
     const available = Array.isArray(rows) ? rows : [];
-    setPrograms(workplaceMode ? available.filter((row) => row.status === 'published') : available);
+    const nextPrograms = workplaceMode ? available.filter((row) => row.status === 'published') : available;
+    setPrograms(nextPrograms);
+    // Open the first available package so changing the company immediately
+    // exposes its employee picker instead of leaving the detail pane empty.
+    if (nextPrograms.length && (!program || !nextPrograms.some((row) => String(row.id) === String(program.id)))) {
+      await loadDetail(nextPrograms[0].id);
+    }
   }
 
   async function loadBranches(cid = companyId) {
