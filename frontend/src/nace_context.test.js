@@ -72,6 +72,11 @@ describe('NACE context helpers', () => {
     expect(isCompanySelector(document.querySelector('select'))).toBe(false);
   });
 
+  it('does not read professional role names in options as a company field label', () => {
+    document.body.innerHTML = '<label><span>Profesyonel</span><select><option value="11">Test Uzman — İş Güvenliği Uzmanı</option><option value="12">Test Hekim — İşyeri Hekimi</option></select></label>';
+    expect(isCompanySelector(document.querySelector('select'))).toBe(false);
+  });
+
   it('persists the selected workplace id for employee and training screens', () => {
     persistSelectedCompanyId('42');
     expect(readPersistedCompanyId()).toBe('42');

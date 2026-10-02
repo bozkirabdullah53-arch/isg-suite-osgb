@@ -2789,6 +2789,9 @@ function App(){
     function onCompanyFieldChange(event){
       const target=event.target;
       if(target?.dataset?.globalCompanySelector==='true') return;
+      // Dialog selections belong to their local form. Changing global scope
+      // here remounts the page and discards the in-progress assignment.
+      if(target?.closest?.('[role="dialog"], .modal-bg')) return;
       if(!isCompanySelector(target)) return;
       const id=String(target.value||'');
       if(!id){

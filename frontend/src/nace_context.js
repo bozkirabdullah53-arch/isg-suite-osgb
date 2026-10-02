@@ -161,8 +161,13 @@ export function naceInfoForCompany(company, catalog) {
 export function fieldContextText(element) {
   if (!element) return '';
   const label = element.closest?.('label');
+  // Option text describes a choice, not the field. In particular, the
+  // professional selector contains "İşyeri Hekimi" and must not become a
+  // workplace selector merely because that role appears in its options.
+  const caption = label?.cloneNode(true);
+  caption?.querySelectorAll('input, select, textarea').forEach(control => control.remove());
   return [
-    label?.textContent,
+    caption?.textContent,
     element.getAttribute?.('aria-label'),
     element.getAttribute?.('placeholder'),
     element.getAttribute?.('name'),
