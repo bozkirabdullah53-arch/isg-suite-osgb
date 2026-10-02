@@ -169,6 +169,26 @@ def _message_payload(raw: bytes, *, uid: int, mailbox: str) -> dict[str, object]
     }
 
 
+def _close_mail_client(client, protocol: str, *, graceful: bool = True) -> None:
+    """Release local I/O even when the provider refuses logout or TLS failed."""
+    if graceful:
+        try:
+            client.logout() if protocol == "imap" else client.quit()
+        except Exception:
+            pass
+    try:
+        client.shutdown() if protocol == "imap" else client.close()
+    except Exception:
+        # A failed graceful close/partial TLS handshake must not retain the
+        # file wrapper's descriptor or the socket through an exception traceback.
+        for resource in (getattr(client, "file", None), getattr(client, "sock", None)):
+            if resource is not None:
+                try:
+                    resource.close()
+                except Exception:
+                    pass
+
+
 def _connect_imap_with_retry():
     """Connect and authenticate despite transient MailEnable EOF responses."""
     last_error: Exception | None = None
@@ -194,10 +214,7 @@ def _connect_imap_with_retry():
         except (OSError, EOFError, imaplib.IMAP4.error) as exc:
             last_error = exc
             if client is not None:
-                try:
-                    client.logout()
-                except Exception:  # noqa: BLE001 — retry cleanup
-                    pass
+                _close_mail_client(client, "imap", graceful=False)
             if attempt < 2:
                 time.sleep(0.75 * (attempt + 1))
     raise RuntimeError("IMAP sunucusuna bağlanılamadı.") from last_error
@@ -220,10 +237,7 @@ def _connect_pop3_with_retry():
         except (OSError, EOFError, poplib.error_proto) as exc:
             last_error = exc
             if client is not None:
-                try:
-                    client.quit()
-                except Exception:  # noqa: BLE001
-                    pass
+                _close_mail_client(client, "pop3", graceful=False)
             if attempt < 2:
                 time.sleep(0.75 * (attempt + 1))
     raise RuntimeError("POP3 sunucusuna bağlanılamadı.") from last_error
