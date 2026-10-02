@@ -102,6 +102,52 @@ def test_membership_expands_assigned_companies(tmp_path):
         assert c1.id in ids and c2.id in ids
 
 
+def test_individual_specialist_sees_only_active_assignments(tmp_path):
+    """Bireysel uzman aynı OSGB'deki başka kullanıcı firmalarını göremez."""
+    url = f"sqlite:///{(tmp_path / 'individual-strict.db').as_posix()}"
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+    Session = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    with Session() as db:
+        osgb = OsgbOrganization(name="Individual Strict OSGB", is_active=True, is_individual=True)
+        db.add(osgb)
+        db.flush()
+        assigned = Company(name="Assigned Individual", osgb_id=osgb.id, is_active=True)
+        foreign = Company(name="Foreign Individual", osgb_id=osgb.id, is_active=True)
+        db.add_all([assigned, foreign])
+        db.flush()
+        pro = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="Individual Specialist",
+            email="individual-strict@test.com",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            is_active=True,
+        )
+        user = User(
+            email="individual-strict@test.com",
+            full_name="Individual Specialist",
+            hashed_password="x",
+            role=UserRole.SAFETY_SPECIALIST,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        db.add_all([pro, user])
+        db.flush()
+        db.add(
+            WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=assigned.id,
+                professional_id=pro.id,
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                start_date=date.today(),
+                status=AssignmentStatus.ACTIVE,
+            )
+        )
+        db.commit()
+
+        assert assigned_company_ids(db, user) == [assigned.id]
+
+
 @pytest.mark.parametrize(
     ("role", "professional_type", "label"),
     [
