@@ -1252,7 +1252,9 @@ export function AssignmentsPage({user}){
  const companyOpts=companies.filter(x=>{
   const oid=Number(form.osgb_id);
   if(!oid) return true;
-  return !x.osgb_id || Number(x.osgb_id)===oid;
+  // Unbound workplaces can only be claimed by the global administrator;
+  // company administrators must select a workplace already in their OSGB.
+  return (isGlobal && !x.osgb_id) || Number(x.osgb_id)===oid;
  });
  const filtered=rows.filter(r=>{
   if(statusFilter==='all') return true;
@@ -1304,7 +1306,19 @@ export function AssignmentsPage({user}){
     actual_minutes_monthly:Number(form.actual_minutes_monthly)||0,
     isg_katip_contract_number:katip,
    })});
-   await uploadFile(`/osgb/assignments/${created.id}/contract`,contractFile);
+    try{
+     await uploadFile(`/osgb/assignments/${created.id}/contract`,contractFile);
+    }catch(uploadError){
+     // The API commits the assignment before storing its contract. Remove the
+     // just-created row so a transient upload failure cannot create a hidden
+     // duplicate that blocks the user's retry.
+     try{
+      await api(`/osgb/assignments/${created.id}`,{method:'DELETE'});
+     }catch(cleanupError){
+      throw new Error(`${uploadError.message||'Sözleşme yüklenemedi.'} Atama #${created.id} silinemedi; tekrar denemeden önce bu kaydı kontrol edin.`);
+     }
+     throw new Error(`${uploadError.message||'Sözleşme yüklenemedi.'} Atama kaydı geri alındı; tekrar deneyebilirsiniz.`);
+    }
    setOpen(false);
    resetFormExtras();
    await load(form.osgb_id);
