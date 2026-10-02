@@ -211,7 +211,7 @@ services:
       # ataması yoktur; boş şirket allowlist'i tüm firmaların yöneticinin
       # seçtiği yayımlanmış sektör paketlerini alabilmesini sağlar.
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED
-        value: "true"
+        value: "false"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_FORCE_OFF
         value: "false"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_PACKAGE_CODES
