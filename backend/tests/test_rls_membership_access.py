@@ -102,8 +102,8 @@ def test_membership_expands_assigned_companies(tmp_path):
         assert c1.id in ids and c2.id in ids
 
 
-def test_individual_specialist_sees_only_active_assignments(tmp_path):
-    """Bireysel uzman aynı OSGB'deki başka kullanıcı firmalarını göremez."""
+def test_individual_specialist_sees_own_workspace_companies(tmp_path):
+    """Tek uzmanlı bireysel çalışma alanındaki eski firmalar erişilebilir kalır."""
     url = f"sqlite:///{(tmp_path / 'individual-strict.db').as_posix()}"
     engine = create_engine(url, connect_args={"check_same_thread": False})
     Session = sessionmaker(bind=engine)
@@ -143,6 +143,44 @@ def test_individual_specialist_sees_only_active_assignments(tmp_path):
                 status=AssignmentStatus.ACTIVE,
             )
         )
+        db.commit()
+
+        assert assigned_company_ids(db, user) == [assigned.id, foreign.id]
+
+
+def test_individual_workspace_with_multiple_specialists_requires_assignments(tmp_path):
+    """Bireysel işareti paylaşılan OSGB'de kapsamı genişletmez."""
+    url = f"sqlite:///{(tmp_path / 'individual-shared.db').as_posix()}"
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+    Session = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    with Session() as db:
+        osgb = OsgbOrganization(name="Shared Individual OSGB", is_active=True, is_individual=True)
+        db.add(osgb)
+        db.flush()
+        assigned = Company(name="Assigned Shared", osgb_id=osgb.id, is_active=True)
+        foreign = Company(name="Foreign Shared", osgb_id=osgb.id, is_active=True)
+        db.add_all([assigned, foreign])
+        db.flush()
+        pro = IsgProfessional(
+            osgb_id=osgb.id, full_name="First Specialist", email="first@test.com",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST, is_active=True,
+        )
+        other = IsgProfessional(
+            osgb_id=osgb.id, full_name="Second Specialist", email="second@test.com",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST, is_active=True,
+        )
+        user = User(
+            email="first@test.com", full_name="First Specialist", hashed_password="x",
+            role=UserRole.SAFETY_SPECIALIST, osgb_id=osgb.id, is_active=True,
+        )
+        db.add_all([pro, other, user])
+        db.flush()
+        db.add(WorkplaceAssignment(
+            osgb_id=osgb.id, company_id=assigned.id, professional_id=pro.id,
+            professional_type=ProfessionalType.SAFETY_SPECIALIST, start_date=date.today(),
+            status=AssignmentStatus.ACTIVE,
+        ))
         db.commit()
 
         assert assigned_company_ids(db, user) == [assigned.id]

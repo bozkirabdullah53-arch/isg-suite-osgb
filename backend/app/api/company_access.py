@@ -245,6 +245,34 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
         return _merge_membership_companies(db, user, base)
 
     if user.role in _OSGB_FIELD_ROLES:
+        # Individual specialist workspaces are single-professional tenants. Keep
+        # their own workplaces usable even when an older company was created
+        # before its WorkplaceAssignment row was backfilled. Shared OSGBs must
+        # still use explicit active assignments exclusively.
+        if user.role == UserRole.SAFETY_SPECIALIST and user.osgb_id:
+            from app.models.entities import OsgbOrganization
+
+            org = db.get(OsgbOrganization, user.osgb_id)
+            if org is not None and getattr(org, "is_individual", False):
+                active_specialists = list(
+                    db.scalars(
+                        select(IsgProfessional).where(
+                            IsgProfessional.osgb_id == user.osgb_id,
+                            IsgProfessional.professional_type == ProfessionalType.SAFETY_SPECIALIST,
+                            IsgProfessional.is_active.is_(True),
+                        )
+                    ).all()
+                )
+                pro = find_professional_by_identity(db, user)
+                if len(active_specialists) == 1 and pro is not None and pro.id == active_specialists[0].id:
+                    return list(
+                        db.scalars(
+                            select(Company.id).where(
+                                Company.osgb_id == user.osgb_id,
+                                Company.is_active.is_(True),
+                            )
+                        ).all()
+                    )
         pro = find_professional_for_user(db, user)
         if pro:
             today = date.today()
