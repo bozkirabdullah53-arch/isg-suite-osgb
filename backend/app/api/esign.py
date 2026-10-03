@@ -36,6 +36,7 @@ class ESignRequestOut(BaseModel):
     document_kind: str
     source_sha256: str
     source_bytes: int
+    one_time_token: str
     token_expires_at: datetime
     status: str
     created_at: datetime
@@ -76,10 +77,6 @@ class CompleteBody(BaseModel):
     mark_approval: bool = True
 
 
-class ESignRequestCreated(ESignRequestOut):
-    one_time_token: str
-
-
 def _role_value(user: User) -> str:
     return user.role.value if hasattr(user.role, "value") else str(user.role)
 
@@ -108,7 +105,7 @@ def esign_meta(user: User = Depends(require_roles(*VIEW))):
     }
 
 
-@router.post("/requests", response_model=ESignRequestCreated)
+@router.post("/requests", response_model=ESignRequestOut)
 async def create_sign_request(
     company_id: int = Form(...),
     document_title: str = Form(...),
@@ -144,7 +141,7 @@ async def create_sign_request(
     db.add(row)
     db.commit()
     db.refresh(row)
-    output = ESignRequestCreated.model_validate(row)
+    output = ESignRequestOut.model_validate(row)
     output.agent_hint = {
         "port": pipe.AGENT_PORT,
         "sign_path": "/v1/sign",
@@ -170,9 +167,9 @@ def list_requests(
     return [ESignRequestOut.model_validate(row) for row in rows]
 
 
-@router.post("/requests/by-token", response_model=ESignRequestOut)
+@router.get("/requests/by-token/{token}", response_model=ESignRequestOut)
 def get_by_token(
-    token: str = Form(..., min_length=16, max_length=80),
+    token: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):

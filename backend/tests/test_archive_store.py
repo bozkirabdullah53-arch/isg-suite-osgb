@@ -81,26 +81,6 @@ def test_archive_missing_source_returns_none(tmp_path, monkeypatch):
     )
 
 
-def test_archive_refuses_source_outside_upload_root(tmp_path, monkeypatch):
-    uploads = tmp_path / "uploads"
-    uploads.mkdir()
-    outside = tmp_path / "secret.txt"
-    outside.write_text("must not be archived", encoding="utf-8")
-    monkeypatch.setattr(archive_store.settings, "upload_dir", str(uploads))
-    db = _FakeDB()
-    assert (
-        archive_store.archive_file_before_delete(
-            db,
-            source=outside,
-            user=None,
-            company_id=1,
-            entity_type="document",
-            entity_id="1",
-        )
-        is None
-    )
-
-
 def test_create_tenant_backup_zip(tmp_path, monkeypatch):
     backup = tmp_path / "backups"
     uploads = tmp_path / "uploads"

@@ -40,7 +40,7 @@ export function EisaAiSettingsPage() {
     setBusy(true);
     setMsg('');
     try {
-      const data = await api('/ai-settings');
+      const data = await api('/eisa/ai-settings');
       syncForm(data);
     } catch (e) {
       setMsg(e.message);
@@ -82,7 +82,7 @@ export function EisaAiSettingsPage() {
         clear_api_key: Boolean(clearApiKey),
       };
       if (apiKey.trim()) body.api_key = apiKey.trim();
-      const data = await api('/ai-settings', {
+      const data = await api('/eisa/ai-settings', {
         method: 'PUT',
         body: JSON.stringify(body),
       });
@@ -100,7 +100,7 @@ export function EisaAiSettingsPage() {
     setMsg('');
     setTestResult(null);
     try {
-      const result = await api('/ai-settings/test', { method: 'POST' });
+      const result = await api('/eisa/ai-settings/test', { method: 'POST' });
       setTestResult(result);
       setMsg(result?.message || 'Bağlantı testi başarılı.');
     } catch (e) {
@@ -118,7 +118,7 @@ export function EisaAiSettingsPage() {
     setMsg('');
     setTestResult(null);
     try {
-      const data = await api('/ai-settings/reset', { method: 'POST' });
+      const data = await api('/eisa/ai-settings/reset', { method: 'POST' });
       syncForm(data);
       setMsg('Global AI panel ayarları kaldırıldı; mevcut sunucu ayarlarına dönüldü.');
     } catch (e) {
