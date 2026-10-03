@@ -2518,7 +2518,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                   <select value={provisionEmployeeId} onChange={(event) => setProvisionEmployeeId(event.target.value)} aria-label="Yeni giriş için personel seçin"><option value="">Yeni hesap için personel seçin</option>{visibleEmployees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
                   <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '0 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#f8fafc', color: '#36556d', fontSize: 13}}>Otomatik kullanıcı adı: <strong style={{marginLeft: 5}}>{provisionEmployee ? remoteEmployeeUsernamePreview(provisionEmployee.full_name) : '—'}</strong></span>
                    <button type="button" onClick={provisionEmployeeAccount} disabled={busy || !provisionEmployeeId}>Kullanıcı hesabı oluştur ve eşleştir</button>
-                   <button type="button" onClick={provisionAllEmployeeAccounts} disabled={busy || !visibleEmployees.length}>Tüm personele eksik hesapları oluştur ve Excel indir</button>
+                   <button type="button" onClick={provisionAllEmployeeAccounts} disabled={busy || !visibleEmployees.length}>{busy ? 'Hazırlanıyor…' : 'Tüm personele eksik hesapları oluştur ve Excel indir'}</button>
                 </div>
                 {provisionedCredentials && <div style={{marginTop: 9, padding: 10, borderRadius: 8, background: '#fff8e8', border: '1px solid #f2c46d', color: '#795500', fontSize: 12}}>
                   <strong>Geçici giriş bilgisi — yalnızca şimdi gösteriliyor:</strong><br />
