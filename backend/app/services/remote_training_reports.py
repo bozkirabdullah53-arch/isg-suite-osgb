@@ -51,7 +51,7 @@ def build_employee_account_credentials_xlsx(rows: list[dict[str, Any]], *, compa
     for column, width in {"A": 28, "B": 28, "C": 14, "D": 28, "E": 24, "F": 24}.items():
         sheet.column_dimensions[column].width = width
     output = BytesIO()
-    workbook.save(output)
+    save_export_workbook(workbook, output)
     return output.getvalue()
 
 _FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"

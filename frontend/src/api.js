@@ -625,13 +625,27 @@ export async function api(path, options = {}) {
 /** Auth header ile blob URL üretir (önizleme görselleri için). */
 export async function authBlobUrl(path) {
   await wakeApi();
+  const blobPath = String(path || "");
+  let didRefresh = false;
   const token = getAccessToken();
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: token ? {Authorization: `Bearer ${token}`} : {},
-    mode: "cors",
-    credentials: fetchCredentials(path),
-  });
+  if (token && accessTokenExpiresSoon() && canAttemptTokenRefresh(blobPath, 401)) {
+    didRefresh = await tryRefreshAccessToken();
+  }
+  const fetchBlob = () => {
+    const currentToken = getAccessToken();
+    return fetch(`${API_URL}${blobPath}`, {
+      headers: currentToken ? {Authorization: `Bearer ${currentToken}`} : {},
+      mode: "cors",
+      credentials: fetchCredentials(blobPath),
+    });
+  };
+  let response = await fetchBlob();
+  if (!didRefresh && canAttemptTokenRefresh(blobPath, response.status)) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) response = await fetchBlob();
+  }
   if (!response.ok) {
+    if (response.status === 401 && blobPath !== "/auth/login") notifyAuthLost();
     throw new Error(`Dosya alınamadı (HTTP ${response.status}).`);
   }
   const blob = await response.blob();

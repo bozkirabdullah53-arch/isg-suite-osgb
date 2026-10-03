@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   AlertTriangle,
   Download,
@@ -104,6 +104,7 @@ export function EmergencyTeamsPage({user}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const loadVersion = useRef(0);
 
   const [teamModal, setTeamModal] = useState(false);
   const [teamForm, setTeamForm] = useState(emptyTeam);
@@ -150,7 +151,11 @@ export function EmergencyTeamsPage({user}) {
   }
 
   async function loadData(cid = companyId) {
-    if (!cid) return;
+    const version = ++loadVersion.current;
+    if (!cid) {
+      setOverview(null); setMembers([]); setEmployees([]);
+      return;
+    }
     setBusy(true);
     setErr('');
     try {
@@ -159,6 +164,7 @@ export function EmergencyTeamsPage({user}) {
         api(`/emergency-teams/assignments?${buildAssignmentQuery(cid)}`),
         api(`/employees?company_id=${Number(cid)}&active=true`),
       ]);
+      if (version !== loadVersion.current || String(cid) !== String(companyId)) return;
       setOverview(ov);
       setMembers(mem || []);
       setEmployees(emp || []);

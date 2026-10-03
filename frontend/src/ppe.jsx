@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Download, Plus, Printer, Search, Trash2, Upload} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
@@ -96,6 +96,7 @@ export function PpePage({user}) {
   const [inventoryForm, setInventoryForm] = useState(() => emptyInventoryForm(user));
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const loadVersion = useRef(0);
 
   const typesForCategory = useMemo(() => {
     const cat = catalog.categories.find((c) => c.name === form.category);
@@ -122,11 +123,13 @@ export function PpePage({user}) {
   );
 
   const load = async () => {
+    const version = ++loadVersion.current;
     setErr('');
     const [c, cat] = await Promise.all([
       api('/companies'),
       api('/ppe/catalog'),
     ]);
+    if (version !== loadVersion.current) return;
     setCompanies(c);
     setCatalog(cat);
     const cid = companyId || user.company_id || c[0]?.id;
@@ -148,14 +151,17 @@ export function PpePage({user}) {
       api(`/ppe/due-summary?company_id=${cid}`),
       api(`/employees?company_id=${Number(cid)}&active=true`),
     ]);
+    if (version !== loadVersion.current) return;
     setRows(list);
     setDue(summary);
     setEmployees(Array.isArray(e) ? e : []);
     try {
       const stock = await api(`/ppe/inventory?company_id=${encodeURIComponent(cid)}`);
+      if (version !== loadVersion.current) return;
       setInventory(Array.isArray(stock) ? stock : []);
       setInventorySupported(true);
     } catch {
+      if (version !== loadVersion.current) return;
       // Yeni stok API'si eski backend ile birlikte dönerken mevcut KKD ekranı çalışmaya devam eder.
       setInventory([]);
       setInventorySupported(false);

@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {api, uploadFile} from './api.js';
+import {api, authBlobUrl, uploadFile} from './api.js';
 import {clearAccessToken, getAccessToken} from './auth_session.js';
 
 describe('login CAPTCHA response', () => {
@@ -76,6 +76,40 @@ describe('uploadFile oturum sürekliliği', () => {
     ).resolves.toMatchObject({id: 4});
     expect(uploadAttempts).toBe(2);
     expect(uploadHeaders).toEqual(['Bearer ' + initialToken, 'Bearer fresh-token']);
+  });
+});
+
+describe('authBlobUrl oturum sürekliliği', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    clearAccessToken();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('401 sonrasında access tokenı yenileyip korumalı blobu yeniden ister', async () => {
+    const initialToken = tokenWithExpiry(Math.floor(Date.now() / 1000) + 3600);
+    localStorage.setItem('isg_token', initialToken);
+    const fetchMock = vi.fn(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.endsWith('/auth/refresh')) return jsonResponse({access_token: 'fresh-token'});
+      if (requestUrl.endsWith('/live')) return new Response(null, {status: 204});
+      if (options.headers.Authorization === 'Bearer ' + initialToken) {
+        return jsonResponse({detail: 'Not authenticated'}, 401);
+      }
+      return new Response('protected image', {status: 200, headers: {'Content-Type': 'image/png'}});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:protected-image'),
+      revokeObjectURL: vi.fn(),
+    });
+
+    await expect(authBlobUrl('/risks/7/media/9')).resolves.toBe('blob:protected-image');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/auth/refresh'))).toBe(true);
+    expect(fetchMock.mock.calls.at(-1)[1].headers.Authorization).toBe('Bearer fresh-token');
   });
 });
 

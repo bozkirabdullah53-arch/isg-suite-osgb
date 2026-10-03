@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Download, FileText, Link2, Plus, RefreshCw} from 'lucide-react';
 import {chooseAnnualEvalCompanyId} from './annual_eval_company_selection';
 import {api, downloadFile, uploadFile} from './api';
@@ -70,6 +70,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
   const [evidences, setEvidences] = useState([]);
   const [history, setHistory] = useState(null);
   const [revisions, setRevisions] = useState([]);
+  const loadVersion = useRef(0);
 
   async function loadCompanies() {
     try {
@@ -83,16 +84,28 @@ export function AnnualEvalReportPage({user, onNavigate}) {
   }
 
   async function loadAll() {
-    if (!companyId) return;
+    const version = ++loadVersion.current;
+    if (!companyId) {
+      setOverview(null); setItems([]); setUnplanned([]); setCapas([]); setRevisions([]);
+      return;
+    }
     setBusy(true);
     setErr('');
     try {
       const ov = await api(`/annual-evals/overview?company_id=${companyId}&year=${year}`);
+      if (version !== loadVersion.current) return;
       setOverview(ov);
-      setRelated(await api(`/annual-evals/related-evidence?company_id=${companyId}&year=${year}`).catch(() => null));
-      setSuggestions(await api(`/annual-evals/next-year-suggestions?company_id=${companyId}&year=${year}`).catch(() => null));
-      setAnalytics(await api(`/annual-evals/analytics?company_id=${companyId}&year=${year}&period=${period}`).catch(() => null));
+      const [nextRelated, nextSuggestions, nextAnalytics] = await Promise.all([
+        api(`/annual-evals/related-evidence?company_id=${companyId}&year=${year}`).catch(() => null),
+        api(`/annual-evals/next-year-suggestions?company_id=${companyId}&year=${year}`).catch(() => null),
+        api(`/annual-evals/analytics?company_id=${companyId}&year=${year}&period=${period}`).catch(() => null),
+      ]);
+      if (version !== loadVersion.current) return;
+      setRelated(nextRelated);
+      setSuggestions(nextSuggestions);
+      setAnalytics(nextAnalytics);
       const cmp = await api(`/annual-evals/year-compare?company_id=${companyId}&year=${year}`).catch(() => null);
+      if (version !== loadVersion.current) return;
       setCompare(cmp);
       if (!ov.evaluation_id) {
         setItems([]);
@@ -108,14 +121,21 @@ export function AnnualEvalReportPage({user, onNavigate}) {
       if (q.trim()) qs.set('q', q.trim());
       if (monthFrom) qs.set('month_from', monthFrom);
       if (monthTo) qs.set('month_to', monthTo);
-      setItems(await api(`/annual-evals/items?${qs}`));
-      setUnplanned(await api(`/annual-evals/${ov.evaluation_id}/unplanned`));
-      setCapas(await api(`/annual-evals/${ov.evaluation_id}/capas`));
-      setRevisions(await api(`/annual-evals/${ov.evaluation_id}/revisions`).catch(() => []));
+      const [nextItems, nextUnplanned, nextCapas, nextRevisions] = await Promise.all([
+        api(`/annual-evals/items?${qs}`),
+        api(`/annual-evals/${ov.evaluation_id}/unplanned`),
+        api(`/annual-evals/${ov.evaluation_id}/capas`),
+        api(`/annual-evals/${ov.evaluation_id}/revisions`).catch(() => []),
+      ]);
+      if (version !== loadVersion.current) return;
+      setItems(nextItems);
+      setUnplanned(nextUnplanned);
+      setCapas(nextCapas);
+      setRevisions(nextRevisions);
     } catch (e) {
-      setErr(e.message || 'Değerlendirme yüklenemedi.');
+      if (version === loadVersion.current) setErr(e.message || 'Değerlendirme yüklenemedi.');
     } finally {
-      setBusy(false);
+      if (version === loadVersion.current) setBusy(false);
     }
   }
 

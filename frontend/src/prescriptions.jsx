@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {AlertTriangle, CheckCircle2, FilePenLine, Pill, Plus, RefreshCw, Send, Trash2, XCircle} from 'lucide-react';
 import {api} from './api';
 import {AppModal} from './ui_modal';
@@ -64,8 +64,10 @@ export function PrescriptionPage({user}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const loadVersion = useRef(0);
 
   async function load() {
+    const version = ++loadVersion.current;
     if (!canRead) return;
     setMessage('');
     try {
@@ -73,6 +75,7 @@ export function PrescriptionPage({user}) {
       const nextCompany = companyId || String(user.company_id || c?.[0]?.id || '');
       setCompanies(Array.isArray(c) ? c : []);
       if (!nextCompany) {
+        if (version !== loadVersion.current) return;
         setRows([]);
         setEmployees([]);
         setRecords([]);
@@ -86,11 +89,12 @@ export function PrescriptionPage({user}) {
         api(`/health-records?company_id=${encodeURIComponent(nextCompany)}`),
         api(`/prescriptions?company_id=${encodeURIComponent(nextCompany)}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`),
       ]);
+      if (version !== loadVersion.current) return;
       setEmployees(Array.isArray(e) ? e : []);
       setRecords(Array.isArray(h) ? h : []);
       setRows(Array.isArray(p) ? p : []);
     } catch (err) {
-      setMessage(err.message || 'e-Reçete verileri yüklenemedi.');
+      if (version === loadVersion.current) setMessage(err.message || 'e-Reçete verileri yüklenemedi.');
     }
   }
 

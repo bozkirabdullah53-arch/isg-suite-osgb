@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Camera, ScanLine, ShieldCheck, Gavel, AlertTriangle, RefreshCw, CheckCircle2, FileText, MapPin} from 'lucide-react';
-import {api} from './api';
+import {api, authBlobUrl} from './api';
 
 const SEV_STYLE = {
   5: {bg: '#fee2e2', fg: '#991b1b', label: 'Kritik'},
@@ -143,19 +143,33 @@ function SahaAiTab({user, risks, reportCompanyId, effectiveCompanyId}) {
 
   // Medya seçildiğinde fotoğrafı + varsa analizi yükle
   useEffect(() => {
+    let active = true;
+    let cancelled = false;
+    let objectUrl = '';
     if (!selectedMediaId) {
       setMediaUrl('');
       setAnalysis(null);
-      return;
+      return undefined;
     }
     const media = medias.find((m) => String(m.id) === String(selectedMediaId));
     if (media) {
-      setMediaUrl(`${import.meta.env.VITE_API_URL || ''}/risks/${selectedRiskId}/media/${media.id}?t=${Date.now()}`);
+      authBlobUrl(`/risks/${selectedRiskId}/media/${media.id}`)
+        .then((url) => {
+          objectUrl = url;
+          if (!cancelled) setMediaUrl(url);
+          else URL.revokeObjectURL(url);
+        })
+        .catch(() => { if (!cancelled) setMediaUrl(''); });
     }
     // Önce kayıtlı analiz var mı dene
     api(`/risks/${selectedRiskId}/media/${selectedMediaId}/analysis`)
-      .then((r) => setAnalysis(r))
-      .catch(() => setAnalysis(null));
+      .then((r) => { if (active) setAnalysis(r); })
+      .catch(() => { if (active) setAnalysis(null); });
+    return () => {
+      active = false;
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [selectedMediaId, selectedRiskId, medias]);
 
   async function handleUpload(e) {

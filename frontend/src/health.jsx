@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {AlertTriangle, Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
@@ -268,6 +268,7 @@ export function HealthPage({user}) {
   const [reportFile, setReportFile] = useState(null);
   const [leadLive, setLeadLive] = useState(null);
   const [busy, setBusy] = useState(false);
+  const loadVersion = useRef(0);
   const [message, setMessage] = useState('');
   const [detailRow, setDetailRow] = useState(null);
 
@@ -305,6 +306,7 @@ export function HealthPage({user}) {
 
   async function load() {
     if (!canView) return;
+    const version = ++loadVersion.current;
     setMessage('');
     try {
       // Önce kullanıcının yetkili olduğu işyerlerini al. Birden fazla işyeri olan
@@ -314,6 +316,7 @@ export function HealthPage({user}) {
       setCompanies(Array.isArray(c) ? c : []);
 
       if (!nextCid) {
+        if (version !== loadVersion.current) return;
         setEmployees([]);
         setRows([]);
         setSummary(null);
@@ -346,6 +349,7 @@ export function HealthPage({user}) {
         isPhysician ? api(`/health-records/analysis?${sumQs}`) : Promise.resolve(null),
         isPhysician ? api(`/health-records/lead-summary?${leadQs}`) : Promise.resolve(null),
       ]);
+      if (version !== loadVersion.current) return;
 
       setRows(Array.isArray(r) ? r : []);
       setSummary(s);
@@ -357,6 +361,7 @@ export function HealthPage({user}) {
       const hekimler = canEdit && nextCid
         ? await api(`/health-records/assigned-physicians?company_id=${encodeURIComponent(nextCid)}`).catch(() => [])
         : [];
+      if (version !== loadVersion.current) return;
       setPhysicians(hekimler);
     } catch (err) {
       setMessage(err.message || 'Yükleme başarısız.');
@@ -779,7 +784,8 @@ export function HealthPage({user}) {
                 setRows([]);
                 setSummary(null);
                 setAnalysis(null);
-                setLeadSummary(null);
+                 setLeadSummary(null);
+                 setPhysicians([]);
                 setForm((f) => ({...f, company_id: next, employee_id: ''}));
               }}
             >

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Inbox, Search, Trash2 } from 'lucide-react';
-import { API_URL, api } from './api';
-import { getAccessToken } from './auth_session';
+import { API_URL, api, authBlobUrl } from './api';
 import { AppModal } from './ui_modal';
 import { Msg, RefreshButton } from './eisa';
 
@@ -122,19 +121,14 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
     const popup = window.open('', '_blank', 'noopener,noreferrer');
     setBusy(true);
     try {
-      const token = getAccessToken();
-      const attachmentUrl = /^https?:\/\//i.test(attachment.url || '')
-        ? attachment.url
-        : attachment.url?.startsWith('/api/')
-          ? `${window.location.origin}${attachment.url}`
-          : `${API_URL}/${String(attachment.url || '').replace(/^\//, '')}`;
-      const response = await fetch(attachmentUrl, {
-        credentials: 'include',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) throw new Error('Ek dosya açılamadı.');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const rawUrl = String(attachment.url || '');
+      if (/^https?:\/\//i.test(rawUrl) && !rawUrl.startsWith(API_URL)) {
+        throw new Error('Ek dosyası güvenli API adresinden gelmiyor.');
+      }
+      const path = rawUrl.startsWith(API_URL)
+        ? rawUrl.slice(API_URL.length)
+        : rawUrl.replace(/^\/api\/v1/, '') || rawUrl;
+      const url = await authBlobUrl(path);
       if (popup) popup.location.href = url;
       else {
         const anchor = document.createElement('a');

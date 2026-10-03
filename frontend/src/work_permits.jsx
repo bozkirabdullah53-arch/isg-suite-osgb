@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {api} from "./api";
 
 const types = {hot_work: "Sıcak iş", work_at_height: "Yüksekte çalışma", confined_space: "Kapalı alan", electrical: "Elektrik", general: "Genel"};
@@ -6,11 +6,22 @@ const statuses = {draft: "Taslak", pending_approval: "Onay bekliyor", active: "A
 
 export function WorkPermitsPage({user}) {
   const [companies, setCompanies] = useState([]), [employees, setEmployees] = useState([]), [contractors, setContractors] = useState([]), [approvers, setApprovers] = useState([]), [inspections, setInspections] = useState([]), [rows, setRows] = useState([]), [selected, setSelected] = useState(null);
-  const [companyId, setCompanyId] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [companyId, setCompanyId] = useState(user.company_id ? String(user.company_id) : ""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const loadVersion = useRef(0);
   const [form, setForm] = useState({permit_type: "general", description: "", location: "", valid_from: "", valid_until: "", employee_ids: [], approver_user_ids: [], field_inspection_id: null, notes: ""});
-  async function load() { const data = await api(companyId ? `/work-permits?company_id=${companyId}` : "/work-permits"); setRows(data.items || []); }
-  useEffect(() => { Promise.all([api("/companies"), api("/work-permits")]).then(([c, p]) => {setCompanies(Array.isArray(c) ? c : c.items || []); setRows(p.items || []);}).catch((ex) => setError(ex.message)); }, []);
-  useEffect(() => { if (!companyId) {setEmployees([]); setContractors([]); setApprovers([]); setInspections([]); return;} Promise.all([api(`/work-permits/employees?company_id=${companyId}`), api(`/contractors?company_id=${companyId}`), api(`/work-permits/approvers?company_id=${companyId}`), api(`/work-permits/field-inspections?company_id=${companyId}`)]).then(([employeeData, contractorData, approverData, inspectionData]) => {setEmployees(employeeData.items || []); setContractors(contractorData.items || []); setApprovers(approverData.items || []); setInspections(inspectionData.items || []);}).catch(() => {setEmployees([]); setContractors([]); setApprovers([]); setInspections([]);}); load().catch(() => {}); }, [companyId]);
+  async function load() { const version = loadVersion.current; const data = await api(companyId ? `/work-permits?company_id=${companyId}` : "/work-permits"); if (version === loadVersion.current) setRows(data.items || []); }
+  useEffect(() => { api("/companies").then((c) => setCompanies(Array.isArray(c) ? c : c.items || [])).catch((ex) => setError(ex.message)); }, []);
+  useEffect(() => {
+    const version = ++loadVersion.current;
+    setSelected(null);
+    setForm((current) => ({...current, employee_ids: [], approver_user_ids: [], contractor_id: null, field_inspection_id: null}));
+    if (!companyId) {setEmployees([]); setContractors([]); setApprovers([]); setInspections([]); setRows([]); return;}
+    Promise.all([api(`/work-permits/employees?company_id=${companyId}`), api(`/contractors?company_id=${companyId}`), api(`/work-permits/approvers?company_id=${companyId}`), api(`/work-permits/field-inspections?company_id=${companyId}`)]).then(([employeeData, contractorData, approverData, inspectionData]) => {
+      if (version !== loadVersion.current) return;
+      setEmployees(employeeData.items || []); setContractors(contractorData.items || []); setApprovers(approverData.items || []); setInspections(inspectionData.items || []);
+    }).catch(() => { if (version === loadVersion.current) {setEmployees([]); setContractors([]); setApprovers([]); setInspections([]);} });
+    load().catch(() => {});
+  }, [companyId]);
   function update(name, value) { setForm((current) => ({...current, [name]: value})); }
   async function create(event) { event.preventDefault(); setBusy(true); setError(""); try { await api("/work-permits", {method: "POST", body: JSON.stringify({...form, company_id: Number(companyId), employee_ids: form.employee_ids.map(Number), approver_user_ids: form.approver_user_ids.map(Number), contractor_id: form.contractor_id ? Number(form.contractor_id) : null, field_inspection_id: form.field_inspection_id ? Number(form.field_inspection_id) : null, valid_from: new Date(form.valid_from).toISOString(), valid_until: new Date(form.valid_until).toISOString()})}); update("description", ""); update("location", ""); await load(); } catch (ex) { setError(ex.message); } finally { setBusy(false); } }
   async function transition(id, action) { setBusy(true); try { await api(`/work-permits/${id}/${action}`, {method: "POST", body: JSON.stringify({})}); await load(); } catch (ex) { setError(ex.message); } finally { setBusy(false); } }
