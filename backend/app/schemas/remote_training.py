@@ -233,4 +233,9 @@ class RemoteEmployeeAccountProvision(RemoteModel):
     email: EmailStr | None = None
 
 
+class RemoteEmployeeAccountBulkProvision(RemoteModel):
+    company_id: int = Field(gt=0)
+    branch_id: int | None = Field(default=None, gt=0)
+
+
 JsonObject = dict[str, Any]

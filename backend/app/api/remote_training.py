@@ -64,6 +64,7 @@ from app.schemas.remote_training import (
     RemoteCheckpointQuestionCreate,
     RemoteEmployeeAccessCreate,
     RemoteEmployeeAccountProvision,
+    RemoteEmployeeAccountBulkProvision,
     RemoteExamSubmit,
     RemoteFinalExamQuestionUpdate,
     RemoteProgramCreate,
@@ -150,6 +151,7 @@ from app.services.remote_training import (
     validate_video_bytes,
 )
 from app.services.remote_training_reports import (
+    build_employee_account_credentials_xlsx,
     build_remote_training_status_pdf,
     build_remote_training_status_xlsx,
 )
@@ -3589,6 +3591,76 @@ def provision_remote_employee_account(
         "password_change_required": True,
         "message": "Geçici parola yalnızca bu yanıtta gösterildi. Çalışan ilk girişten sonra parolasını değiştirmelidir.",
     }
+
+
+@router.post("/employee-access/provision-bulk.xlsx")
+def provision_remote_employee_accounts_bulk(
+    payload: RemoteEmployeeAccountBulkProvision,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Provision missing employee accounts and return one-time credentials as Excel.
+
+    Existing active mappings are deliberately skipped.  No existing user's
+    password is read or changed, and the generated plaintext values are never
+    persisted or written to audit logs.
+    """
+    require_feature()
+    _manager(user)
+    ensure_company_access(db, user, payload.company_id)
+    company = db.get(Company, payload.company_id)
+    if not company or not company.is_active:
+        raise HTTPException(404, "Firma bulunamadı veya pasif.")
+    if payload.branch_id:
+        branch = db.get(Branch, payload.branch_id)
+        if not branch or branch.company_id != company.id or not branch.is_active:
+            raise HTTPException(422, "Seçilen şube bu firmaya ait değil veya pasif.")
+
+    stmt = select(Employee).where(Employee.company_id == company.id, Employee.is_active.is_(True))
+    if payload.branch_id:
+        stmt = stmt.where(Employee.branch_id == payload.branch_id)
+    employees = db.scalars(stmt.order_by(Employee.full_name, Employee.id)).all()
+    existing_access = set(db.scalars(select(RemoteTrainingEmployeeAccess.employee_id).where(
+        RemoteTrainingEmployeeAccess.company_id == company.id,
+    )).all())
+    rows = []
+    try:
+        for employee in employees:
+            if employee.id in existing_access:
+                rows.append({"employee_name": employee.full_name, "employee_id": employee.id, "username": "", "temporary_password": "", "status": "Mevcut eşleştirme korundu"})
+                continue
+            username_base = remote_employee_username(employee.full_name)
+            username = username_base
+            suffix = 2
+            while db.scalar(select(User.id).where(or_(func.lower(User.username) == username.casefold(), func.lower(User.email) == username.casefold()))):
+                username = f"{username_base}-{suffix}"
+                suffix += 1
+            internal_email = remote_employee_login_email(username, employee.id)
+            while db.scalar(select(User.id).where(func.lower(User.email) == internal_email.casefold())):
+                username = f"{username_base}-{suffix}"
+                suffix += 1
+                internal_email = remote_employee_login_email(username, employee.id)
+            temporary_password = generate_temporary_password()
+            account = User(email=internal_email, username=username, full_name=employee.full_name,
+                           hashed_password=get_password_hash(temporary_password), role=UserRole.READ_ONLY,
+                           company_id=company.id, osgb_id=company.osgb_id, password_change_required=True)
+            db.add(account)
+            db.flush()
+            db.add(RemoteTrainingEmployeeAccess(osgb_id=company.osgb_id, company_id=company.id,
+                                                user_id=account.id, employee_id=employee.id, created_by_id=user.id))
+            rows.append({"employee_name": employee.full_name, "employee_id": employee.id, "username": username, "temporary_password": temporary_password, "status": "Yeni hesap oluşturuldu"})
+        # Prepare the downloadable report before commit so workbook failures
+        # also roll back account creation rather than leaving a partial result.
+        data = build_employee_account_credentials_xlsx(rows, company_name=company.name)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("bulk employee account provisioning failed")
+        raise HTTPException(409, "Toplu hesap oluşturma başarısız oldu; hiçbir değişiklik kaydedilmedi.") from exc
+
+    stamp = datetime.utcnow().strftime("%Y%m%d-%H%M")
+    return StreamingResponse(iter([data]), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f'attachment; filename="personel-giris-bilgileri-{company.id}-{stamp}.xlsx"'})
 
 
 @router.post("/employee-access", status_code=201)

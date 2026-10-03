@@ -638,7 +638,7 @@ export async function authBlobUrl(path) {
   return URL.createObjectURL(blob);
 }
 
-export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
+export async function downloadFile(path, filename, {timeoutMs = 90_000, method = 'GET', body = undefined} = {}) {
   await wakeApi();
   const downloadPath = String(path || "");
   let didRefresh = false;
@@ -649,7 +649,12 @@ export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
   const sendDownload = () => {
     const token = getAccessToken();
     return fetch(`${API_URL}${downloadPath}`, {
-      headers: token ? {Authorization: `Bearer ${token}`} : {},
+      method,
+      headers: {
+        ...(token ? {Authorization: `Bearer ${token}`} : {}),
+        ...(body !== undefined ? {'Content-Type': 'application/json'} : {}),
+      },
+      body,
       mode: "cors",
       credentials: fetchCredentials(downloadPath),
       signal: requestSignal(timeoutMs),

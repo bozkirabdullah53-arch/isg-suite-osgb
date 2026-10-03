@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from io import BytesIO
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -1436,6 +1437,87 @@ def test_remote_employee_account_provision_uses_username_and_username_login(remo
     current_user = remote_client.get("/api/v1/auth/me", headers=employee_headers)
     assert current_user.status_code == 200, current_user.text
     assert current_user.json()["username"] == "A.bozkir"
+
+
+def test_remote_bulk_employee_account_provision_preserves_existing_and_exports_credentials(remote_client):
+    from openpyxl import load_workbook
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash, verify_password
+    from app.models.entities import Employee, User, UserRole
+    from app.models.remote_training import RemoteTrainingEmployeeAccess
+
+    with SessionLocal() as db:
+        osgb, company, branch, first_employee, _employee_user = _scope_rows(db)
+        first_employee.full_name = "Mevcut Personel"
+        second_employee = Employee(
+            company_id=company.id,
+            branch_id=branch.id,
+            full_name="Yeni Personel",
+            is_active=True,
+        )
+        existing = User(
+            email="existing-employee@remote-test.com",
+            username="M.personel",
+            full_name=first_employee.full_name,
+            hashed_password=get_password_hash("ExistingPass123!"),
+            role=UserRole.READ_ONLY,
+            company_id=company.id,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        admin = User(
+            email="bulk-provision-admin@remote-test.com",
+            full_name="Bulk Provision Admin",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            company_id=company.id,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        db.add_all([second_employee, existing, admin])
+        db.flush()
+        db.add(RemoteTrainingEmployeeAccess(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            user_id=existing.id,
+            employee_id=first_employee.id,
+            created_by_id=admin.id,
+        ))
+        db.commit()
+        company_id = company.id
+        branch_id = branch.id
+        existing_user_id = existing.id
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "bulk-provision-admin@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    response = remote_client.post(
+        "/api/v1/trainings/remote/employee-access/provision-bulk.xlsx",
+        headers=headers,
+        json={"company_id": company_id, "branch_id": branch_id},
+    )
+    assert response.status_code == 200, response.text
+    assert "spreadsheet" in response.headers.get("content-type", "")
+    workbook = load_workbook(BytesIO(response.content), read_only=True)
+    rows = list(workbook.active.iter_rows(values_only=True))
+    assert rows[0][1:6] == ("Personel", "Personel ID", "Kullanıcı adı", "Geçici şifre", "Durum")
+    assert any(row[1] == "Mevcut Personel" and row[5] == "Mevcut eşleştirme korundu" and not row[4] for row in rows[1:])
+    new_row = next(row for row in rows[1:] if row[1] == "Yeni Personel")
+    assert new_row[3]
+    assert new_row[4]
+    assert new_row[5] == "Yeni hesap oluşturuldu"
+
+    with SessionLocal() as db:
+        existing_after = db.get(User, existing_user_id)
+        assert existing_after is not None
+        assert verify_password("ExistingPass123!", existing_after.hashed_password)
+        mappings = db.query(RemoteTrainingEmployeeAccess).filter_by(company_id=company_id, is_active=True).all()
+        assert len(mappings) == 2
 
 
 def test_remote_video_delete_removes_only_draft_uploads(remote_client, monkeypatch):

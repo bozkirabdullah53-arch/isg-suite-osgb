@@ -35,6 +35,25 @@ STATUS_LABELS = {
     "revoked": "Silinmiş atama",
 }
 
+
+def build_employee_account_credentials_xlsx(rows: list[dict[str, Any]], *, company_name: str) -> bytes:
+    """Build a one-time credential report without exposing passwords elsewhere."""
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Personel giriş bilgileri"
+    sheet.append(["Firma", "Personel", "Personel ID", "Kullanıcı adı", "Geçici şifre", "Durum"])
+    for row in rows:
+        sheet.append([company_name, row.get("employee_name", ""), row.get("employee_id", ""), row.get("username", ""), row.get("temporary_password", ""), row.get("status", "")])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="1F4E78")
+    sheet.freeze_panes = "A2"
+    for column, width in {"A": 28, "B": 28, "C": 14, "D": 28, "E": 24, "F": 24}.items():
+        sheet.column_dimensions[column].width = width
+    output = BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
 _FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 _PDF_FONT = "Helvetica"
 _PDF_FONT_BOLD = "Helvetica-Bold"

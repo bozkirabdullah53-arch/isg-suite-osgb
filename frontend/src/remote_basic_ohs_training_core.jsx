@@ -2208,6 +2208,21 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     finally { setBusy(false); }
   }
 
+  async function provisionAllEmployeeAccounts() {
+    if (!companyId || busy) return;
+    const targetCount = visibleEmployees.length;
+    if (!targetCount || !window.confirm(`${targetCount} aktif personel için eksik giriş hesapları oluşturulsun mu? Mevcut hesapların şifreleri değiştirilmeyecek.`)) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await downloadFile('/trainings/remote/employee-access/provision-bulk.xlsx', `personel-giris-bilgileri-${companyId}.xlsx`, {
+        method: 'POST', body: JSON.stringify({company_id: Number(companyId), branch_id: branchId ? Number(branchId) : null}),
+      });
+      await loadEmployeeAccess(companyId);
+      setMessage('Toplu giriş hesapları oluşturuldu. Excel raporu indirildi; mevcut hesaplar korunmuştur.');
+    } catch (err) { setError(err.message || 'Toplu giriş hesabı oluşturulamadı.'); }
+    finally { setBusy(false); }
+  }
+
   async function createCheckpointQuestion() {
     if (!program) return;
     const text = checkpointDraft.question_text.trim();
@@ -2499,10 +2514,11 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
 <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
                 <strong>Çalışan giriş hesabı eşleştirme</strong>
                 <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Eğitim ve sınav atayacağınız personel için aşağıdan doğrudan salt-okunur hesap oluşturabilirsiniz. Kullanıcı adı adın ilk harfi ve soyadından otomatik üretilir; geçici parola yalnızca bir kez gösterilir.</p>
-                <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
+                 <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
                   <select value={provisionEmployeeId} onChange={(event) => setProvisionEmployeeId(event.target.value)} aria-label="Yeni giriş için personel seçin"><option value="">Yeni hesap için personel seçin</option>{visibleEmployees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
                   <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '0 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#f8fafc', color: '#36556d', fontSize: 13}}>Otomatik kullanıcı adı: <strong style={{marginLeft: 5}}>{provisionEmployee ? remoteEmployeeUsernamePreview(provisionEmployee.full_name) : '—'}</strong></span>
-                  <button type="button" onClick={provisionEmployeeAccount} disabled={busy || !provisionEmployeeId}>Kullanıcı hesabı oluştur ve eşleştir</button>
+                   <button type="button" onClick={provisionEmployeeAccount} disabled={busy || !provisionEmployeeId}>Kullanıcı hesabı oluştur ve eşleştir</button>
+                   <button type="button" onClick={provisionAllEmployeeAccounts} disabled={busy || !visibleEmployees.length}>Tüm personele eksik hesapları oluştur ve Excel indir</button>
                 </div>
                 {provisionedCredentials && <div style={{marginTop: 9, padding: 10, borderRadius: 8, background: '#fff8e8', border: '1px solid #f2c46d', color: '#795500', fontSize: 12}}>
                   <strong>Geçici giriş bilgisi — yalnızca şimdi gösteriliyor:</strong><br />
