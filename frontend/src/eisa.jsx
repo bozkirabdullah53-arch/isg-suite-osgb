@@ -390,6 +390,7 @@ export function EisaOsgbUsersPage() {
   const [msg, setMsg] = useState('');
   const [adminCreds, setAdminCreds] = useState(null);
   const [provision, setProvision] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   const load = async () => {
     setBusy(true);
@@ -497,8 +498,6 @@ export function EisaOsgbUsersPage() {
       setBusy(false);
     }
   }
-
-  const [detail, setDetail] = useState(null);
 
   return (
     <Page title="OSGB Kullanıcıları" action={<RefreshButton busy={busy} onClick={load} />}>

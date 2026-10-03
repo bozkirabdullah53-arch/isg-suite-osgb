@@ -167,7 +167,7 @@ services:
       - key: BACKUP_REMOTE_PREFIX
         value: "db-backups"
       - key: BACKUP_REMOTE_REQUIRED
-        value: "false"
+        value: "true"
       - key: BACKUP_MAX_AGE_HOURS
         value: "36"
       # F-05 (2026-09-21): ClamAV altyapı kararı bekliyor. Render'da bir clamd
@@ -222,7 +222,7 @@ services:
       # (ücretli API key gerekmez, görüntü içeriği analiz edilmez).
       # vision_provider=api + vision_api_key ile gerçek görüntü analizi açılır.
       - key: VISION_ANALYSIS_ENABLED
-        value: "true"
+        value: "false"
       - key: VISION_PROVIDER
         value: "api"
       - key: VISION_API_BASE_URL
@@ -239,7 +239,7 @@ services:
       # eski VISION_* akışından ayrıdır; anahtar yoksa backend mevcut
       # VISION_API_KEY sırrını güvenli geriye dönük uyumluluk köprüsüyle kullanır.
       - key: FIELD_AI_ENABLED
-        value: "true"
+        value: "false"
       - key: FIELD_AI_FORCE_OFF
         value: "false"
       - key: FIELD_AI_PROVIDER
@@ -257,7 +257,7 @@ services:
       # Görsel saha AI pilotu için dış veri işleme açıkça etkinleştirilmiştir;
       # gerçek rapor bulgusu yine uzman onayından geçer.
       - key: FIELD_AI_DATA_PROCESSING_ALLOWED
-        value: "true"
+        value: "false"
       # İstenirse yeni ayrı anahtar burada tanımlanabilir. Boş bırakıldığında
       # backend mevcut VISION_API_KEY değerini kullanır; gerçek sır commit edilmez.
       - key: FIELD_AI_API_KEY
@@ -358,7 +358,7 @@ services:
         value: "db-backups"
       # Aşama 2'de "true" yapılır (yukarıdaki rollout notuna bakın).
       - key: BACKUP_REMOTE_REQUIRED
-        value: "false"
+        value: "true"
       - key: OBJECT_STORAGE_BUCKET
         sync: false
       - key: OBJECT_STORAGE_ENDPOINT

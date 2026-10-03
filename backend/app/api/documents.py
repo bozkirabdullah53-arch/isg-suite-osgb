@@ -205,7 +205,13 @@ def deactivate_document(
     desc = record.description or ""
     if marker in desc:
         stored_name = desc.rsplit(marker, 1)[1].split("]", 1)[0]
-        path = (Path(settings.upload_dir).resolve() / str(record.company_id) / stored_name)
+        upload_root = Path(settings.upload_dir).resolve()
+        company_root = (upload_root / str(record.company_id)).resolve()
+        path = (company_root / stored_name).resolve()
+        try:
+            path.relative_to(company_root)
+        except ValueError:
+            raise HTTPException(400, "Geçersiz dosya referansı.")
         try:
             archive_file_before_delete(
                 db,

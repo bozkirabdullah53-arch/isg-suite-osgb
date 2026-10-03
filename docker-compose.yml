@@ -22,7 +22,7 @@ services:
       # `docker compose --profile redis up -d` + REDIS_URL=redis://redis:6379/0
       REDIS_URL: ${REDIS_URL:-}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       - db
 
@@ -31,7 +31,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:8000/api/v1
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
     depends_on:
       - backend
 

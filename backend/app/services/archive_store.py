@@ -99,6 +99,14 @@ def archive_file_before_delete(
         src = source.resolve()
     except OSError:
         return None
+    # Archive only application-managed upload files. This boundary is enforced
+    # here as well as at callers so future deletion paths cannot archive an
+    # arbitrary readable local file.
+    try:
+        src.relative_to(upload_root())
+    except ValueError:
+        logger.warning("Refusing to archive path outside upload root: %s", source)
+        return None
     if not src.exists() or not src.is_file():
         return None
 

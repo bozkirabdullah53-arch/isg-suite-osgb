@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.company_access import ensure_company_access
+from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import ChangeRequest, User, UserRole
@@ -165,8 +165,12 @@ def sla_overdue(
 ):
     """SLA süresi geçmiş açık talepler (§5.5)."""
     rows = sla_overdue_requests(db)
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id is not None:
-        rows = [row for row in rows if row.company_id == user.company_id]
+    if user.role != UserRole.GLOBAL_ADMIN:
+        if user.company_id is None:
+            allowed_ids = company_ids_for_query(db, user)
+            rows = [row for row in rows if allowed_ids is not None and row.company_id in allowed_ids]
+        else:
+            rows = [row for row in rows if row.company_id == user.company_id]
     return [_response(row) for row in rows]
 
 
