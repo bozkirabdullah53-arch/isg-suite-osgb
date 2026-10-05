@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
+import {TeamMinimum, TeamRequirementsSummary} from './emergency_team_requirements';
 
 const CERT_BADGE = {
   green: {label: 'Geçerli', cls: 'badge-ok'},
@@ -96,6 +97,8 @@ export function EmergencyTeamsPage({user}) {
   const canEdit = user.role === 'safety_specialist' || user.role === 'global_admin';
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user.company_id || '');
+  const selectedCompanyRef = useRef(companyId);
+  selectedCompanyRef.current = companyId;
   const [meta, setMeta] = useState({team_types: [], memberships: ['asil', 'yedek']});
   const [overview, setOverview] = useState(null);
   const [members, setMembers] = useState([]);
@@ -119,12 +122,12 @@ export function EmergencyTeamsPage({user}) {
     [employees, companyId],
   );
   const teams = overview?.teams || [];
+  const selectedTeamType = (meta.team_types || []).find((t) => String(t.id) === String(teamForm.type_id));
 
   async function loadCompanies() {
     try {
       const c = await api('/companies');
       setCompanies(c || []);
-      if (!companyId && c && c.length) setCompanyId(c[0].id);
     } catch (ex) {
       setErr(ex.message || 'Firmalar yüklenemedi.');
     }
@@ -151,9 +154,11 @@ export function EmergencyTeamsPage({user}) {
   }
 
   async function loadData(cid = companyId) {
+    if (String(cid) !== String(selectedCompanyRef.current)) return;
     const version = ++loadVersion.current;
+    setOverview(null); setMembers([]); setEmployees([]);
     if (!cid) {
-      setOverview(null); setMembers([]); setEmployees([]);
+      setBusy(false);
       return;
     }
     setBusy(true);
@@ -164,14 +169,14 @@ export function EmergencyTeamsPage({user}) {
         api(`/emergency-teams/assignments?${buildAssignmentQuery(cid)}`),
         api(`/employees?company_id=${Number(cid)}&active=true`),
       ]);
-      if (version !== loadVersion.current || String(cid) !== String(companyId)) return;
+      if (version !== loadVersion.current || String(cid) !== String(selectedCompanyRef.current)) return;
       setOverview(ov);
       setMembers(mem || []);
       setEmployees(emp || []);
     } catch (ex) {
-      setErr(ex.message || 'Acil durum ekipleri yüklenemedi.');
+      if (version === loadVersion.current) setErr(ex.message || 'Acil durum ekipleri yüklenemedi.');
     } finally {
-      setBusy(false);
+      if (version === loadVersion.current) setBusy(false);
     }
   }
 
@@ -182,17 +187,40 @@ export function EmergencyTeamsPage({user}) {
   }, []);
 
   useEffect(() => {
-    if (companyId) void loadData(companyId);
+    void loadData(companyId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
+  useEffect(() => {
+    if (!companyId) return undefined;
+    const refresh = () => { if (document.visibilityState !== 'hidden') void loadData(companyId); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, filters]);
+
+  function selectCompany(value) {
+    selectedCompanyRef.current = value;
+    ++loadVersion.current;
+    setOverview(null); setMembers([]); setEmployees([]);
+    setFilters({...filters, team_id: ''});
+    setTeamModal(false); setMemberModal(false); setTrainingModal(null);
+    setErr(''); setMsg('');
+    setCompanyId(value);
+  }
+
   async function reloadMembers() {
     if (!companyId) return;
+    const version = loadVersion.current;
     try {
       const mem = await api(`/emergency-teams/assignments?${buildAssignmentQuery(companyId)}`);
-      setMembers(mem || []);
+      if (version === loadVersion.current) setMembers(mem || []);
     } catch (ex) {
-      setErr(ex.message || 'Üyeler yüklenemedi.');
+      if (version === loadVersion.current) setErr(ex.message || 'Üyeler yüklenemedi.');
     }
   }
 
@@ -208,7 +236,7 @@ export function EmergencyTeamsPage({user}) {
           company_id: Number(companyId),
           type_id: Number(teamForm.type_id),
           name: teamForm.name,
-          min_members: teamForm.min_members === '' ? null : Number(teamForm.min_members),
+          min_members: selectedTeamType?.is_system || teamForm.min_members === '' ? null : Number(teamForm.min_members),
           notes: teamForm.notes || null,
         }),
       });
@@ -388,7 +416,7 @@ export function EmergencyTeamsPage({user}) {
   const kpi = overview?.kpis || {};
 
   return (
-    <div className="page">
+    <div className="page emergency-teams-page">
       <div className="page-head">
         <div>
           <h2>
@@ -429,7 +457,7 @@ export function EmergencyTeamsPage({user}) {
         <div className="toolbar" style={{gap: 12, flexWrap: 'wrap', alignItems: 'flex-end'}}>
           <label className="field" style={{minWidth: 240}}>
             <span>İşyeri</span>
-            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+            <select value={companyId} onChange={(e) => selectCompany(e.target.value)}>
               <option value="">Firma seçin</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -457,6 +485,8 @@ export function EmergencyTeamsPage({user}) {
           </div>
         )}
       </section>
+
+      <TeamRequirementsSummary overview={overview} />
 
       {companyId && (
         <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14}}>
@@ -510,7 +540,7 @@ export function EmergencyTeamsPage({user}) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
             gap: 12,
             marginBottom: 18,
           }}
@@ -524,11 +554,11 @@ export function EmergencyTeamsPage({user}) {
                 </div>
                 {teamStatusBadge(t.status)}
               </div>
-              <div style={{display: 'flex', gap: 14, marginTop: 10, fontSize: 13}}>
+              <div style={{display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, fontSize: 13}}>
                 <span>Asıl: <strong>{t.asil_count}</strong></span>
                 <span>Yedek: <strong>{t.yedek_count}</strong></span>
-                <span className="muted">Min: {t.min_members}</span>
               </div>
+              <TeamMinimum team={t} />
               <div style={{fontSize: 12, color: '#64748b', marginTop: 6}}>
                 Lider: {t.leader_name || '—'}
               </div>
@@ -738,10 +768,18 @@ export function EmergencyTeamsPage({user}) {
                   ))}
                 </select>
               </label>
-              <label className="field"><span>Minimum üye</span>
-                <input type="number" min="0" value={teamForm.min_members}
-                  onChange={(e) => setTeamForm({...teamForm, min_members: e.target.value})} />
-              </label>
+              {selectedTeamType?.is_system ? (
+                <div className="field"><span>Asgari üye sayısı</span>
+                  <span className="muted" style={{fontSize: 12}}>
+                    Çalışan sayısı ve tehlike sınıfından otomatik hesaplanır. Tahliye ve haberleşme için acil durum planı esas alınır.
+                  </span>
+                </div>
+              ) : (
+                <label className="field"><span>İşyerinin belirlediği üye hedefi</span>
+                  <input type="number" min="0" value={teamForm.min_members}
+                    onChange={(e) => setTeamForm({...teamForm, min_members: e.target.value})} />
+                </label>
+              )}
               <label className="field" style={{gridColumn: '1 / -1'}}><span>Ekip adı</span>
                 <input required value={teamForm.name} onChange={(e) => setTeamForm({...teamForm, name: e.target.value})} />
               </label>

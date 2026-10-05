@@ -1,8 +1,7 @@
-"""0.9.134 — Acil durum ekipleri yardımcı mantığı.
+"""Acil durum ekiplerinin çalışan sayısına bağlı asgarileri ve kontrol uyarıları.
 
-Uyarılar bilinçli olarak yumuşak dille yazılır ("... önerilir",
-"... olabilir"). Kesin hukuki iddia / mevzuat hükmü ifadesi kullanılmaz;
-amaç İSG uzmanına hatırlatma / kontrol listesi sunmaktır.
+Asgari kişi hesabında ilgili yönetmelik maddesi belirtilir; eğitim ve ekip
+organizasyonu uyarıları uzman için kontrol listesi sunar.
 """
 from __future__ import annotations
 
@@ -18,8 +17,75 @@ from app.models.entities import (
     EmergencyTeamType,
 )
 from app.schemas.emergency_teams import DEFAULT_TEAM_TYPES
+from app.services.capacity_engine import normalize_hazard
+from app.services.emergency_plan_compliance import support_team_required_count, support_team_threshold
+from app.services.first_aid_compliance import required_first_aiders
 
 CERT_WARN_DAYS = 30
+
+SUPPORT_TEAM_CODES = {"sondurme", "kurtarma", "koruma"}
+
+
+def team_minimum_requirement(
+    type_code: str | None,
+    employee_count: int,
+    hazard_class: str | None,
+    configured_minimum: int = 0,
+) -> dict:
+    """Çalışan sayısına bağlı asgariyi kayıtlı eski sabit hedeften ayrı hesaplar.
+
+    İADY m.11/3-5 ve İlkyardım Yönetmeliği m.19 esas alınır. Bina kullanımı,
+    ziyaretçiler ve vardiya düzeni için ayrıca acil durum planı değerlendirilir.
+    """
+    hazard_key = " ".join(str(hazard_class or "").split()).casefold().replace("\u0307", "")
+    hazard = normalize_hazard(hazard_key)
+    if type_code in {"tahliye", "haberlesme"}:
+        return {
+            "required_members": None,
+            "minimum_source": "risk_assessment",
+            "minimum_basis": "İşyerine özgü acil durum planı",
+            "minimum_note": "Sabit bir yasal kişi oranı yoktur; sayı, risk değerlendirmesi ve acil durum planıyla belirlenir.",
+        }
+    if type_code not in SUPPORT_TEAM_CODES | {"ilk_yardim"}:
+        return {
+            "required_members": max(int(configured_minimum or 0), 0),
+            "minimum_source": "workplace",
+            "minimum_basis": "İşyerinin belirlediği hedef",
+            "minimum_note": "Bu sayı işyerinin tanımladığı hedeftir.",
+        }
+
+    first_aid = type_code == "ilk_yardim"
+    basis = "İlkyardım Yönetmeliği m.19; İADY m.11/5" if first_aid else "İADY m.11/3"
+    minimum = None
+    if employee_count > 0:
+        minimum = (
+            required_first_aiders(employee_count, hazard)
+            if first_aid else support_team_required_count(employee_count, hazard)
+        )
+    if minimum is None:
+        return {
+            "required_members": None,
+            "minimum_source": "incomplete",
+            "minimum_basis": basis,
+            "minimum_note": (
+                "Hesap için bu işyerinin aktif çalışan kayıtları gerekli."
+                if employee_count <= 0 else "Hesap için işyerinin tehlike sınıfı gerekli."
+            ),
+        }
+    if not first_aid and employee_count < 10:
+        basis = "İADY m.11/4"
+        note = "10’dan az çalışan: aynı eğitimli destek elemanı söndürme, kurtarma ve koruma görevlerinin tamamını üstlenebilir."
+    else:
+        per = {"Az Tehlikeli": 20, "Tehlikeli": 15, "Çok Tehlikeli": 10}.get(hazard) if first_aid else support_team_threshold(hazard)
+        note = f"{employee_count} çalışan; her {per} çalışana kadar 1 kişi → {minimum} kişi (yukarı yuvarlanır)."
+        if first_aid:
+            note += " İlkyardımcı belgesi geçerli olmalıdır."
+    return {
+        "required_members": minimum,
+        "minimum_source": "legal",
+        "minimum_basis": basis,
+        "minimum_note": note,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -165,11 +231,13 @@ def cert_status_from_trainings(
 # --------------------------------------------------------------------------- #
 # Ekip durumu ve uyarılar (yumuşak dil)
 # --------------------------------------------------------------------------- #
-def team_status(active_members: int, min_members: int) -> dict:
+def team_status(active_members: int, min_members: int | None) -> dict:
     """Tam / Eksik / Kritik ekip durumu."""
+    if min_members is None:
+        return {"code": "veri_eksik", "label": "Hesaplanamadı", "tone": "muted"}
     minimum = max(int(min_members or 0), 0)
     if minimum <= 0:
-        minimum = 2
+        return {"code": "planlama", "label": "Plana göre", "tone": "muted"}
     if active_members == 0:
         return {"code": "kritik", "label": "Kritik", "tone": "danger"}
     if active_members >= minimum:
@@ -186,16 +254,16 @@ def team_warnings(
     asil_members: int,
     has_leader: bool,
     cert_counts: dict[str, int],
+    minimum: int | None,
 ) -> list[str]:
     """Ekip düzeyinde yumuşak dilli hatırlatmalar."""
     warnings: list[str] = []
-    minimum = max(int(team.min_members or 0), 0) or 2
-    if active_members == 0:
+    if minimum is not None and minimum > 0 and active_members == 0:
         warnings.append("Bu ekibe henüz üye atanmamış — kontrol edilmesi önerilir.")
-    elif asil_members < minimum:
+    elif minimum is not None and asil_members < minimum:
         warnings.append(
-            f"Asıl üye sayısı ({asil_members}) önerilen minimumun ({minimum}) "
-            "altında olabilir — kontrol edilmesi önerilir."
+            f"Asıl üye sayısı {asil_members}; gerekli sayı {minimum}. "
+            f"{minimum - asil_members} asıl üye görevlendirmesi eksik."
         )
     if active_members > 0 and not has_leader:
         warnings.append("Ekip sorumlusu (lider) belirlenmemiş görünüyor — atanması önerilir.")
