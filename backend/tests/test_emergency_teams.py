@@ -17,7 +17,7 @@ def _freeze_emergency_clock(monkeypatch, instant="2026-10-05T21:14:08+00:00"):
             assert tz is not None, "Business dates must use an explicit time zone"
             return utc_now.astimezone(tz)
 
-    monkeypatch.setattr("app.services.emergency_team_logic.datetime", FrozenDateTime)
+    monkeypatch.setattr("app.core.input_rules.datetime", FrozenDateTime)
     return utc_now.astimezone(ZoneInfo("Europe/Istanbul")).date()
 
 

@@ -6,11 +6,11 @@ organizasyonu uyarıları uzman için kontrol listesi sunar.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.input_rules import application_today
 from app.models.entities import (
     EmergencyTeam,
     EmergencyTeamAssignment,
@@ -29,7 +29,7 @@ SUPPORT_TEAM_CODES = {"sondurme", "kurtarma", "koruma"}
 
 def emergency_team_today() -> date:
     """Ekiplerin takvim günü; sunucunun saat diliminden bağımsız Türkiye tarihi."""
-    return datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    return application_today()
 
 
 def team_minimum_requirement(

@@ -494,6 +494,51 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         )
     )
 
+    first_aid = overview["first_aid"]
+    first_aid_required = first_aid["required_count"]
+    first_aid_applicable = first_aid["active_employee_count"] > 0
+    if not first_aid["hazard_known"]:
+        assignment_status = certificate_status = "attention"
+        assignment_detail = certificate_detail = "Tehlike sınıfı belirlenemedi; ilkyardımcı yeterliliği hesaplanamıyor."
+    elif not first_aid_applicable:
+        assignment_status = certificate_status = "informational"
+        assignment_detail = certificate_detail = "Aktif çalışan kaydı yok; ilkyardımcı yeterliliği değerlendirilmedi."
+    else:
+        assignment_status = "completed" if first_aid["assignment_complete"] else "missing"
+        assignment_detail = (
+            f"{first_aid['assigned_primary_count']}/{first_aid_required} asıl görevlendirme; "
+            f"{first_aid['assigned_reserve_count']} yedek. "
+            + ("Görevlendirmeler tamamlandı." if first_aid["assignment_complete"]
+               else f"{first_aid['assignment_missing_count']} asıl görevlendirme eksik.")
+        )
+        certificate_status = (
+            "overdue" if first_aid["missing_count"] and first_aid["expired_count"]
+            else "missing" if first_aid["missing_count"]
+            else "due_soon" if first_aid["future_missing_count"]
+            else "completed"
+        )
+        certificate_detail = (
+            f"{first_aid['valid_count']}/{first_aid_required} geçerli ilkyardımcı belgesi; "
+            f"{first_aid['incomplete_count']} kişinin belge bilgisi eksik, "
+            f"{first_aid['expired_count']} belgenin süresi dolmuş, "
+            f"{first_aid['expiring_soon_count']} belge 90 gün içinde sona erecek."
+        )
+    for code, title, status, detail, count in (
+        ("first_aid_assignments", "İlkyardım ekibi görevlendirmeleri", assignment_status,
+         assignment_detail, first_aid["assigned_primary_count"]),
+        ("first_aid_certificates", "İlkyardımcı belgeleri", certificate_status,
+         certificate_detail, first_aid["valid_count"]),
+    ):
+        items.append(_item(
+            code=code, title=title, status=status, detail=detail,
+            module="acil_ekipler", responsible_role="İş Güvenliği Uzmanı / İşveren",
+            source="emergency_team_assignments + emergency_team_trainings", count=count,
+            required=first_aid_applicable,
+            critical=status in ("missing", "overdue"),
+            status_label=("Belge bilgisi eksik" if code == "first_aid_certificates"
+                          and status == "missing" and first_aid["incomplete_count"] else None),
+        ))
+
     training_total = len(training_rows)
     remote_training_total = len(remote_training_rows)
     training_status = (

@@ -8,6 +8,11 @@ from zoneinfo import ZoneInfo
 
 _APPLICATION_TIMEZONE = ZoneInfo("Europe/Istanbul")
 
+
+def application_today() -> date:
+    """Uygulamanın takvim günü; sunucunun saat diliminden bağımsızdır."""
+    return datetime.now(_APPLICATION_TIMEZONE).date()
+
 # Tipik anlamsız / test girdileri (küçük harf, TR karakter yok sayılır)
 _PLACEHOLDER = frozenset({
     "test", "asdf", "qwerty", "xxx", "xxxx", "aaaa", "bbbb", "dddd",
@@ -92,7 +97,7 @@ def assert_event_date(
     # Tarih girisleri uygulamanin Turkiye yerel gunune gore degerlendirilir.
     # Sunucunun UTC olmasi, yerel gun baslangicinda bugunun reddedilmesine
     # neden olmamalidir.
-    today = datetime.now(_APPLICATION_TIMEZONE).date()
+    today = application_today()
     ceiling = today + timedelta(days=max(0, allow_future_days))
     if value < floor:
         raise ValueError(f"{label} {floor.isoformat()} tarihinden önce olamaz.")

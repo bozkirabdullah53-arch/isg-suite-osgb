@@ -390,7 +390,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
     }
 
     compliance = _compliance_slice(db, company)
-    first_aid = build_first_aid_compliance(db, company, today=today)
+    first_aid = build_first_aid_compliance(db, company)
 
     alerts: list[dict] = []
     if compliance.get("worst_status") == "critical":

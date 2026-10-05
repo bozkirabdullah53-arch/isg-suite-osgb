@@ -177,6 +177,103 @@ def test_status_never_exposes_sensitive_medical_fields_or_ibys_ready_claim(clien
     assert ibys["status"] == "pending_official_validation"
 
 
+def test_first_aid_status_tracks_emergency_assignments_and_certificates_at_turkey_midnight(client, monkeypatch):
+    from datetime import datetime
+    from app.core.database import SessionLocal
+    from app.models.entities import (
+        Company, EmergencyTeam, EmergencyTeamAssignment, EmergencyTeamTraining,
+        EmergencyTeamType, Employee,
+    )
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            assert tz is not None
+            return datetime.fromisoformat("2026-10-05T21:14:08+00:00").astimezone(tz)
+
+    monkeypatch.setattr("app.core.input_rules.datetime", FrozenDateTime)
+    today = date(2026, 10, 6)
+    seed = _seed()
+    with SessionLocal() as db:
+        company = db.get(Company, seed["company_1"])
+        company.hazard_class = "Çok Tehlikeli"
+        employee = db.get(Employee, seed["employee_id"])
+        employee.start_date = today
+        employees = [employee] + [
+            Employee(company_id=company.id, full_name=f"Ekip Çalışanı {i}", start_date=today,
+                     is_active=True) for i in range(87)
+        ]
+        team_type = EmergencyTeamType(code="ilk_yardim", name="İlk Yardım", is_system=True)
+        db.add_all([*employees[1:], team_type])
+        db.flush()
+        team = EmergencyTeam(company_id=company.id, type_id=team_type.id, name="İlk Yardım",
+                             created_by_id=seed["admin_id"])
+        db.add(team)
+        db.flush()
+        assignments = [EmergencyTeamAssignment(
+            company_id=company.id, team_id=team.id, employee_id=e.id, membership="asil",
+            assign_start=today, created_by_id=seed["admin_id"],
+        ) for e in employees[:9]]
+        db.add_all(assignments)
+        db.commit()
+        assignment_ids = [a.id for a in assignments]
+
+    headers = {"Authorization": f"Bearer {_token(client, seed['users'][-1], seed['password'])}"}
+    status_url = f"/api/v1/companies/{seed['company_1']}/status"
+    response = client.get(status_url, headers=headers)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    summary = payload["first_aid"]
+    assert summary["active_employee_count"] == 88
+    assert summary["assigned_primary_count"] == summary["required_count"] == 9
+    assert summary["assignment_missing_count"] == 0
+    assert summary["incomplete_count"] == len(payload["first_aid_people"]) == 9
+    items = {item["code"]: item for item in payload["status_center"]["items"]}
+    assert items["first_aid_assignments"]["status"] == "completed"
+    assert items["first_aid_certificates"]["status_label"] == "Belge bilgisi eksik"
+    assert items["first_aid_assignments"]["module"] == items["first_aid_certificates"]["module"] == "acil_ekipler"
+    alert = next(a for a in payload["alerts"] if a.get("code") == "first_aid_incomplete")
+    assert "tamamlandı (9/9 asıl)" in alert["text"]
+
+    teams = client.get(f"/api/v1/emergency-teams/teams?company_id={seed['company_1']}", headers=headers)
+    assert teams.status_code == 200, teams.text
+    first_aid_team = next(t for t in teams.json() if t["type_code"] == "ilk_yardim")
+    assert first_aid_team["asil_count"] == summary["assigned_primary_count"]
+
+    training = client.post(f"/api/v1/emergency-teams/assignments/{assignment_ids[0]}/trainings",
+        headers=headers, json={"training_type": "İlkyardım eğitimi", "first_aid_cert_no": "İY-100",
+                               "first_aid_start": today.isoformat(),
+                               "first_aid_end": (today + timedelta(days=365)).isoformat()})
+    assert training.status_code == 200, training.text
+    updated = client.get(status_url, headers=headers).json()
+    assert updated["first_aid"]["valid_count"] == 1
+    assert updated["first_aid"]["incomplete_count"] == 8
+    assert updated["first_aid"]["assignment_complete"] is True
+
+    with SessionLocal() as db:
+        db.add_all([EmergencyTeamTraining(assignment_id=aid, first_aid_cert_no=f"İY-{aid}",
+                                         first_aid_start=today,
+                                         first_aid_end=today + timedelta(days=365))
+                    for aid in assignment_ids[1:]])
+        db.commit()
+    complete = client.get(status_url, headers=headers).json()
+    assert complete["first_aid"]["valid_count"] == 9
+    assert complete["first_aid"]["missing_count"] == 0
+    assert not any(a.get("code", "").startswith("first_aid_") for a in complete["alerts"])
+    items = {item["code"]: item for item in complete["status_center"]["items"]}
+    assert items["first_aid_assignments"]["status"] == items["first_aid_certificates"]["status"] == "completed"
+
+    with SessionLocal() as db:
+        db.get(EmergencyTeamAssignment, assignment_ids[0]).is_active = False
+        db.commit()
+    withdrawn = client.get(status_url, headers=headers).json()
+    assert withdrawn["first_aid"]["assigned_primary_count"] == 8
+    assert withdrawn["first_aid"]["assignment_missing_count"] == 1
+    assert withdrawn["first_aid"]["valid_count"] == 8
+    items = {item["code"]: item for item in withdrawn["status_center"]["items"]}
+    assert items["first_aid_assignments"]["status"] == "missing"
+
+
 def test_empty_workplace_does_not_report_empty_modules_as_completed(client):
     seed = _seed()
     from app.core.database import SessionLocal
@@ -204,6 +301,8 @@ def test_empty_workplace_does_not_report_empty_modules_as_completed(client):
     assert items["capa"]["status"] == "informational"
     assert items["capa"]["status_label"] == "Bilgi"
     assert items["capa"]["count"] == 0
+    assert items["first_aid_assignments"]["status"] == "informational"
+    assert items["first_aid_certificates"]["status"] == "informational"
     assert "Tamamlandı" not in {
         items["health_examinations"]["status_label"],
         items["capa"]["status_label"],
