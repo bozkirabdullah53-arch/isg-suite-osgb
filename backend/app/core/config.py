@@ -106,7 +106,9 @@ class Settings(BaseSettings):
     rate_limit_auth_rpm: int = 30
     # Keep public certificate/report verification available while limiting
     # code-enumeration attempts independently from general API traffic.
-    verification_requests_per_minute: int = 30
+    # Public certificate/QR verification is intentionally tighter than the
+    # general API bucket so code enumeration cannot use the normal API budget.
+    verification_requests_per_minute: int = 10
     login_source_window_limit: int = 60
     login_subnet_window_limit: int = 200
     # Failed attempts against distinct accounts, not successful NAT traffic.
@@ -516,7 +518,6 @@ def validate_runtime_settings() -> None:
         raise RuntimeError(
             "Production ortamında PostgreSQL DATABASE_URL zorunludur; SQLite kullanılamaz."
         )
-
     _validate_backup_offsite_credentials()
 
     frontend_origin = (settings.frontend_origin or "").strip()
