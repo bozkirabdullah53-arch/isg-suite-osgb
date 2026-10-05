@@ -8,7 +8,7 @@ yönetici ve İSG uzmanına açıktır.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -51,6 +51,7 @@ from app.schemas.emergency_teams import (
 from app.services.emergency_team_logic import (
     assignment_warnings,
     cert_status_from_trainings,
+    emergency_team_today,
     employee_active_team_counts,
     ensure_default_teams,
     ensure_system_team_types,
@@ -155,7 +156,7 @@ def _assignment_response(
 
 def _company_staff_context(db: Session, company_id: int, company: Company | None = None) -> dict:
     company = company or db.get(Company, company_id)
-    today = date.today()
+    today = emergency_team_today()
     count = db.scalar(
         select(func.count()).select_from(Employee).where(
             Employee.company_id == company_id,
@@ -168,7 +169,7 @@ def _company_staff_context(db: Session, company_id: int, company: Company | None
 
 
 def _current_team_member(row: EmergencyTeamAssignment, company_id: int) -> bool:
-    today = date.today()
+    today = emergency_team_today()
     employee = row.employee
     return bool(
         row.is_active and row.company_id == company_id

@@ -5,6 +5,22 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+def _freeze_emergency_clock(monkeypatch, instant="2026-10-05T21:14:08+00:00"):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    utc_now = datetime.fromisoformat(instant)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            assert tz is not None, "Business dates must use an explicit time zone"
+            return utc_now.astimezone(tz)
+
+    monkeypatch.setattr("app.services.emergency_team_logic.datetime", FrozenDateTime)
+    return utc_now.astimezone(ZoneInfo("Europe/Istanbul")).date()
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     db_file = tmp_path / "emg.db"
@@ -159,6 +175,95 @@ def test_overview_seeds_default_teams(client):
     assert body["can_edit"] is True
     codes = {t["type_code"] for t in body["teams"]}
     assert "sondurme" in codes and "ilk_yardim" in codes
+
+
+def test_midnight_assignments_appear_in_team_counts_immediately(client, monkeypatch):
+    from datetime import timedelta
+
+    seed = _seed(client)
+    today = _freeze_emergency_clock(monkeypatch)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    url = f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}"
+    initial = client.get(url, headers=headers).json()
+    team_id = next(t["id"] for t in initial["teams"] if t["type_code"] == "sondurme")
+    assignment_ids = []
+    for index, employee_id in enumerate(seed["employee_ids"][:2]):
+        created = client.post("/api/v1/emergency-teams/assignments", headers=headers, json={
+            "company_id": seed["company_id"], "team_id": team_id,
+            "employee_id": employee_id, "membership": "asil", "is_leader": index == 0,
+            "assign_start": today.isoformat(), "assign_end": today.isoformat(),
+            "letter_date": today.isoformat(),
+        })
+        assert created.status_code == 200, created.text
+        assignment_ids.append(created.json()["id"])
+
+    listed = client.get(
+        f"/api/v1/emergency-teams/assignments?company_id={seed['company_id']}", headers=headers,
+    )
+    assert listed.status_code == 200, listed.text
+    assert {a["id"] for a in listed.json()} == set(assignment_ids)
+    current = client.get(url, headers=headers).json()
+    team = next(t for t in current["teams"] if t["id"] == team_id)
+    assert team["member_count"] == team["asil_count"] == 2
+    assert team["yedek_count"] == 0
+    assert team["leader_name"] == "Personel 1"
+    assert all(t["member_count"] == 0 for t in current["teams"] if t["id"] != team_id)
+    teams_response = client.get(
+        f"/api/v1/emergency-teams/teams?company_id={seed['company_id']}", headers=headers,
+    )
+    assert teams_response.status_code == 200, teams_response.text
+    assert next(t for t in teams_response.json() if t["id"] == team_id)["asil_count"] == 2
+
+    future = client.post("/api/v1/emergency-teams/assignments", headers=headers, json={
+        "company_id": seed["company_id"], "team_id": team_id,
+        "employee_id": seed["employee_ids"][2], "membership": "asil",
+        "assign_start": (today + timedelta(days=1)).isoformat(),
+    })
+    assert future.status_code == 200, future.text
+    still_current = next(t for t in client.get(url, headers=headers).json()["teams"] if t["id"] == team_id)
+    assert still_current["asil_count"] == 2
+
+    # Türkiye'de ertesi gün: eski üyelikler biter, ileri tarihli üyelik başlar.
+    _freeze_emergency_clock(monkeypatch, "2026-10-06T21:00:00+00:00")
+    next_day = next(t for t in client.get(url, headers=headers).json()["teams"] if t["id"] == team_id)
+    assert next_day["member_count"] == next_day["asil_count"] == 1
+    assert next_day["leader_name"] is None
+
+
+def test_midnight_employee_population_uses_turkey_day(client, monkeypatch):
+    from datetime import timedelta
+    from app.core.database import SessionLocal
+    from app.models.entities import Employee
+
+    seed = _seed(client)
+    today = _freeze_emergency_clock(monkeypatch)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    url = f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}"
+    with SessionLocal() as db:
+        db.get(Employee, seed["employee_ids"][0]).start_date = today
+        db.commit()
+    assert client.get(url, headers=headers).json()["employee_count"] == 4
+
+    with SessionLocal() as db:
+        db.get(Employee, seed["employee_ids"][1]).exit_date = today
+        db.get(Employee, seed["employee_ids"][2]).start_date = today + timedelta(days=1)
+        db.get(Employee, seed["employee_ids"][3]).is_active = False
+        db.commit()
+    assert client.get(url, headers=headers).json()["employee_count"] == 1
+
+
+def test_midnight_certificate_status_uses_turkey_day(monkeypatch):
+    from datetime import timedelta
+    from app.services.emergency_team_logic import cert_status
+
+    today = _freeze_emergency_clock(monkeypatch)
+    yesterday = today - timedelta(days=1)
+    assert cert_status(yesterday) == "red"
+    assert cert_status(today) == "yellow"
+    assert cert_status(today + timedelta(days=30)) == "yellow"
+    assert cert_status(today + timedelta(days=31)) == "green"
+    assert cert_status(None) == "grey"
+    assert cert_status(yesterday, today=yesterday) == "yellow"
 
 
 def test_emergency_plan_legend_reports_drill_and_team_readiness(client):
@@ -366,12 +471,14 @@ def test_export_xlsx_and_pdf(client):
 
 
 def test_overview_recalculates_from_only_current_company_workers(client):
-    from datetime import date, timedelta
+    from datetime import timedelta
     from sqlalchemy import select
     from app.core.database import SessionLocal
     from app.models.entities import Company, Employee, EmergencyTeam
+    from app.services.emergency_team_logic import emergency_team_today
 
     seed = _seed(client)
+    today = emergency_team_today()
     headers = {"Authorization": f"Bearer {seed['token']}"}
     url = f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}"
     initial = client.get(url, headers=headers).json()
@@ -383,8 +490,8 @@ def test_overview_recalculates_from_only_current_company_workers(client):
         db.add_all([Employee(company_id=seed["company_id"], full_name=f"Aktif {i}", is_active=True) for i in range(37)])
         db.add_all([Employee(company_id=seed["other_company_id"], full_name=f"Diğer {i}", is_active=True) for i in range(60)])
         db.add(Employee(company_id=seed["company_id"], full_name="Pasif", is_active=False))
-        db.add(Employee(company_id=seed["company_id"], full_name="Ayrılan", is_active=True, exit_date=date.today()))
-        db.add(Employee(company_id=seed["company_id"], full_name="Gelecek", is_active=True, start_date=date.today() + timedelta(days=1)))
+        db.add(Employee(company_id=seed["company_id"], full_name="Ayrılan", is_active=True, exit_date=today))
+        db.add(Employee(company_id=seed["company_id"], full_name="Gelecek", is_active=True, start_date=today + timedelta(days=1)))
         db.commit()
 
     current = client.get(url, headers=headers).json()
@@ -409,9 +516,9 @@ def test_overview_recalculates_from_only_current_company_workers(client):
 
 
 def test_reserves_and_departed_workers_do_not_fill_primary_shortage(client):
-    from datetime import date
     from app.core.database import SessionLocal
     from app.models.entities import Company, Employee
+    from app.services.emergency_team_logic import emergency_team_today
 
     seed = _seed(client)
     headers = {"Authorization": f"Bearer {seed['token']}"}
@@ -435,7 +542,7 @@ def test_reserves_and_departed_workers_do_not_fill_primary_shortage(client):
     assert current["status"]["code"] == "kritik"
 
     with SessionLocal() as db:
-        db.get(Employee, seed["employee_ids"][0]).exit_date = date.today()
+        db.get(Employee, seed["employee_ids"][0]).exit_date = emergency_team_today()
         db.commit()
     departed = next(t for t in client.get(url, headers=headers).json()["teams"] if t["id"] == team_id)
     assert departed["asil_count"] == 0

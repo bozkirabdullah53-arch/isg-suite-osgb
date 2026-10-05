@@ -6,6 +6,7 @@ organizasyonu uyarıları uzman için kontrol listesi sunar.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -24,6 +25,11 @@ from app.services.first_aid_compliance import required_first_aiders
 CERT_WARN_DAYS = 30
 
 SUPPORT_TEAM_CODES = {"sondurme", "kurtarma", "koruma"}
+
+
+def emergency_team_today() -> date:
+    """Ekiplerin takvim günü; sunucunun saat diliminden bağımsız Türkiye tarihi."""
+    return datetime.now(ZoneInfo("Europe/Istanbul")).date()
 
 
 def team_minimum_requirement(
@@ -213,7 +219,7 @@ def cert_status(valid_until: date | None, today: date | None = None) -> str:
     """green: geçerli · yellow: 30 gün içinde · red: süresi geçmiş · grey: kayıt yok."""
     if not valid_until:
         return "grey"
-    today = today or date.today()
+    today = today or emergency_team_today()
     if valid_until < today:
         return "red"
     if valid_until <= today + timedelta(days=CERT_WARN_DAYS):
