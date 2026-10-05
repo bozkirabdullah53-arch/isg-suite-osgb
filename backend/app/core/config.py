@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     # P1-2 rate limit
     rate_limit_rpm: int = 120
     rate_limit_auth_rpm: int = 30
+    # Keep public certificate/report verification available while limiting
+    # code-enumeration attempts independently from general API traffic.
+    verification_requests_per_minute: int = 30
     login_source_window_limit: int = 60
     login_subnet_window_limit: int = 200
     # Failed attempts against distinct accounts, not successful NAT traffic.
