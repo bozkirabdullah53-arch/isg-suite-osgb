@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 import {
   AlertTriangle,
   Download,
@@ -11,9 +12,11 @@ import {
   Upload,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {TeamMinimum, TeamRequirementsSummary} from './emergency_team_requirements';
+import './emergency_teams.css';
 
 const CERT_BADGE = {
   green: {label: 'Geçerli', cls: 'badge-ok'},
@@ -50,8 +53,6 @@ const emptyMember = {
   shift: '',
   phone: '',
   email: '',
-  section: '',
-  personnel_no: '',
   assign_start: '',
   letter_date: '',
   letter_no: '',
@@ -73,6 +74,51 @@ const emptyTraining = {
   refresh_date: '',
   notes: '',
 };
+
+function EmergencyTeamDialog({title, close, busy, error, children, maxWidth = 720}) {
+  const dialogRef = useRef(null);
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const dialog = dialogRef.current;
+    const focusable = () => [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
+    (dialog.querySelector('select, input') || dialog).focus();
+    function onKeyDown(event) {
+      if (event.key === 'Escape' && !busyRef.current) closeRef.current();
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first?.focus();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, []);
+
+  return createPortal(
+    <div className="modal-bg emergency-team-dialog" onMouseDown={(e) => !busy && e.target === e.currentTarget && close()}>
+      <section ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} style={{maxWidth}}>
+        <header><h3>{title}</h3><button type="button" className="icon" aria-label="Pencereyi kapat" disabled={busy} onClick={close}><X size={20} /></button></header>
+        {error && <div className="banner danger emergency-team-form-error" role="alert">{error}</div>}
+        {children}
+      </section>
+    </div>, document.body,
+  );
+}
 
 function Kpi({label, value, tone}) {
   const color = tone === 'danger' ? '#b91c1c' : tone === 'warn' ? '#b45309' : '#0f172a';
@@ -107,6 +153,8 @@ export function EmergencyTeamsPage({user}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const [lastAssignment, setLastAssignment] = useState(null);
+  const [downloadingLetterId, setDownloadingLetterId] = useState(null);
   const loadVersion = useRef(0);
 
   const [teamModal, setTeamModal] = useState(false);
@@ -187,6 +235,8 @@ export function EmergencyTeamsPage({user}) {
   }, []);
 
   useEffect(() => {
+    setLastAssignment(null);
+    setMsg('');
     void loadData(companyId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
@@ -298,16 +348,19 @@ export function EmergencyTeamsPage({user}) {
 
   // -- Üye ekle ------------------------------------------------------------
   function openMemberModal(teamId = '') {
-    setMemberForm({...emptyMember, team_id: teamId || (teams[0]?.id ?? '')});
+    const today = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Europe/Istanbul'}).format(new Date());
+    setErr('');
+    setMemberForm({...emptyMember, team_id: teamId || (teams[0]?.id ?? ''), assign_start: today, letter_date: today});
     setMemberModal(true);
   }
 
   async function saveMember(e) {
     e.preventDefault();
+    const downloadLetter = e.nativeEvent.submitter?.value === 'letter';
     setErr('');
     setBusy(true);
     try {
-      await api('/emergency-teams/assignments', {
+      const saved = await api('/emergency-teams/assignments', {
         method: 'POST',
         body: JSON.stringify({
           company_id: Number(companyId),
@@ -319,8 +372,6 @@ export function EmergencyTeamsPage({user}) {
           shift: memberForm.shift || null,
           phone: memberForm.phone || null,
           email: memberForm.email || null,
-          section: memberForm.section || null,
-          personnel_no: memberForm.personnel_no || null,
           assign_start: memberForm.assign_start || null,
           letter_date: memberForm.letter_date || null,
           letter_no: memberForm.letter_no || null,
@@ -330,8 +381,10 @@ export function EmergencyTeamsPage({user}) {
       });
       setMemberModal(false);
       setMemberForm(emptyMember);
+      setLastAssignment(saved);
       setMsg('Ekip üyesi / destek elemanı eklendi.');
       await loadData();
+      if (downloadLetter) await letterPdf(saved);
     } catch (ex) {
       setErr(ex.message || 'Üye eklenemedi.');
     } finally {
@@ -402,6 +455,8 @@ export function EmergencyTeamsPage({user}) {
   }
 
   async function letterPdf(row) {
+    setErr('');
+    setDownloadingLetterId(row.id);
     try {
       await downloadFile(
         `/emergency-teams/assignments/${row.id}/letter.pdf`,
@@ -409,6 +464,8 @@ export function EmergencyTeamsPage({user}) {
       );
     } catch (ex) {
       setErr(ex.message || 'Görevlendirme yazısı alınamadı.');
+    } finally {
+      setDownloadingLetterId(null);
     }
   }
 
@@ -452,6 +509,12 @@ export function EmergencyTeamsPage({user}) {
 
       {err && <div className="banner danger">{err}</div>}
       {msg && <div className="banner ok">{msg}</div>}
+      {lastAssignment && String(lastAssignment.company_id) === String(companyId) && (
+        <div className="emergency-team-letter-ready" role="status">
+          <div><strong>{lastAssignment.employee_name} için görevlendirme kaydedildi.</strong><span>Görevlendirme yazısını bu sayfadan PDF olarak alabilirsiniz.</span></div>
+          <button type="button" className="secondary" disabled={downloadingLetterId !== null} onClick={() => letterPdf(lastAssignment)}><FileText size={16} /> Görevlendirme Yazısı</button>
+        </div>
+      )}
 
       <section className="panel" style={{marginBottom: 12}}>
         <div className="toolbar" style={{gap: 12, flexWrap: 'wrap', alignItems: 'flex-end'}}>
@@ -633,7 +696,7 @@ export function EmergencyTeamsPage({user}) {
               <label className="field" style={{flex: '2 1 290px', minWidth: 240}}>
                 <span>Arama</span>
                 <input
-                  placeholder="Ad, görev, bölüm veya sicil no..."
+                  placeholder="Ad soyad veya görev..."
                   value={filters.q}
                   onChange={(e) => setFilters({...filters, q: e.target.value})}
                   onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
@@ -724,8 +787,8 @@ export function EmergencyTeamsPage({user}) {
                     <td>{m.cert_valid_until || '—'}</td>
                     <td>
                       <div className="actions">
-                        <button type="button" className="secondary mini" onClick={() => letterPdf(m)}>
-                          <FileText size={13} /> Yazı
+                        <button type="button" className="secondary mini" disabled={downloadingLetterId !== null} onClick={() => letterPdf(m)}>
+                          <FileText size={13} /> {downloadingLetterId === m.id ? 'İndiriliyor…' : 'Görevlendirme Yazısı'}
                         </button>
                         {canEdit && (
                           <>
@@ -749,9 +812,7 @@ export function EmergencyTeamsPage({user}) {
 
       {/* Modal: Yeni Ekip */}
       {teamModal && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setTeamModal(false)}>
-          <section className="modal" style={{maxWidth: 560}}>
-            <header><h3>Yeni Acil Durum Ekibi</h3></header>
+        <EmergencyTeamDialog title="Yeni Acil Durum Ekibi" close={() => setTeamModal(false)} busy={busy} error={err} maxWidth={560}>
             <form className="form-grid" onSubmit={saveTeam}>
               <label className="field"><span>Ekip türü</span>
                 <select
@@ -791,15 +852,12 @@ export function EmergencyTeamsPage({user}) {
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>
-          </section>
-        </div>
+        </EmergencyTeamDialog>
       )}
 
       {/* Modal: Üye ekle */}
       {memberModal && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setMemberModal(false)}>
-          <section className="modal" style={{maxWidth: 760}}>
-            <header><h3>Ekip Üyesi / Destek Elemanı Ekle</h3></header>
+        <EmergencyTeamDialog title="Ekip Üyesi / Destek Elemanı Ekle" close={() => setMemberModal(false)} busy={busy} error={err} maxWidth={760}>
             <form className="form-grid" onSubmit={saveMember}>
               <label className="field"><span>Ekip</span>
                 <select required value={memberForm.team_id} onChange={(e) => setMemberForm({...memberForm, team_id: e.target.value})}>
@@ -808,7 +866,10 @@ export function EmergencyTeamsPage({user}) {
                 </select>
               </label>
               <label className="field"><span>Personel</span>
-                <select required value={memberForm.employee_id} onChange={(e) => setMemberForm({...memberForm, employee_id: e.target.value})}>
+                <select required value={memberForm.employee_id} onChange={(e) => {
+                  const employee = companyEmployees.find((emp) => String(emp.id) === e.target.value);
+                  setMemberForm({...memberForm, employee_id: e.target.value, role_title: employee?.job_title || '', phone: employee?.phone || ''});
+                }}>
                   <option value="">Seçin</option>
                   {companyEmployees.map((emp) => (
                     <option key={emp.id} value={emp.id}>
@@ -823,7 +884,7 @@ export function EmergencyTeamsPage({user}) {
                   <option value="yedek">Yedek</option>
                 </select>
               </label>
-              <label className="field" style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+              <label className="field emergency-team-leader-check">
                 <input type="checkbox" checked={memberForm.is_leader}
                   onChange={(e) => setMemberForm({...memberForm, is_leader: e.target.checked})} />
                 <span>Ekip lideri</span>
@@ -834,12 +895,6 @@ export function EmergencyTeamsPage({user}) {
               <label className="field"><span>Vardiya</span>
                 <input value={memberForm.shift} onChange={(e) => setMemberForm({...memberForm, shift: e.target.value})} />
               </label>
-              <label className="field"><span>Bölüm</span>
-                <input value={memberForm.section} onChange={(e) => setMemberForm({...memberForm, section: e.target.value})} />
-              </label>
-              <label className="field"><span>Sicil No</span>
-                <input value={memberForm.personnel_no} onChange={(e) => setMemberForm({...memberForm, personnel_no: e.target.value})} />
-              </label>
               <label className="field"><span>Telefon</span>
                 <input value={memberForm.phone} onChange={(e) => setMemberForm({...memberForm, phone: e.target.value})} />
               </label>
@@ -849,32 +904,30 @@ export function EmergencyTeamsPage({user}) {
               <label className="field"><span>Görev başlangıç</span>
                 <input type="date" value={memberForm.assign_start} onChange={(e) => setMemberForm({...memberForm, assign_start: e.target.value})} />
               </label>
-              <label className="field"><span>Görev. yazı tarihi</span>
+              <label className="field"><span>Görevlendirme yazısı tarihi</span>
                 <input type="date" value={memberForm.letter_date} onChange={(e) => setMemberForm({...memberForm, letter_date: e.target.value})} />
               </label>
-              <label className="field"><span>Görev. yazı no</span>
-                <input value={memberForm.letter_no} onChange={(e) => setMemberForm({...memberForm, letter_no: e.target.value})} />
+              <label className="field"><span>Görevlendirme yazısı no</span>
+                <input placeholder="Boş bırakırsanız otomatik oluşturulur" value={memberForm.letter_no} onChange={(e) => setMemberForm({...memberForm, letter_no: e.target.value})} />
               </label>
-              <label className="field"><span>Görevlendiren</span>
+              <label className="field"><span>İşveren / İşveren vekili</span>
                 <input value={memberForm.assigned_by} onChange={(e) => setMemberForm({...memberForm, assigned_by: e.target.value})} />
               </label>
-              <label className="field" style={{gridColumn: '1 / -1'}}><span>Notlar</span>
-                <textarea rows={2} value={memberForm.notes} onChange={(e) => setMemberForm({...memberForm, notes: e.target.value})} />
+              <label className="field" style={{gridColumn: '1 / -1'}}><span>İşyerine özgü görev / açıklama</span>
+                <textarea rows={2} placeholder="Sorumluluk alanı ve ek görevler (isteğe bağlı)" value={memberForm.notes} onChange={(e) => setMemberForm({...memberForm, notes: e.target.value})} />
               </label>
               <div className="form-actions">
-                <button type="button" className="secondary" onClick={() => setMemberModal(false)}>İptal</button>
-                <button type="submit" disabled={busy}>Kaydet</button>
+                <button type="button" className="secondary" disabled={busy} onClick={() => setMemberModal(false)}>İptal</button>
+                <button type="submit" className="secondary" disabled={busy}>Kaydet</button>
+                <button type="submit" value="letter" disabled={busy}><Download size={16} /> {busy ? 'Kaydediliyor…' : 'Kaydet ve Yazıyı İndir'}</button>
               </div>
             </form>
-          </section>
-        </div>
+        </EmergencyTeamDialog>
       )}
 
       {/* Modal: Eğitim ekle */}
       {trainingModal && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setTrainingModal(null)}>
-          <section className="modal" style={{maxWidth: 720}}>
-            <header><h3>Eğitim / Sertifika — {trainingModal.employee_name}</h3></header>
+        <EmergencyTeamDialog title={`Eğitim / Sertifika — ${trainingModal.employee_name}`} close={() => setTrainingModal(null)} busy={busy} error={err}>
             <form className="form-grid" onSubmit={saveTraining}>
               <label className="field"><span>Eğitim türü</span>
                 <input value={trainingForm.training_type} onChange={(e) => setTrainingForm({...trainingForm, training_type: e.target.value})} />
@@ -929,8 +982,7 @@ export function EmergencyTeamsPage({user}) {
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>
-          </section>
-        </div>
+        </EmergencyTeamDialog>
       )}
     </div>
   );
