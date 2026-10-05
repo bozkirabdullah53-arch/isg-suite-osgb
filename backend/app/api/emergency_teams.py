@@ -8,7 +8,7 @@ yönetici ve İSG uzmanına açıktır.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -55,6 +55,7 @@ from app.services.emergency_team_logic import (
     ensure_default_teams,
     ensure_system_team_types,
     team_status,
+    team_minimum_requirement,
     team_warnings,
 )
 from app.services.emergency_team_reports import (
@@ -152,12 +153,49 @@ def _assignment_response(
     )
 
 
+def _company_staff_context(db: Session, company_id: int, company: Company | None = None) -> dict:
+    company = company or db.get(Company, company_id)
+    today = date.today()
+    count = db.scalar(
+        select(func.count()).select_from(Employee).where(
+            Employee.company_id == company_id,
+            Employee.is_active.is_(True),
+            or_(Employee.start_date.is_(None), Employee.start_date <= today),
+            or_(Employee.exit_date.is_(None), Employee.exit_date > today),
+        )
+    ) or 0
+    return {"employee_count": int(count), "hazard_class": getattr(company, "hazard_class", None)}
+
+
+def _current_team_member(row: EmergencyTeamAssignment, company_id: int) -> bool:
+    today = date.today()
+    employee = row.employee
+    return bool(
+        row.is_active and row.company_id == company_id
+        and employee and employee.company_id == company_id and employee.is_active
+        and (not employee.start_date or employee.start_date <= today)
+        and (not employee.exit_date or employee.exit_date > today)
+        and (not row.assign_start or row.assign_start <= today)
+        and (not row.assign_end or row.assign_end >= today)
+    )
+
+
 def _team_response(
     team: EmergencyTeam,
     *,
+    db: Session,
+    staff_context: dict | None = None,
     workload: dict[int, int] | None = None,
 ) -> TeamResponse:
-    members = [a for a in (team.assignments or []) if a.is_active]
+    staff_context = staff_context if staff_context is not None else _company_staff_context(db, team.company_id)
+    requirement = team_minimum_requirement(
+        getattr(team.team_type, "code", None),
+        staff_context["employee_count"],
+        staff_context["hazard_class"],
+        team.min_members,
+    )
+    minimum = requirement["required_members"]
+    members = [a for a in (team.assignments or []) if _current_team_member(a, team.company_id)]
     asil = [a for a in members if a.membership == "asil"]
     yedek = [a for a in members if a.membership == "yedek"]
     cert_counts = {"green": 0, "yellow": 0, "red": 0, "grey": 0}
@@ -167,9 +205,11 @@ def _team_response(
         cert_counts[cert] = cert_counts.get(cert, 0) + 1
         if a.id == team.leader_assignment_id or a.is_leader:
             leader_name = getattr(a.employee, "full_name", None) or leader_name
-    has_leader = any(a.is_leader for a in members) or team.leader_assignment_id is not None
+    has_leader = any(a.is_leader or a.id == team.leader_assignment_id for a in members)
 
-    status_dict = team_status(len(members), team.min_members)
+    status_dict = team_status(len(asil), minimum)
+    if requirement["minimum_source"] == "risk_assessment":
+        status_dict = {"code": "planlama", "label": "Plana göre", "tone": "muted"}
     # Belge sorunları ekip durumunu "güncelleme gerekli" olarak işaretleyebilir
     if status_dict["code"] == "tam" and (cert_counts.get("red") or cert_counts.get("grey")):
         status_dict = {"code": "guncelleme", "label": "Güncelleme Gerekli", "tone": "warn"}
@@ -180,6 +220,7 @@ def _team_response(
         asil_members=len(asil),
         has_leader=has_leader,
         cert_counts=cert_counts,
+        minimum=minimum,
     )
 
     return TeamResponse(
@@ -191,6 +232,8 @@ def _team_response(
         name=team.name,
         min_members=team.min_members,
         notes=team.notes,
+        **requirement,
+        missing_members=max(minimum - len(asil), 0) if minimum is not None else None,
         leader_assignment_id=team.leader_assignment_id,
         leader_name=leader_name,
         member_count=len(members),
@@ -280,21 +323,20 @@ def overview(
     teams = _teams_for_company(db, company_id)
     workload = employee_active_team_counts(db, company_id)
 
-    employee_count = db.scalar(
-        select(func.count())
-        .select_from(Employee)
-        .where(Employee.company_id == company_id, Employee.is_active.is_(True))
-    ) or 0
+    staff_context = _company_staff_context(db, company_id, company)
+    employee_count = staff_context["employee_count"]
 
-    team_payload = [_team_response(t, workload=workload) for t in teams]
+    team_payload = [_team_response(t, db=db, staff_context=staff_context, workload=workload) for t in teams]
     total_members = sum(t.member_count for t in team_payload)
-    total_leaders = sum(1 for t in teams for a in (t.assignments or []) if a.is_active and a.is_leader)
+    total_leaders = sum(1 for t in teams for a in (t.assignments or []) if _current_team_member(a, company_id) and a.is_leader)
     cert_red = sum(t.cert_summary.get("red", 0) for t in team_payload)
     cert_yellow = sum(t.cert_summary.get("yellow", 0) for t in team_payload)
     teams_ok = sum(1 for t in team_payload if t.status and t.status.code == "tam")
     teams_critical = sum(1 for t in team_payload if t.status and t.status.code == "kritik")
 
     warnings: list[str] = []
+    incomplete_notes = {t.minimum_note for t in team_payload if t.minimum_source == "incomplete"}
+    warnings.extend(sorted(incomplete_notes))
     for t in team_payload:
         for w in t.warnings:
             warnings.append(f"{t.name}: {w}")
@@ -315,6 +357,8 @@ def overview(
         },
         "specialist_name": _specialist_name(db, user, company_id),
         "employee_count": int(employee_count),
+        "shared_support_allowed": 0 < employee_count < 10,
+        "minimum_scope_note": "Çalışan sayısı hesabına ek olarak Binaların Yangından Korunması Hakkında Yönetmelik m.126 kapsamındaki bina ekipleri için gereken sayılar, ziyaretçiler ve vardiya düzeni acil durum planında ayrıca değerlendirilir.",
         "kpis": {
             "team_count": len(team_payload),
             "member_count": total_members,
@@ -356,11 +400,13 @@ def list_teams(
         stmt = stmt.where(EmergencyTeam.company_id.in_(company_ids))
     teams = list(db.scalars(stmt).all())
     workload_cache: dict[int, dict[int, int]] = {}
+    staff_cache: dict[int, dict] = {}
     out: list[TeamResponse] = []
     for t in teams:
         if t.company_id not in workload_cache:
             workload_cache[t.company_id] = employee_active_team_counts(db, t.company_id)
-        out.append(_team_response(t, workload=workload_cache[t.company_id]))
+            staff_cache[t.company_id] = _company_staff_context(db, t.company_id)
+        out.append(_team_response(t, db=db, staff_context=staff_cache[t.company_id], workload=workload_cache[t.company_id]))
     return out
 
 
@@ -404,7 +450,7 @@ def create_team(
         ),
     )
     db.commit()
-    return _team_response(_load_team(db, row.id))
+    return _team_response(_load_team(db, row.id), db=db)
 
 
 @router.put("/teams/{team_id}", response_model=TeamResponse)
@@ -476,7 +522,7 @@ def update_team(
         ),
     )
     db.commit()
-    return _team_response(_load_team(db, row.id))
+    return _team_response(_load_team(db, row.id), db=db)
 
 
 @router.delete("/teams/{team_id}")
@@ -548,7 +594,7 @@ def restore_team(
         new_value=serialize_audit_value({"id": row.id, "name": row.name, "is_active": True, "restore_members": True}),
     )
     db.commit()
-    return _team_response(_load_team(db, team_id))
+    return _team_response(_load_team(db, team_id), db=db)
 
 
 @router.post("/restore-inactive")
@@ -1089,9 +1135,10 @@ async def upload_certificate(
 def _company_teams_payload(db: Session, company_id: int) -> list[dict]:
     teams = _teams_for_company(db, company_id)
     workload = employee_active_team_counts(db, company_id)
+    staff_context = _company_staff_context(db, company_id)
     payload: list[dict] = []
     for t in teams:
-        resp = _team_response(t, workload=workload)
+        resp = _team_response(t, db=db, staff_context=staff_context, workload=workload)
         members = []
         for a in (t.assignments or []):
             if not a.is_active:

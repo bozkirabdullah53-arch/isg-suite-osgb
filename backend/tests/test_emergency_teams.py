@@ -365,6 +365,108 @@ def test_export_xlsx_and_pdf(client):
     assert p.content[:4] == b"%PDF"
 
 
+def test_overview_recalculates_from_only_current_company_workers(client):
+    from datetime import date, timedelta
+    from sqlalchemy import select
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, Employee, EmergencyTeam
+
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    url = f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}"
+    initial = client.get(url, headers=headers).json()
+    assert initial["employee_count"] == 4
+    assert initial["shared_support_allowed"] is True
+    assert all(t["required_members"] == 1 for t in initial["teams"] if t["type_code"] in {"sondurme", "kurtarma", "koruma", "ilk_yardim"})
+
+    with SessionLocal() as db:
+        db.add_all([Employee(company_id=seed["company_id"], full_name=f"Aktif {i}", is_active=True) for i in range(37)])
+        db.add_all([Employee(company_id=seed["other_company_id"], full_name=f"Diğer {i}", is_active=True) for i in range(60)])
+        db.add(Employee(company_id=seed["company_id"], full_name="Pasif", is_active=False))
+        db.add(Employee(company_id=seed["company_id"], full_name="Ayrılan", is_active=True, exit_date=date.today()))
+        db.add(Employee(company_id=seed["company_id"], full_name="Gelecek", is_active=True, start_date=date.today() + timedelta(days=1)))
+        db.commit()
+
+    current = client.get(url, headers=headers).json()
+    assert current["employee_count"] == 41
+    assert current["shared_support_allowed"] is False
+    by_code = {t["type_code"]: t for t in current["teams"]}
+    assert by_code["sondurme"]["required_members"] == 2
+    assert by_code["ilk_yardim"]["required_members"] == 3
+    assert by_code["ilk_yardim"]["missing_members"] == 3
+    assert by_code["tahliye"]["required_members"] is None
+    assert by_code["tahliye"]["status"]["code"] == "planlama"
+    listed = client.get(f"/api/v1/emergency-teams/teams?company_id={seed['company_id']}", headers=headers).json()
+    assert {t["type_code"]: t["required_members"] for t in listed} == {t["type_code"]: t["required_members"] for t in current["teams"]}
+
+    with SessionLocal() as db:
+        db.get(Company, seed["company_id"]).hazard_class = "Çok Tehlikeli"
+        db.commit()
+        # Hesaplama mevcut ekip hedeflerine yazmaz, kayıtları değiştirmez.
+        assert all(t.min_members == 2 for t in db.scalars(select(EmergencyTeam).where(EmergencyTeam.company_id == seed["company_id"])).all())
+    changed = client.get(url, headers=headers).json()
+    assert next(t for t in changed["teams"] if t["type_code"] == "ilk_yardim")["required_members"] == 5
+
+
+def test_reserves_and_departed_workers_do_not_fill_primary_shortage(client):
+    from datetime import date
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, Employee
+
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    url = f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}"
+    with SessionLocal() as db:
+        db.get(Company, seed["company_id"]).hazard_class = "Çok Tehlikeli"
+        db.add_all([Employee(company_id=seed["company_id"], full_name=f"Aktif {i}", is_active=True) for i in range(37)])
+        db.commit()
+    overview = client.get(url, headers=headers).json()
+    team_id = next(t["id"] for t in overview["teams"] if t["type_code"] == "sondurme")
+    for index, employee_id in enumerate(seed["employee_ids"][:3]):
+        created = client.post("/api/v1/emergency-teams/assignments", headers=headers, json={
+            "company_id": seed["company_id"], "team_id": team_id, "employee_id": employee_id,
+            "membership": "asil" if index == 0 else "yedek", "is_leader": index == 0,
+        })
+        assert created.status_code == 200, created.text
+    current = next(t for t in client.get(url, headers=headers).json()["teams"] if t["id"] == team_id)
+    assert current["member_count"] == 3
+    assert current["asil_count"] == 1
+    assert current["missing_members"] == 1
+    assert current["status"]["code"] == "kritik"
+
+    with SessionLocal() as db:
+        db.get(Employee, seed["employee_ids"][0]).exit_date = date.today()
+        db.commit()
+    departed = next(t for t in client.get(url, headers=headers).json()["teams"] if t["id"] == team_id)
+    assert departed["asil_count"] == 0
+    assert departed["missing_members"] == 2
+    assert departed["leader_name"] is None
+
+
+def test_missing_population_or_hazard_is_visible(client):
+    from sqlalchemy import update
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, Employee
+
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    url = f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}"
+    with SessionLocal() as db:
+        db.get(Company, seed["company_id"]).hazard_class = None
+        db.commit()
+    unknown = client.get(url, headers=headers).json()
+    first_aid = next(t for t in unknown["teams"] if t["type_code"] == "ilk_yardim")
+    assert first_aid["required_members"] is None
+    assert first_aid["missing_members"] is None
+    assert first_aid["status"]["code"] == "veri_eksik"
+    with SessionLocal() as db:
+        db.execute(update(Employee).where(Employee.company_id == seed["company_id"]).values(is_active=False))
+        db.commit()
+    empty = client.get(url, headers=headers).json()
+    assert empty["employee_count"] == 0
+    assert all(t["required_members"] is None for t in empty["teams"])
+
+
 @pytest.mark.parametrize("code, reference, keyword", [
     ("sondurme", "m.11/2-a", "Yangına"),
     ("kurtarma", "m.11/2-b", "kurtarmaya"),

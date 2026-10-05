@@ -88,6 +88,11 @@ class TeamResponse(BaseModel):
     name: str
     min_members: int
     notes: str | None
+    required_members: int | None = None
+    missing_members: int | None = None
+    minimum_source: str = "workplace"
+    minimum_basis: str = ""
+    minimum_note: str = ""
     leader_assignment_id: int | None
     leader_name: str | None = None
     member_count: int = 0
