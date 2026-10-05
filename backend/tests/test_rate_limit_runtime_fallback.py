@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
+from app.core.rate_limit import MemoryRateLimitStore, SimpleRateLimitMiddleware, rate_limit_backend
 
 
 class _FailingStore:
@@ -55,3 +55,28 @@ def test_auth_limit_remains_stricter_during_store_failure():
         second = client.post("/api/v1/auth/login", headers=headers)
 
     assert second.status_code == 429
+
+
+def test_public_verification_uses_dedicated_low_limit(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "verification_requests_per_minute", 2)
+    app = FastAPI()
+    app.add_middleware(
+        SimpleRateLimitMiddleware,
+        requests_per_minute=100,
+        auth_requests_per_minute=100,
+        store=MemoryRateLimitStore(),
+    )
+
+    @app.get("/api/v1/trainings/remote/certificates/verify/{code}")
+    def verify(code: str):
+        return {"code": code}
+
+    with TestClient(app) as client:
+        headers = {"X-Forwarded-For": "203.0.113.40"}
+        assert client.get("/api/v1/trainings/remote/certificates/verify/first-code", headers=headers).status_code == 200
+        assert client.get("/api/v1/trainings/remote/certificates/verify/second-code", headers=headers).status_code == 200
+        blocked = client.get("/api/v1/trainings/remote/certificates/verify/third-code", headers=headers)
+
+    assert blocked.status_code == 429

@@ -156,6 +156,14 @@ from app.services.remote_training_reports import (
     build_remote_training_status_xlsx,
 )
 
+
+def _mask_public_name(value: str | None) -> str | None:
+    parts = [part for part in str(value or "").split() if part]
+    if not parts:
+        return None
+    return " ".join(f"{part[0]}{'*' * max(1, len(part) - 1)}" for part in parts)
+
+
 router = APIRouter(prefix="/trainings/remote", tags=["Uzaktan Temel İSG Eğitimi"])
 logger = logging.getLogger(__name__)
 
@@ -4756,9 +4764,9 @@ def verify_remote_certificate(
         "valid": True,
         "verification_code": clean,
         "certificate_number": certificate.certificate_number,
-        "employee_name": certificate.employee_name_snapshot,
-        "company_name": certificate.company_name_snapshot,
-        "workplace_name": certificate.workplace_name_snapshot,
+        "employee_name": _mask_public_name(certificate.employee_name_snapshot),
+        "company_name": None,
+        "workplace_name": None,
         "training_name": certificate.training_name,
         "training_type": REMOTE_CERTIFICATE_TRAINING_TYPE,
         "training_date": _iso(certificate.training_date),

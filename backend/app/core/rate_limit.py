@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 
 _EXEMPT_PREFIXES = ("/health", "/live", "/api/v1/live")
 _AUTH_PREFIXES = ("/api/v1/auth",)
+_VERIFICATION_PATHS = (
+    "/api/v1/trainings/verify/",
+    "/api/v1/trainings/remote/certificates/verify/",
+    "/api/v1/annual-evals/verify/",
+)
 _REDIS_KEY_PREFIX = "isg:rl:"
 
 # Güvenilir proxy zinciri: Render/Cloudflare her zaman bu header'ları ekler.
@@ -114,6 +119,10 @@ def _is_exempt(path: str) -> bool:
 
 def _is_auth(path: str) -> bool:
     return any(path == p or path.startswith(p + "/") for p in _AUTH_PREFIXES)
+
+
+def _is_verification(path: str) -> bool:
+    return any(path.startswith(prefix) for prefix in _VERIFICATION_PATHS)
 
 
 class RateLimitStore(Protocol):
@@ -386,8 +395,23 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
                 logger.warning("auth_password_spray_blocked source=%s distinct_accounts=%s", client, count)
                 return self._blocked(retry)
         auth = _is_auth(path)
-        limit = self.auth_limit if auth else self.limit
-        key = f"{client}:auth" if auth else f"{client}:{path}"
+        verification = _is_verification(path)
+        limit = (
+            int(getattr(settings, "verification_requests_per_minute", 30))
+            if verification
+            else self.auth_limit
+            if auth
+            else self.limit
+        )
+        # All public verification codes share one client bucket; including the
+        # submitted path/code would let enumeration bypass the limit.
+        key = (
+            f"{client}:verification"
+            if verification
+            else f"{client}:auth"
+            if auth
+            else f"{client}:{path}"
+        )
         checks = [(key, limit, 60)]
         if request.method == "POST" and path.rstrip("/") in (
             "/api/v1/auth/login", "/api/v1/auth/mfa/verify",
