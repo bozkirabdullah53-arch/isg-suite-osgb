@@ -1,0 +1,129 @@
+.modal-bg.emergency-team-dialog {
+  z-index: 10010 !important;
+  padding: 16px !important;
+}
+
+.emergency-team-dialog .modal {
+  width: min(760px, 100%);
+  max-height: calc(100dvh - 32px);
+  overscroll-behavior: contain;
+}
+
+.emergency-team-dialog .modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #fff !important;
+}
+
+.emergency-team-dialog .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.emergency-team-dialog .field {
+  min-width: 0;
+}
+
+.emergency-team-dialog .field input,
+.emergency-team-dialog .field select,
+.emergency-team-dialog .field textarea {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.emergency-team-dialog .field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbdde1;
+  border-radius: 10px;
+  font: inherit;
+  resize: vertical;
+}
+
+.emergency-team-dialog .modal > header .icon {
+  border: 0;
+  border-radius: 8px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.emergency-team-dialog .field.emergency-team-leader-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  align-self: end;
+  min-height: 46px;
+}
+
+.emergency-team-dialog .emergency-team-leader-check input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 18px;
+  accent-color: #0f766e;
+}
+
+.emergency-team-dialog .form-actions {
+  position: sticky;
+  bottom: -22px;
+  z-index: 2;
+  margin: 0 -22px -22px;
+  padding: 14px 22px;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #fff;
+  border-top: 1px solid #dcebed;
+}
+
+.emergency-team-form-error {
+  margin: 12px 22px 0;
+}
+
+.emergency-team-letter-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+  border: 1px solid #a7d9cb;
+  border-radius: 12px;
+  background: #f0fdf7;
+}
+
+.emergency-team-letter-ready strong,
+.emergency-team-letter-ready span {
+  display: block;
+}
+
+.emergency-team-letter-ready span {
+  margin-top: 4px;
+  color: #425c67;
+  font-size: 13px;
+}
+
+.emergency-team-letter-ready button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 620px) {
+  .modal-bg.emergency-team-dialog { padding: 8px !important; }
+  .emergency-team-dialog .modal { max-height: calc(100dvh - 16px); }
+  .emergency-team-dialog .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .emergency-team-dialog .modal > header h3 { font-size: 17px; }
+  .emergency-team-dialog .form-actions button { flex: 1 1 auto; min-height: 44px; justify-content: center; }
+  .emergency-team-letter-ready button { width: 100%; }
+}

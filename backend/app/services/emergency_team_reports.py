@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from app.services.spreadsheet_safety import save_export_workbook
 
-from datetime import date, datetime
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -18,7 +19,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 PDF_FONT = "Helvetica"
 PDF_FONT_BOLD = "Helvetica-Bold"
@@ -268,89 +269,119 @@ def build_teams_pdf(*, company, teams_data: list[dict], specialist: str | None =
 # --------------------------------------------------------------------------- #
 # PDF — görevlendirme yazısı (tek üye)
 # --------------------------------------------------------------------------- #
+_LETTER_DUTIES = {
+    "sondurme": ("m.11/2-a", "Yangına, eğitim ve donanımınızın izin verdiği ölçüde müdahale etmek; yayılmasını sınırlamak ve profesyonel söndürme ekiplerine bilgi vermek."),
+    "kurtarma": ("m.11/2-b", "Acil durumdan etkilenen çalışan, ziyaretçi ve diğer kişilerin yerini belirleyerek eğitim ve uygun donanım çerçevesinde arama ve kurtarmaya katılmak."),
+    "koruma": ("m.11/2-c", "Paniği azaltmak; ekiplerin iş birliğini, toplanma alanındaki sayımı ve müdahale ekiplerine bilgi aktarımını sağlamak."),
+    "ilk_yardim": ("m.11/2-ç ve m.11/5", "Etkilenen kişilere ilkyardımcı yetkinliği kapsamında müdahale etmek; 112 Acil Çağrı Merkezi üzerinden sağlık desteği istemek ve gelen sağlık ekibine bilgi vermek."),
+    "tahliye": ("m.10", "Planda gösterilen güvenli çıkışlara ve toplanma alanına yönlendirmek; yardıma ihtiyaç duyan kişilere refakat etmek ve sayım için koruma ekibiyle çalışmak."),
+    "haberlesme": ("m.5/1-e ve m.10", "Acil durum bildirimlerini iletmek; 112 Acil Çağrı Merkezi ve ilgili kuruluşlarla iletişimi sağlamak, olay yeri ve ihtiyaçları doğru aktarmak."),
+}
+
+
 def build_assignment_letter_pdf(*, company, team, assignment, employee_name: str) -> bytes:
+    """İşverenin imzalayacağı görevlendirme ve çalışana tebliğ formu.
+
+    Dayanaklar: 6331 m.11/1-c; İşyerlerinde Acil Durumlar Hakkında
+    Yönetmelik m.5, 6, 10, 11 ve 15. Tahliye/haberleşme, m.10'daki
+    yardımcı plan görevleridir; m.11/1'deki dört zorunlu ekiple karıştırılmaz.
+    """
+    def text(value, default="-") -> str:
+        return escape(str(value or default)).replace("\n", "<br/>")
+
     buf = BytesIO()
     doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        rightMargin=20 * mm, leftMargin=20 * mm, topMargin=22 * mm, bottomMargin=18 * mm,
+        buf, pagesize=A4, title="Acil Durum Ekibi Görevlendirme Yazısı",
+        author=CREATOR_LINE,
+        rightMargin=18 * mm, leftMargin=18 * mm, topMargin=17 * mm, bottomMargin=18 * mm,
     )
     styles = getSampleStyleSheet()
-    for style in styles.byName.values():
-        style.fontName = PDF_FONT
     title_style = ParagraphStyle(
         "LetterTitle", parent=styles["Title"], fontSize=14, fontName=PDF_FONT_BOLD,
-        spaceAfter=10, textColor=colors.HexColor("#1a5276"), alignment=TA_CENTER,
+        leading=18, spaceAfter=10, textColor=colors.HexColor("#1a5276"), alignment=TA_CENTER,
     )
     body = ParagraphStyle(
-        "LetterBody", parent=styles["Normal"], fontSize=11, fontName=PDF_FONT,
-        spaceAfter=8, alignment=TA_JUSTIFY, leading=16,
+        "LetterBody", parent=styles["Normal"], fontSize=9.5, fontName=PDF_FONT,
+        spaceAfter=7, alignment=TA_JUSTIFY, leading=14,
     )
-    info = ParagraphStyle("LetterInfo", parent=styles["Normal"], fontSize=10, fontName=PDF_FONT, spaceAfter=3)
+    info = ParagraphStyle("LetterInfo", parent=body, fontSize=9, leading=12, spaceAfter=0, alignment=0)
+    heading = ParagraphStyle("LetterHeading", parent=body, fontName=PDF_FONT_BOLD, spaceBefore=7, spaceAfter=5, textColor=colors.HexColor("#1a5276"), keepWithNext=True)
+    sign_style = ParagraphStyle("LetterSign", parent=info, alignment=TA_CENTER)
 
-    membership_label = "asıl" if getattr(assignment, "membership", "asil") == "asil" else "yedek"
-    role = getattr(assignment, "role_title", None) or getattr(team, "name", "acil durum ekibi")
-    letter_no = getattr(assignment, "letter_no", None) or "—"
-    letter_date = _fmt_date(getattr(assignment, "letter_date", None) or date.today())
+    team_name = getattr(team, "name", None) or "Acil durum ekibi"
+    type_code = getattr(getattr(team, "team_type", None), "code", None)
+    duty_ref, duty = _LETTER_DUTIES.get(type_code, ("m.5 ve m.10", "Acil durum planında bu görevlendirme için belirlenen görevleri, eğitim ve uygun donanım çerçevesinde yerine getirmek."))
+    auxiliary = type_code in {"tahliye", "haberlesme"} or type_code not in _LETTER_DUTIES
+    membership = "Asıl" if getattr(assignment, "membership", "asil") == "asil" else "Yedek"
+    function = "Ekip lideri / destek elemanı" if getattr(assignment, "is_leader", False) else "Destek elemanı"
+    created_at = getattr(assignment, "created_at", None)
+    created_date = created_at.date() if isinstance(created_at, datetime) else created_at
+    # Yeniden indirilen eski bir yazının tarihi indirme gününe göre değişmez.
+    issue_date = getattr(assignment, "letter_date", None) or getattr(assignment, "assign_start", None) or created_date
+    issue_no = getattr(assignment, "letter_no", None) or f"AD-{getattr(company, 'id', 0)}-{getattr(assignment, 'id', 0)}"
+    employee = getattr(assignment, "employee", None)
+    job_title = getattr(assignment, "role_title", None) or getattr(employee, "job_title", None)
 
-    elements = [
-        Paragraph("ACİL DURUM EKİBİ GÖREVLENDİRME YAZISI", title_style),
-        Spacer(1, 4 * mm),
-        Paragraph(f"<b>İşyeri:</b> {getattr(company, 'name', '—')}", info),
-        Paragraph(f"<b>SGK Sicil No:</b> {getattr(company, 'sgk_registry_no', None) or '—'}", info),
-        Paragraph(f"<b>Yazı No:</b> {letter_no}  &nbsp;&nbsp; <b>Tarih:</b> {letter_date}", info),
-        Spacer(1, 6 * mm),
-        Paragraph(
-            f"Sayın <b>{employee_name}</b>,", body,
-        ),
-        Paragraph(
-            f"İşyerimizde oluşturulan <b>{getattr(team, 'name', '')}</b> kapsamında, "
-            f"<b>{membership_label}</b> üye olarak <b>{role}</b> görevini yürütmek üzere "
-            "görevlendirilmiş bulunmaktasınız.",
-            body,
-        ),
-        Paragraph(
-            "Acil durumlarda üzerinize düşen görevleri yerine getirmeniz, ilgili eğitim ve "
-            "tatbikatlara katılmanız beklenmektedir. Görev süresince ekip sorumlusu ile "
-            "koordineli çalışmanız önerilir.",
-            body,
-        ),
-        Spacer(1, 4 * mm),
+    elements = [Paragraph("ACİL DURUM EKİBİ<br/>GÖREVLENDİRME VE TEBLİĞ YAZISI", title_style)]
+    rows = [
+        ["İşyeri", getattr(company, "name", None)],
+        ["SGK işyeri sicil no", getattr(company, "sgk_registry_no", None)],
+        ["İşyeri adresi", getattr(company, "address", None)],
+        ["Yazı no / Tarih", f"{issue_no} / {_fmt_date(issue_date)}"],
+        ["Görevlendirilen", employee_name],
+        ["Personelin görevi / unvanı", job_title],
+        ["Ekip / Görevlendirme", f"{team_name} / {membership} / {function}"],
+        ["Görev başlangıcı", _fmt_date(getattr(assignment, "assign_start", None))],
     ]
-
-    detail_rows = [
-        ["Ekip", getattr(team, "name", "—")],
-        ["Üyelik", "Asıl" if membership_label == "asıl" else "Yedek"],
-        ["Görev / Unvan", getattr(assignment, "role_title", None) or "—"],
-        ["Vardiya", getattr(assignment, "shift", None) or "—"],
-        ["Bölüm", getattr(assignment, "section", None) or "—"],
-        ["Görev Başlangıç", _fmt_date(getattr(assignment, "assign_start", None))],
-    ]
-    table = Table(detail_rows, colWidths=[120, 320])
-    table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
-        ("FONTNAME", (0, 0), (0, -1), PDF_FONT_BOLD),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#ecf0f1")),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    if getattr(assignment, "assign_end", None):
+        rows.append(["Görev bitişi", _fmt_date(assignment.assign_end)])
+    if getattr(assignment, "shift", None):
+        rows.append(["Vardiya", assignment.shift])
+    contact = " / ".join(str(v) for v in [getattr(assignment, "phone", None), getattr(assignment, "email", None)] if v)
+    if contact:
+        rows.append(["İletişim", contact])
+    detail = Table([[Paragraph(f"<b>{text(label)}</b>", info), Paragraph(text(value), info)] for label, value in rows], colWidths=[48 * mm, doc.width - 48 * mm], hAlign="LEFT")
+    detail.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#edf4f7")),
+        ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#ccdbe2")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
-    elements.append(table)
-    elements.append(Spacer(1, 16 * mm))
-
-    sign = Table(
-        [["İşveren / Vekili", "Görevlendirilen"],
-         [getattr(assignment, "assigned_by", None) or " ", employee_name]],
-        colWidths=[220, 220],
+    elements.extend([detail, Spacer(1, 4 * mm), Paragraph("HUKUKİ DAYANAK VE GÖREVLENDİRME", heading)])
+    legal_basis = (
+        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu m.11/1-c ile "
+        "İşyerlerinde Acil Durumlar Hakkında Yönetmelik (RG: 18.06.2013/28681) "
+        f"m.5, m.6, {duty_ref} ve m.15 uyarınca; "
     )
-    sign.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
-        ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 1), (-1, 1), 22),
-        ("LINEBELOW", (0, 1), (-1, 1), 0.5, colors.grey),
-    ]))
-    elements.append(sign)
+    if auxiliary:
+        appointment = f"işyeri acil durum planında tanımlanan <b>{text(team_name)}</b> yardımcı görevini yürütmek üzere <b>{membership.lower()}</b> olarak görevlendirildiniz."
+    else:
+        appointment = f"<b>{text(team_name)}</b> bünyesinde <b>{membership.lower()} {function.lower()}</b> olarak görevlendirildiniz."
+    elements.append(Paragraph(legal_basis + appointment, body))
+    if type_code == "ilk_yardim":
+        elements.append(Paragraph("İlk yardım görevlendirmesinde ayrıca İlkyardım Yönetmeliği (RG: 29.07.2015/29429) m.19 uygulanır. İlkyardım görevleri geçerli ilkyardımcı belgesi ve yetkinlik sınırları içinde yürütülür; bu yazı eğitim veya ilkyardımcı belgesi yerine geçmez.", body))
+    elements.extend([
+        Paragraph("GÖREV VE UYGULAMA ESASLARI", heading),
+        Paragraph(f"<b>Ekibe özgü görev:</b> {duty}", body),
+        Paragraph("İşyeri acil durum planındaki sorumluluk alanı ve talimatlara uyun; eğitim ve tatbikatlara katılın. Kendi güvenliğinizi koruyun, yetkinliğinizi aşan müdahalelerden kaçının ve profesyonel müdahale ekipleriyle birlikte çalışın.", body),
+    ])
+    if getattr(assignment, "notes", None):
+        elements.append(Paragraph(f"<b>İşyerine özgü görev / açıklama:</b> {text(assignment.notes)}", body))
+    elements.append(Paragraph("İşveren gerekli eğitim, ekipman ve organizasyonu sağlar. Bu görevlendirme, işverenin mevzuattan doğan yükümlülüklerini kaldırmaz (Yönetmelik m.5/2).", body))
 
+    signatures = Table([
+        [Paragraph("<b>İŞVEREN / İŞVEREN VEKİLİ</b>", sign_style), Paragraph("<b>GÖREVLENDİRİLEN ÇALIŞAN</b>", sign_style)],
+        [Paragraph(text(getattr(assignment, "assigned_by", None), "Adı Soyadı: ................................"), sign_style), Paragraph(text(employee_name), sign_style)],
+        [Paragraph("İmza: ................................", sign_style), Paragraph("Tebellüğ tarihi: .... / .... / ........<br/>İmza: ................................", sign_style)],
+    ], colWidths=[doc.width / 2] * 2)
+    signatures.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("TOPPADDING", (0, 2), (-1, 2), 18),
+        ("BOTTOMPADDING", (0, 2), (-1, 2), 8),
+    ]))
+    elements.append(KeepTogether([
+        Spacer(1, 3 * mm), Paragraph("Görevlendirme ve görev açıklamaları çalışana tebliğ edilmek üzere düzenlenmiştir.", info), signatures,
+    ]))
     doc.build(elements, onFirstPage=_add_pdf_footer, onLaterPages=_add_pdf_footer)
-    buf.seek(0)
-    return buf.read()
+    return buf.getvalue()

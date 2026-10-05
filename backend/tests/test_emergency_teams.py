@@ -363,3 +363,89 @@ def test_export_xlsx_and_pdf(client):
     p = client.get(f"/api/v1/emergency-teams/export.pdf?company_id={seed['company_id']}", headers=headers)
     assert p.status_code == 200
     assert p.content[:4] == b"%PDF"
+
+
+@pytest.mark.parametrize("code, reference, keyword", [
+    ("sondurme", "m.11/2-a", "Yangına"),
+    ("kurtarma", "m.11/2-b", "kurtarmaya"),
+    ("koruma", "m.11/2-c", "sayımı"),
+    ("ilk_yardim", "m.11/5", "İlkyardım Yönetmeliği"),
+    ("tahliye", "m.10", "yardımcı görevini"),
+    ("haberlesme", "m.5/1-e", "yardımcı görevini"),
+])
+def test_assignment_letter_legal_content_and_scope(client, code, reference, keyword):
+    from io import BytesIO
+    from pypdf import PdfReader
+    from app.core.database import SessionLocal
+    from app.models.entities import EmergencyTeamAssignment
+
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    teams = client.get(f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}", headers=headers).json()["teams"]
+    team = next(t for t in teams if t["type_code"] == code)
+    created = client.post("/api/v1/emergency-teams/assignments", headers=headers, json={
+        "company_id": seed["company_id"], "team_id": team["id"],
+        "employee_id": seed["employee_ids"][0], "membership": "yedek",
+        "is_leader": True, "assign_start": "2026-10-05", "letter_date": "2026-10-04",
+        "assigned_by": "İşveren & Vekili <A>", "role_title": "Operatör",
+    })
+    assert created.status_code == 200, created.text
+    assignment_id = created.json()["id"]
+    path = f"/api/v1/emergency-teams/assignments/{assignment_id}/letter.pdf"
+    downloaded = client.get(path, headers=headers)
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.headers["content-type"] == "application/pdf"
+    assert f"gorevlendirme-yazisi-{assignment_id}.pdf" in downloaded.headers["content-disposition"]
+    reader = PdfReader(BytesIO(downloaded.content))
+    assert len(reader.pages) == 1
+    text = " ".join(page.extract_text() for page in reader.pages)
+    for expected in ["6331", "m.11/1-c", "m.15", reference, keyword, "Personel 1", "Acil Firma", "İşveren & Vekili <A>", "04.10.2026", "05.10.2026", "Yedek", "Ekip lideri", "Tebellüğ tarihi", "m.5/2"]:
+        assert expected in text
+    assert "Bölüm" not in text
+    assert "Sicil No" not in text
+    assert "Diger Firma" not in text
+    assert f"AD-{seed['company_id']}-{assignment_id}" in text
+    if code == "ilk_yardim":
+        assert "m.19" in text
+        assert "belgesi yerine geçmez" in text
+
+    # Belge indirmek görevlendirme veya eğitim verisini değiştirmez.
+    with SessionLocal() as db:
+        row = db.get(EmergencyTeamAssignment, assignment_id)
+        assert row.section == "Üretim"
+        assert row.letter_no is None
+        assert len(row.trainings) == 0
+
+    # Yetkisiz firma ve kaldırılmış görevlendirme için belge verilemez.
+    with SessionLocal() as db:
+        row = db.get(EmergencyTeamAssignment, assignment_id)
+        row.company_id = seed["other_company_id"]
+        db.commit()
+    assert client.get(path, headers=headers).status_code == 403
+    with SessionLocal() as db:
+        row = db.get(EmergencyTeamAssignment, assignment_id)
+        row.is_active = False
+        db.commit()
+    assert client.get(path, headers=headers).status_code == 404
+
+
+def test_assignment_letter_wraps_literal_input_and_keeps_original_issue_date():
+    from datetime import datetime
+    from io import BytesIO
+    from types import SimpleNamespace as NS
+    from pypdf import PdfReader
+    from app.services.emergency_team_reports import build_assignment_letter_pdf
+
+    assignment = NS(id=17, created_at=datetime(2024, 1, 2), membership="asil",
+                    letter_no="ÖZEL & <17>", assigned_by="İşveren & <Vekili>",
+                    notes="İşyerine özel açıklama <eğitim> & ekipman.")
+    company = NS(id=4, name="Şirket <A> & B " * 10, address="Uzun adres " * 15)
+    team = NS(name="Özel Söndürme", team_type=NS(code="sondurme"))
+    output = build_assignment_letter_pdf(company=company, team=team, assignment=assignment, employee_name="Ayşe <Yılmaz> & Şahin")
+    reader = PdfReader(BytesIO(output))
+    text = " ".join(p.extract_text() for p in reader.pages)
+    assert "02.01.2024" in text
+    assert "ÖZEL & <17>" in text
+    assert "Ayşe <Yılmaz> & Şahin" in text
+    assert "<eğitim> & ekipman" in text
+    assert "m.11/2-a" in text  # özel isim yerine ekip türü esas alınır
