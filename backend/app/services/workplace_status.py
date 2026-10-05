@@ -398,13 +398,14 @@ def build_workplace_status(db: Session, company, *, viewer=None) -> dict:
         )
     )
 
-    employee_count = int(counts.get("employees") or 0)
+    employee_count = int(counts.get("active_employees") or 0)
+    inactive_employee_count = int(counts.get("inactive_employees") or 0)
     items.append(
         _item(
             code="employees",
             title="Çalışan kayıtları",
             status="completed" if employee_count else "missing",
-            detail=f"{employee_count} aktif çalışan kayıtlı.",
+            detail=f"{employee_count} aktif çalışan kayıtlı; {inactive_employee_count} pasif kayıt; {counts['employees']} toplam kayıt.",
             module="employees",
             responsible_role="İşveren / OSGB Yöneticisi",
             source="employees",

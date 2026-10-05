@@ -97,12 +97,13 @@ def build_company_overview(db: Session, company: Company) -> dict:
 
     branches_count = db.scalar(select(func.count()).select_from(Branch).where(Branch.company_id == cid)) or 0
     employee_count = db.scalar(select(func.count()).select_from(Employee).where(Employee.company_id == cid)) or 0
-    active_employee_count = count_active_employees(
-        db.scalars(
-            select(Employee).where(Employee.company_id == cid, Employee.is_active.is_(True))
-        ).all()
-    )
-    service_requirements = compute_company_service_requirements(company, active_employee_count)
+    active_employees = db.scalars(
+        select(Employee).where(Employee.company_id == cid, Employee.is_active.is_(True))
+    ).all()
+    # Personel ekranındaki aktif filtreyle aynı kayıt sayısı. Kapasitenin
+    # kimlik bazında tekilleştirdiği yasal hesap ayrı tutulur.
+    active_employee_count = len(active_employees)
+    service_requirements = compute_company_service_requirements(company, count_active_employees(active_employees))
 
     assignments = list(
         db.scalars(
@@ -430,6 +431,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
             "branches": branches_count,
             "employees": employee_count,
             "active_employees": active_employee_count,
+            "inactive_employees": employee_count - active_employee_count,
             "assignments": len(assignment_rows),
             "trainings": training_count,
             "open_risks": open_risks,

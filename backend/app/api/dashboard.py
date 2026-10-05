@@ -96,6 +96,7 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
             )
     else:
         cid = user.company_id
+        employee_company_ids = [cid] if cid else assigned_company_ids(db, user)
         cc = 1 if cid else 0
         bc = (
             db.scalar(
@@ -107,7 +108,7 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
             db.scalar(
                 select(func.count())
                 .select_from(Employee)
-                .where(Employee.company_id == cid, Employee.is_active.is_(True))
+                .where(Employee.company_id.in_(employee_company_ids or {-1}), Employee.is_active.is_(True))
             )
             or 0
         )

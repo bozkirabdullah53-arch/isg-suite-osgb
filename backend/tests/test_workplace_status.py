@@ -177,6 +177,55 @@ def test_status_never_exposes_sensitive_medical_fields_or_ibys_ready_claim(clien
     assert ibys["status"] == "pending_official_validation"
 
 
+@pytest.mark.parametrize("active_count,inactive_count", [(88, 4), (49, 4), (0, 4)])
+def test_employee_status_uses_personnel_active_filter_not_total_records(client, active_count, inactive_count):
+    from app.core.database import SessionLocal
+    from app.models.entities import Employee
+
+    seed = _seed()
+    with SessionLocal() as db:
+        existing = db.get(Employee, seed["employee_id"])
+        existing.is_active = bool(active_count)
+        db.add_all([
+            Employee(company_id=seed["company_1"], full_name=f"Aktif Çalışan {i}", is_active=True)
+            for i in range(max(0, active_count - 1))
+        ] + [
+            Employee(company_id=seed["company_1"], full_name=f"Pasif Çalışan {i}", is_active=False)
+            for i in range(inactive_count - (not active_count))
+        ] + [Employee(company_id=seed["company_2"], full_name="Yabancı Aktif", is_active=True)])
+        db.commit()
+
+    headers = {"Authorization": f"Bearer {_token(client, seed['users'][0], seed['password'])}"}
+    personnel = client.get(f"/api/v1/employees?company_id={seed['company_1']}&active=true", headers=headers)
+    assert personnel.status_code == 200, personnel.text
+    response = client.get(f"/api/v1/companies/{seed['company_1']}/status", headers=headers)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["counts"]["employees"] == active_count + inactive_count
+    assert payload["counts"]["active_employees"] == len(personnel.json()) == active_count
+    assert payload["counts"]["inactive_employees"] == inactive_count
+    items = {item["code"]: item for item in payload["status_center"]["items"]}
+    assert items["employees"]["count"] == active_count
+    assert f"{active_count} aktif çalışan kayıtlı" in items["employees"]["detail"]
+    assert f"{inactive_count} pasif kayıt" in items["employees"]["detail"]
+    assert items["employees"]["status"] == ("completed" if active_count else "missing")
+    assert items["ohs_committee"]["status"] == ("attention" if active_count >= 50 else "informational")
+
+    report = client.get(f"/api/v1/reports/summary?company_id={seed['company_1']}", headers=headers)
+    assert report.status_code == 200, report.text
+    assert report.json()["employee_count"] == report.json()["active_employee_count"] == active_count
+    assert report.json()["total_employee_count"] == active_count + inactive_count
+    assert report.json()["inactive_employee_count"] == inactive_count
+    admin_dashboard = client.get("/api/v1/dashboard/summary", headers=headers)
+    assert admin_dashboard.status_code == 200, admin_dashboard.text
+    assert admin_dashboard.json()["employee_count"] == active_count
+
+    specialist = {"Authorization": f"Bearer {_token(client, seed['users'][-1], seed['password'])}"}
+    dashboard = client.get("/api/v1/dashboard/summary", headers=specialist)
+    assert dashboard.status_code == 200, dashboard.text
+    assert dashboard.json()["employee_count"] == active_count
+
+
 def test_first_aid_status_tracks_emergency_assignments_and_certificates_at_turkey_midnight(client, monkeypatch):
     from datetime import datetime
     from app.core.database import SessionLocal

@@ -357,7 +357,9 @@ export function Customer360Page({
           />
 
           <div className="cards osgb-cards" style={{marginBottom: 16}}>
-            <Metric label="Personel" value={counts.employees} />
+            <Metric label="Toplam personel" value={counts.employees} />
+            <Metric label="Aktif personel" value={counts.active_employees} />
+            <Metric label="Pasif personel" value={counts.inactive_employees} />
             <Metric label="Şube" value={counts.branches} />
             <Metric label="Görevlendirme" value={counts.assignments} />
             <Metric

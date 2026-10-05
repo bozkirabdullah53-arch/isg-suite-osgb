@@ -83,3 +83,13 @@ test('an empty workplace does not claim completed first aid assignments', async 
   expect(panel.textContent).toContain('Aktif çalışan kaydı yok');
   expect(panel.textContent).not.toContain('Görevlendirmeler tamamlandı');
 });
+
+test('personnel metrics distinguish 92 total records from 88 active and four inactive records', async () => {
+  payload.counts = {employees: 92, active_employees: 88, inactive_employees: 4};
+  await mount();
+  const metrics = Object.fromEntries([...document.querySelectorAll('.metric')]
+    .map((metric) => [metric.querySelector('span').textContent, metric.querySelector('strong').textContent]));
+  expect(metrics['Toplam personel']).toBe('92');
+  expect(metrics['Aktif personel']).toBe('88');
+  expect(metrics['Pasif personel']).toBe('4');
+});

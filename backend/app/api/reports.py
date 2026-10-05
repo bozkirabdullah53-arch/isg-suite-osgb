@@ -52,6 +52,9 @@ def report_summary(
     if scope is not None and not scope:
         return {
             "employee_count": 0,
+            "total_employee_count": 0,
+            "active_employee_count": 0,
+            "inactive_employee_count": 0,
             "open_risks": 0,
             "accident_count": 0,
             "health_record_count": 0,
@@ -60,7 +63,10 @@ def report_summary(
         }
 
     emp_f = [] if scope is None else [Employee.company_id.in_(scope)]
-    employee_count = db.scalar(select(func.count()).select_from(Employee).where(*emp_f)) or 0
+    total_employee_count = db.scalar(select(func.count()).select_from(Employee).where(*emp_f)) or 0
+    employee_count = db.scalar(select(func.count()).select_from(Employee).where(
+        *emp_f, Employee.is_active.is_(True),
+    )) or 0
 
     risk_f = [] if scope is None else [RiskAssessment.company_id.in_(scope)]
     open_risks = db.scalar(select(func.count()).select_from(RiskAssessment).where(
@@ -93,6 +99,9 @@ def report_summary(
 
     return {
         "employee_count": employee_count,
+        "total_employee_count": total_employee_count,
+        "active_employee_count": employee_count,
+        "inactive_employee_count": total_employee_count - employee_count,
         "open_risks": open_risks,
         "accident_count": accidents,
         "health_record_count": health_records,
