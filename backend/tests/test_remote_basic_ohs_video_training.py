@@ -1036,7 +1036,7 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
                 email="remote-admin@remote-test.com",
                 full_name="Remote Admin",
                 hashed_password=get_password_hash("TestPass123!"),
-                role=UserRole.COMPANY_ADMIN,
+                role=UserRole.GLOBAL_ADMIN,
                 company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
@@ -1110,7 +1110,7 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
                 email="catalog-admin@remote-test.com",
                 full_name="Catalog Admin",
                 hashed_password=get_password_hash("TestPass123!"),
-                role=UserRole.COMPANY_ADMIN,
+                role=UserRole.GLOBAL_ADMIN,
                 company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
@@ -1217,7 +1217,7 @@ def test_remote_catalog_published_package_accepts_additive_video_and_section(rem
                 email="catalog-upload-admin@remote-test.com",
                 full_name="Catalog Upload Admin",
                 hashed_password=get_password_hash("TestPass123!"),
-                role=UserRole.COMPANY_ADMIN,
+                role=UserRole.GLOBAL_ADMIN,
                 company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
@@ -1554,7 +1554,7 @@ def test_remote_video_delete_removes_only_draft_uploads(remote_client, monkeypat
                 email="delete-admin@remote-test.com",
                 full_name="Delete Admin",
                 hashed_password=get_password_hash("TestPass123!"),
-                role=UserRole.COMPANY_ADMIN,
+                role=UserRole.GLOBAL_ADMIN,
                 company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
@@ -1674,7 +1674,7 @@ def test_remote_published_video_can_be_revised_without_losing_history(remote_cli
                 email="revision-admin@remote-test.com",
                 full_name="Revision Admin",
                 hashed_password=get_password_hash("TestPass123!"),
-                role=UserRole.COMPANY_ADMIN,
+                role=UserRole.GLOBAL_ADMIN,
                 company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
@@ -1915,7 +1915,7 @@ def test_catalog_program_rejects_mixed_scope_and_wrong_question(remote_client):
             email="catalog-scope-admin@remote-test.com",
                 full_name="Catalog Scope Admin",
                 hashed_password=get_password_hash("TestPass123!"),
-                role=UserRole.COMPANY_ADMIN,
+                role=UserRole.GLOBAL_ADMIN,
                 company_id=None,
                 osgb_id=osgb.id,
             is_active=True,
@@ -2263,7 +2263,7 @@ def test_remote_certificate_adapter_uses_shared_label_and_signatory_context(monk
     assert training.passing_score == 70
 
 
-def test_remote_content_permission_separates_osgb_admin_and_expert(monkeypatch):
+def test_remote_content_permission_reserves_management_for_global_admin(monkeypatch):
     from fastapi import HTTPException
     from app.core.config import settings
 
@@ -2317,10 +2317,12 @@ def test_remote_content_permission_separates_osgb_admin_and_expert(monkeypatch):
         with pytest.raises(HTTPException) as error:
             _assert_catalog_content_editor(db, expert)
         assert error.value.status_code == 403
-        assert not is_catalog_content_manager(global_admin)
+        assert not is_catalog_content_manager(admin)
         with pytest.raises(HTTPException) as error:
-            _assert_catalog_content_editor(db, global_admin)
+            _assert_catalog_content_editor(db, admin)
         assert error.value.status_code == 403
+        assert is_catalog_content_manager(global_admin)
+        _assert_catalog_content_editor(db, global_admin)
 
         package = RemoteTrainingCatalogPackage(
             osgb_id=osgb.id,
@@ -2330,14 +2332,17 @@ def test_remote_content_permission_separates_osgb_admin_and_expert(monkeypatch):
         )
         db.add(package)
         db.flush()
+        assert _catalog_content_package_for_manager(db, global_admin, package.id) is package
         with pytest.raises(HTTPException) as error:
-            _catalog_content_package_for_manager(db, global_admin, package.id)
+            _catalog_content_package_for_manager(db, admin, package.id)
         assert error.value.status_code == 403
 
-        _assert_catalog_content_editor(db, admin)
 
+def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_are_hidden(monkeypatch):
+    from app.core.config import settings
 
-def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_are_hidden():
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", False)
     from app.api.remote_training import _catalog_package_output
     from app.models.entities import OsgbOrganization, User, UserRole
     from app.models.remote_training import (

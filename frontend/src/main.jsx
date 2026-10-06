@@ -167,7 +167,7 @@ const roleModules={
   workplace_physician:PROFESSIONAL_MENU_MODULES.workplace_physician,
   other_health_personnel:[
     'visits','field_pwa','facility_summary','dashboard','workplace_status',
-    'health','employees',
+    'health','employees','remote_training',
     'annual_plans','documents','work_permits',
     'security',
   ],
@@ -290,6 +290,7 @@ const menuCatalog={
   branches:['Şubeler',GitBranch],
   employees:['Personel',Users],
   remote_training:['Uzaktan Eğitim Atama',GraduationCap],
+  eisa_remote_training:['Uzaktan Eğitim Video Yönetimi',GraduationCap],
   risk:['Risk Analizi',ShieldAlert],
   risk_analytics:['Tehlike ve Risk Analitiği',BarChart3],
   near_miss:['Ramak Kala',AlertTriangle],
@@ -3402,6 +3403,7 @@ function App(){
     // atanmış video + kontrol soruları + final sınavı panelini görür.
     training:<TrainingPage user={user}/>,
     remote_training:<RemoteBasicOhsTrainingPanel user={user}/>,
+    eisa_remote_training:<RemoteBasicOhsTrainingPanel user={user}/>,
     employee_training:<RemoteBasicOhsTrainingPanel user={user}/>,
     personnel_training_records:<WorkplaceTrainingRecordsPage user={user}/>,
     employee_self_service:<EmployeeSelfServicePage user={user} onOpenTraining={(assignmentId)=>{

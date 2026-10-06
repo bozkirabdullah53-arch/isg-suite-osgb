@@ -148,12 +148,14 @@ MANAGE_ROLES = {
     UserRole.GLOBAL_ADMIN,
     UserRole.COMPANY_ADMIN,
     UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
 }
 # Assignment/report workflows remain available to experts.  Adding, editing,
 # publishing, archiving or deleting any curriculum/package content is reserved
-# for the OSGB administrator (company_admin with an OSGB scope).
+# for the global administrator, independently of any tenant scope.
 CATALOG_CONTENT_ROLES = {
-    UserRole.COMPANY_ADMIN,
+    UserRole.GLOBAL_ADMIN,
 }
 VIEW_ROLES = MANAGE_ROLES | {
     UserRole.WORKPLACE_PHYSICIAN,
@@ -467,8 +469,8 @@ def is_workplace_account(user: User) -> bool:
 def is_catalog_content_manager(user: User) -> bool:
     """Return whether the user may add/change remote training content.
 
-    Scope validation belongs to the API guard; this role check deliberately
-    excludes global administrators, experts and workplace-scoped accounts.
+    OSGB administrators and all workplace/professional accounts operate the
+    published training packages; only the global administrator owns content.
     """
     return user.role in CATALOG_CONTENT_ROLES
 
@@ -1660,6 +1662,13 @@ def decode_catalog_playback_token(
             raise HTTPException(403, "Merkezi video OSGB kapsamınız dışında.")
     if video.status not in {"ready_for_review", "published", "unpublished"}:
         raise HTTPException(409, "Bu durumdaki video önizlenemez.")
+    # Recheck publication, tenant and subscription permissions when a signed
+    # preview URL is redeemed, including URLs minted before a role change.
+    from app.api.remote_training import _catalog_package_for_manager
+
+    _catalog_package_for_manager(db, user, package.id)
+    if not is_catalog_content_manager(user) and video.status != "published":
+        raise HTTPException(403, "Yayımlanmamış video önizlemesi yalnızca global yöneticiye açıktır.")
     return user, video
 
 

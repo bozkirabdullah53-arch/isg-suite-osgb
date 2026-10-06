@@ -1,4 +1,4 @@
-"""Additive OSGB-scoped custom package support for remote training.
+"""Globally managed custom package support for remote training.
 
 The existing remote-training implementation remains untouched.  This installer
 adds one create endpoint, broadens only the package-list query to include
@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api import remote_training as remote_api
@@ -163,11 +163,11 @@ def catalog_package_output_with_custom(
     result["code"] = CUSTOM_SECTOR_BASE_PACKAGE[sector_code]
     result["sector_code"] = sector_code
     result["is_custom"] = True
-    result["is_shared"] = False
+    result["is_shared"] = package.osgb_id is None
     return result
 
 
-def _next_custom_code(db: Session, scope: int, sector_code: str) -> str:
+def _next_custom_code(db: Session, scope: int | None, sector_code: str) -> str:
     for _ in range(12):
         candidate = f"{CUSTOM_PACKAGE_PREFIX}{sector_code}--{secrets.token_hex(5)}"
         exists = db.scalar(
@@ -182,7 +182,7 @@ def _next_custom_code(db: Session, scope: int, sector_code: str) -> str:
 
 
 def _assert_unique_active_title(
-    db: Session, scope: int, title: str
+    db: Session, scope: int | None, title: str
 ) -> None:
     rows = list(
         db.scalars(
@@ -196,7 +196,7 @@ def _assert_unique_active_title(
     if any(str(row.title or "").strip().casefold() == wanted for row in rows):
         raise HTTPException(
             409,
-            "Bu OSGB içinde aynı adla aktif bir eğitim paketi zaten bulunuyor.",
+            "Merkezi katalogda aynı adla aktif bir eğitim paketi zaten bulunuyor.",
         )
 
 
@@ -208,11 +208,6 @@ def create_custom_catalog_package(
     remote_api.require_feature()
     remote_api._assert_catalog_content_editor(db, user)
     scope = remote_api._catalog_scope(db, user)
-    if scope is None or user.role == UserRole.GLOBAL_ADMIN:
-        raise HTTPException(
-            409,
-            "Yeni özel eğitim paketi yalnızca bir OSGB yöneticisi kapsamında oluşturulabilir.",
-        )
 
     sector_code = payload.sector_code
     if sector_code not in CUSTOM_PACKAGE_SECTOR_CODES:
@@ -221,7 +216,6 @@ def create_custom_catalog_package(
             "Bu kategori için doğrulanmış sektör soru paketi henüz hazır değil.",
         )
 
-    remote_api.assert_osgb_subscription_access(db, user, scope)
     _assert_unique_active_title(db, scope, payload.title)
 
     package = RemoteTrainingCatalogPackage(
@@ -253,7 +247,7 @@ def list_catalog_packages_with_custom(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Preserve the central catalog and append only this OSGB's custom packages."""
+    """Share global packages while preserving existing OSGB-owned content."""
     remote_api.require_feature()
     remote_api._catalog_manager(user)
     remote_api._ensure_catalog_seed(db, user)
@@ -263,19 +257,14 @@ def list_catalog_packages_with_custom(
 
     allowed_codes = tuple(spec["code"] for spec in REMOTE_CATALOG_PACKAGE_SPECS)
     if user.role == UserRole.GLOBAL_ADMIN:
-        stmt = select(RemoteTrainingCatalogPackage).where(
-            RemoteTrainingCatalogPackage.osgb_id.is_(None),
-            RemoteTrainingCatalogPackage.code.in_(allowed_codes),
-        )
+        stmt = select(RemoteTrainingCatalogPackage)
     else:
         stmt = select(RemoteTrainingCatalogPackage).where(
             or_(
-                and_(
-                    RemoteTrainingCatalogPackage.osgb_id.is_(None),
-                    RemoteTrainingCatalogPackage.code.in_(allowed_codes),
-                ),
+                RemoteTrainingCatalogPackage.osgb_id.is_(None),
                 RemoteTrainingCatalogPackage.osgb_id == scope,
-            )
+            ),
+            RemoteTrainingCatalogPackage.status == "published",
         )
 
     rows = list(
@@ -290,6 +279,8 @@ def list_catalog_packages_with_custom(
     if scope is None:
         shared = {row.code: row for row in rows if row.osgb_id is None}
         ordered = [shared[code] for code in allowed_codes if code in shared]
+        ordered_ids = {row.id for row in ordered}
+        ordered.extend(row for row in rows if row.id not in ordered_ids)
     else:
         own_known = {
             row.code: row
@@ -310,7 +301,7 @@ def list_catalog_packages_with_custom(
         custom_rows = [
             row
             for row in rows
-            if row.osgb_id == scope and row.code not in allowed_codes
+            if row.osgb_id in (None, scope) and row.code not in allowed_codes
         ]
         custom_rows.sort(key=lambda row: (row.created_at, row.id))
         ordered.extend(custom_rows)

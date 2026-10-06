@@ -9,7 +9,7 @@ export function RemoteBasicOhsTrainingPanel({user}) {
 
   return (
     <>
-      <RemoteTrainingLogoManager user={user} companyId={selectedCompanyId} />
+      {user?.role !== 'global_admin' && <RemoteTrainingLogoManager user={user} companyId={selectedCompanyId} />}
       <CoreRemoteBasicOhsTrainingPanel
         user={user}
         onCompanySelectionChange={setSelectedCompanyId}

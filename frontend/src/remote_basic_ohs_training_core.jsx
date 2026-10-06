@@ -3,9 +3,10 @@ import {api, API_URL, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
 import {consumeEmployeeTrainingAssignment} from './employee_self_service_logic';
 import {isWorkplaceManagerUser} from './workplace_user_policy';
+import {canEditRemoteContent} from './remote_training_permissions';
+export {canEditRemoteContent} from './remote_training_permissions';
 import './remote_basic_ohs_training.css';
 
-const CONTENT_EDIT_ROLES = ['company_admin'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
 const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
 const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğitimi';
@@ -91,16 +92,6 @@ const cardStyle = {
   padding: 16,
   boxShadow: '0 3px 12px rgba(15, 35, 55, .05)',
 };
-
-export function canEditRemoteContent(user) {
-  // Yalnızca OSGB yöneticisi paket içeriği değiştirebilir. Firma/işyeri
-  // kapsamındaki company_admin hesapları atama ve izleme yapabilir; paket
-  // ekleme, düzenleme, yayımlama ve silme yetkisi yoktur. Backend aynı kuralı
-  // ayrıca uygular.
-  return CONTENT_EDIT_ROLES.includes(user?.role)
-    && Boolean(user?.osgb_id)
-    && !user?.company_id;
-}
 
 export function protectedPlaybackFallbackFetchOptions() {
   return {
@@ -1226,7 +1217,7 @@ function EmployeePanel() {
   );
 }
 
-function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, onBranchChange, onPrepared, rollout = null, canEditContent = false, canEditSharedContent = false}) {
+function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, onBranchChange, onPrepared, rollout = null, canEditContent = false, canEditSharedContent = false, contentManagementOnly = false}) {
   const [packages, setPackages] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [selectedPackage, setSelectedPackage] = useState(null);
@@ -1287,8 +1278,8 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     }
   }
 
-  useEffect(() => { loadPackages(); loadCompanies(); }, []);
-  useEffect(() => { loadBranches(); }, [companyId]);
+  useEffect(() => { loadPackages(); if (!contentManagementOnly) loadCompanies(); }, []);
+  useEffect(() => { if (!contentManagementOnly) loadBranches(); }, [companyId]);
   useEffect(() => { if (selectedId) loadPackage(selectedId); }, [selectedId]);
   useEffect(() => {
     // remote-catalog-processing-poll
@@ -1420,21 +1411,6 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     finally { setBusy(false); }
   }
 
-  async function forkPackage() {
-    if (!selectedPackage || !selectedPackage.is_shared || !canEditContent || canEditSharedContent) return;
-    setBusy(true); setError(''); setMessage('');
-    try {
-      const out = await api('/trainings/remote/catalog/packages/' + selectedPackage.id + '/fork', {method: 'POST'});
-      if (!out?.id) throw new Error('OSGB özel kopyası oluşturuldu ancak yeni paket seçilemedi.');
-      const forkedId = String(out.id);
-      setSelectedId(forkedId);
-      await loadPackages();
-      await loadPackage(forkedId);
-      setMessage('OSGB özel paketiniz oluşturuldu ve seçildi. Şimdi “Yeni ders bölümü oluştur” alanından bölüm ekleyebilirsiniz; ortak hazır paket değişmedi.');
-    } catch (err) { setError(err.message || 'OSGB özel paket oluşturulamadı.'); }
-    finally { setBusy(false); }
-  }
-
   const directContentEdit = Boolean(
     canEditContent && selectedPackage && (canEditSharedContent || !selectedPackage.is_shared),
   );
@@ -1512,13 +1488,13 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
         <div>
           <div style={{fontSize: 12, color: '#0b7285', fontWeight: 800, letterSpacing: '.03em'}}>MERKEZİ EĞİTİM PAKETLERİ</div>
           <h3 style={{margin: '4px 0'}}>Uzaktan Eğitim Paket Kataloğu</h3>
-          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Ortak hazır paketleri inceleyin; isterseniz OSGB özel kopyası oluşturup yalnız kendi OSGB’nize bölüm ve video ekleyin.</p>
+          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>{contentManagementOnly ? 'Merkezi paket, bölüm ve videoları buradan yönetin. Mevcut OSGB paketleri ve çalışan eğitim geçmişi korunur.' : 'Global yöneticinin yayımladığı eğitimleri seçin ve yetkili olduğunuz firma ve personele atayın. Video içeriğini yalnızca global yönetici değiştirebilir.'}</p>
         </div>
         <button type="button" onClick={refresh} disabled={busy}>Paketleri yenile</button>
       </div>
       <ErrorText value={error} />
       {message && <div role="status" aria-live="polite" style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
-      <div className="remote-training-rollout-note" role="note">
+      {!contentManagementOnly && <><div className="remote-training-rollout-note" role="note">
         <strong>Firma bazlı manuel atama:</strong>{' '}
         {rollout?.enabled && !rollout?.force_off
           ? `Yayımlanmış paketler arasından sektör seçimini siz yaparsınız: ${rollout.package_codes?.map(rolloutPackageLabel).join(', ') || 'dağıtıma açık paketler'}.`
@@ -1558,13 +1534,14 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
           {!companyId ? 'Atama için önce firma seçin.' : !selectedPackageIds.length ? 'Atama için yayımlanmış bir paketin kutusunu işaretleyin.' : `${selectedPackageIds.length} paket atamaya hazır.`}
         </div>
       </div>
+      </>}
       <div className="remote-training-manager-grid" style={{gap: 16, marginTop: 14}}>
         <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 12, background: '#fbfdff'}}>
           <h4 style={{margin: '0 0 6px'}}>Sektör eğitim paketleri</h4>
-          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>Paketi incelemek için karta, seçtiğiniz sektörü firmaya atamak için kutucuğa tıklayın. Ortak hazır paketler tüm abonelik OSGB’lerde aynıdır.</div>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>{contentManagementOnly ? 'Yönetmek istediğiniz eğitim paketinin kartına tıklayın. Ortak paketler tüm OSGB kullanıcılarına sunulur.' : 'Paketi incelemek için karta, seçtiğiniz sektörü firmaya atamak için kutucuğa tıklayın. Ortak hazır paketler tüm abonelik OSGB’lerde aynıdır.'}</div>
           {packages.map((item) => (
             <div key={item.id} style={{display: 'flex', gap: 8, alignItems: 'flex-start', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${String(item.id) === String(selectedId) ? '#0b9ca8' : '#dbe5ef'}`, background: String(item.id) === String(selectedId) ? '#e9fbfc' : '#fff'}}>
-              <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published' || !packageAutomaticExamReady(item) || !packageDistributionState(item, rollout).allowed} title={item.status !== 'published' ? 'Önce bu paketi yayımlayın' : !packageAutomaticExamReady(item) ? (item.automatic_exam_warning || 'Onaylı soru paketi hazır değil') : packageDistributionState(item, rollout).allowed ? 'Bu sektörü seçilen firmaya ata' : 'Firma ataması açılmadan firmaya hazırlanamaz'} aria-label={`${item.title} sektör paketini firmaya seç`} style={{marginTop: 3}} />
+              {!contentManagementOnly && <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published' || !packageAutomaticExamReady(item) || !packageDistributionState(item, rollout).allowed} title={item.status !== 'published' ? 'Önce bu paketi yayımlayın' : !packageAutomaticExamReady(item) ? (item.automatic_exam_warning || 'Onaylı soru paketi hazır değil') : packageDistributionState(item, rollout).allowed ? 'Bu sektörü seçilen firmaya ata' : 'Firma ataması açılmadan firmaya hazırlanamaz'} aria-label={`${item.title} sektör paketini firmaya seç`} style={{marginTop: 3}} />}
               <button type="button" onClick={() => setSelectedId(String(item.id))} style={{display: 'block', flex: 1, textAlign: 'left', padding: 0, border: 0, background: 'transparent', cursor: 'pointer'}}>
                 <strong style={{display: 'block'}}>{item.title}</strong>
                 <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{item.is_shared ? 'Ortak hazır paket' : 'OSGB özel paket'} · {statusLabel(item.status)} · {item.video_count || 0} video</span>
@@ -1573,7 +1550,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
               </button>
             </div>
           ))}
-          {!packages.length && <p style={{color: '#5e7485'}}>Paket kataloğu hazırlanıyor…</p>}
+          {!packages.length && <p style={{color: '#5e7485'}}>{contentManagementOnly ? 'Henüz eğitim paketi yok. Yeni eğitim paketi ekleyebilirsiniz.' : 'Henüz erişiminize açık yayımlanmış eğitim paketi yok.'}</p>}
         </div>
         <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 14, background: '#fff'}}>
           {selectedPackage ? (
@@ -1581,7 +1558,6 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
                 <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Sektör: {packageSectorLabel(selectedPackage.code, selectedPackage.sector_code)} · {statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div>{packageAutomaticExamReady(selectedPackage) ? <div className="remote-training-exam-auto-note">Otomatik final sınavı: <strong>{packageAutomaticExamCount(selectedPackage)} soru</strong> · geçme puanı <strong>%{selectedPackage.automatic_exam_passing_score || 70}</strong></div> : <div className="remote-training-exam-validation-warning">{selectedPackage.automatic_exam_warning || 'Otomatik final soru paketi hazır değil.'}</div>}{selectedPackage.status === 'published' && <div className={packageDistributionState(selectedPackage, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(selectedPackage, rollout).label}</div>}</div>
                 <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
-                  {selectedPackage.is_shared && canEditContent && !canEditSharedContent && selectedPackage.status !== 'archived' && <button type="button" onClick={forkPackage} disabled={busy} aria-label="Bölüm eklemeye başla; OSGB özel kopyası oluştur" title="Ortak pakete dokunulmaz; yalnız sizin OSGB’nize özel kopya oluşturulur ve bölüm ekleme alanı açılır." style={{color: '#fff', background: busy ? '#7aa6a3' : '#0f766e', borderColor: '#0f766e', fontWeight: 800}}>{busy ? 'Özel kopya hazırlanıyor…' : 'Bölüm eklemeye başla'}</button>}
                   {directContentEdit && ['draft', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button>}
                   {directContentEdit && ['ready_for_review', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('publish')} disabled={busy}>Paketi yayımla</button>}
                   {directContentEdit && selectedPackage.status === 'published' && <button type="button" onClick={() => packageAction('unpublish')} disabled={busy}>Yayından kaldır</button>}
@@ -1590,15 +1566,11 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                 </div>
               </div>
               <InlineRemoteVideoPreview preview={preview} onClose={() => setPreview(null)} />
-              <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> Bölüm → Video seç ve yükle → İşleme/inceleme → Video yayımla → Firma/işyeri seçip eğitim kutucuğunu işaretle. {packageAutomaticExamReady(selectedPackage) ? `Yayınlanan programa ${packageAutomaticExamCount(selectedPackage)} onaylı final sorusu ve %${selectedPackage.automatic_exam_passing_score || 70} geçme kuralı otomatik eklenir.` : 'Onaylı soru paketi hazır olmadığı için bu paket firma programına hazırlanamaz.'}</div>
+              <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> {contentManagementOnly ? 'Bölüm oluştur → Video yükle → İncele → Yayımla.' : 'Firma/işyeri seç → Yayımlanmış eğitimi seç → Personel ata → İlerleme ve belgeyi takip et.'} {packageAutomaticExamReady(selectedPackage) ? `Yayınlanan programa ${packageAutomaticExamCount(selectedPackage)} onaylı final sorusu ve %${selectedPackage.automatic_exam_passing_score || 70} geçme kuralı otomatik eklenir.` : 'Onaylı soru paketi hazır olmadığı için bu paket firma programına hazırlanamaz.'}</div>
               {selectedPackage.is_shared && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}>
-                {canEditContent && !canEditSharedContent
-                  ? selectedPackage.status === 'published'
-                    ? <><strong>OSGB olarak bölüm eklemek için:</strong> Önce yukarıdaki <strong>“Bölüm eklemeye başla”</strong> düğmesine basın. Sistem yalnız sizin OSGB’nize ait özel bir kopya oluşturur; ardından bu alanda <strong>“Yeni ders bölümü oluştur”</strong> formu açılır. Ortak paket ve diğer OSGB’ler etkilenmez.</>
-                    : <><strong>OSGB özel hazırlığı:</strong> Bu ortak paket henüz yayımlanmamış. <strong>“Bölüm eklemeye başla”</strong> düğmesi sizin OSGB’nize özel bir taslak kopya oluşturur; ardından bölüm ve videoları ekleyip kendi paketinizi yayıma hazırlayabilirsiniz. Ortak paket ve diğer OSGB’ler etkilenmez.</>
-                  : <><strong>Ortak hazır paket:</strong> Bu paket tüm aktif EİSA aboneliği olan OSGB’lerde aynıdır. Uzmanlar içeriği değiştiremez; OSGB yöneticisi kendi kopyasını oluşturup yalnız kendi OSGB’sinde düzenleyebilir.</>}
+                <><strong>Ortak hazır paket:</strong> İçerik yalnızca global yönetici tarafından hazırlanır ve yayımlanır. Alt kullanıcılar bu eğitimleri yetkili oldukları firma ve personele atayabilir.</>
               </div>}
-              <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; güncel yayımlanmış veya yayından kaldırılmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın. Eski sürüm tarihçe için korunur; yanlış yüklenen bekleyen taslak <strong>Taslak videoyu sil</strong> ile kaldırılır.</div>
+              {directContentEdit && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; güncel yayımlanmış veya yayından kaldırılmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın. Eski sürüm tarihçe için korunur; yanlış yüklenen bekleyen taslak <strong>Taslak videoyu sil</strong> ile kaldırılır.</div>}
               {directContentEdit && <>
 {selectedPackage.status === 'archived'
                 ? <div style={{marginTop: 14, padding: 12, border: '1px solid #f2c46d', borderRadius: 9, background: '#fff8e8'}}>
@@ -1632,7 +1604,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                   </div>)}
                 </div>
               ))}
-              {!selectedPackage.sections?.length && <p style={{marginTop: 14, color: '#5e7485'}}>Bu pakette henüz bölüm yok. Yukarıdaki alandan ilk bölümü ekleyin.</p>}
+              {!selectedPackage.sections?.length && <p style={{marginTop: 14, color: '#5e7485'}}>{directContentEdit ? 'Bu pakette henüz bölüm yok. Yukarıdaki alandan ilk bölümü ekleyin.' : 'Bu paket için henüz yayımlanmış ders bölümü bulunmuyor.'}</p>}
             </>
           ) : <p style={{color: '#5e7485'}}>Soldan bir eğitim paketi seçin.</p>}
         </div>
@@ -3062,7 +3034,7 @@ function RemoteTrainingGuide() {
         <span className="remote-training-guide-icon" aria-hidden="true">✓</span>
         <span className="remote-training-guide-heading">
           <strong>Uzaktan Eğitim Kullanım Rehberi</strong>
-          <small>Uzmanı içerik hazırlamadan katılım belgesi arşivine kadar yönlendiren 8 adım</small>
+          <small>Eğitim seçiminden katılım belgesi arşivine kadar 8 adım</small>
         </span>
         <span className="remote-training-guide-count">8 adım</span>
       </summary>
@@ -3071,7 +3043,7 @@ function RemoteTrainingGuide() {
         <ol className="remote-training-guide-steps">
           <li>
             <span className="remote-training-guide-step-number">1</span>
-            <div><strong>Videoları hazırlayın</strong><p>Merkezi katalogdan eğitim paketini seçin. Bölümleri oluşturun, her bölümün kendi <b>Video seç ve yükle</b> düğmesiyle videoyu yükleyin. Durum <b>Yayımlandı</b> olana kadar bekleyin.</p></div>
+            <div><strong>Eğitim paketini seçin</strong><p>Global yöneticinin hazırlayıp yayımladığı eğitimleri katalogdan inceleyin. Video ekleme, silme ve yayınlama işlemleri global yöneticiye aittir.</p></div>
           </li>
           <li>
             <span className="remote-training-guide-step-number">2</span>
@@ -3079,11 +3051,11 @@ function RemoteTrainingGuide() {
           </li>
           <li>
             <span className="remote-training-guide-step-number">3</span>
-            <div><strong>Ders kapsamını kontrol edin</strong><p>Firmaya hazırlanan programı açın. <b>Firma için sektör / ders kapsamı</b> bölümünde çalışana açılacak kapsamı kontrol edin ve <b>Firma ders kapsamını kaydet</b> düğmesine basın.</p></div>
+            <div><strong>Ders kapsamını kontrol edin</strong><p>Firmaya hazırlanan programı açın. Çalışana açılacak sektör, ders ve sınav kapsamını kontrol edin. Paket içeriği global yönetici tarafından belirlenir.</p></div>
           </li>
           <li>
             <span className="remote-training-guide-step-number">4</span>
-            <div><strong>Eğitimi yayımlayın</strong><p>Videolarda hata veya <b>İşleniyor</b> durumu kalmadığını kontrol edin. Programdaki <b>Yayımla</b> düğmesine basın. Üstte <b>Eğitim yayımlandı ve çalışan atamasına açıldı</b> mesajını görmeden atama yapmayın.</p></div>
+            <div><strong>Atamaya hazır eğitimi açın</strong><p>Firma için hazırladığınız yayımlanmış programı açın. Videolar ve final sınavı, seçtiğiniz hazır paketten otomatik alınır; içerik yayımlama işlemi yapmanız gerekmez.</p></div>
           </li>
           <li>
             <span className="remote-training-guide-step-number">5</span>
@@ -3122,10 +3094,8 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
   const canManage = Boolean(meta?.can_manage);
   const canOperate = Boolean(meta?.can_operate);
   const workplaceMode = Boolean(meta?.workplace_scoped) || isWorkplaceManagerUser(user);
-  const canEditContent = canEditRemoteContent(user);
-  // Ortak merkezi paketler de kullanıcı arayüzünden değiştirilemez. OSGB
-  // yöneticisi yalnız kendi OSGB özel kopyasını düzenler.
-  const canEditSharedContent = false;
+  const canEditContent = Boolean(meta?.can_edit_content) && canEditRemoteContent(user);
+  const canEditSharedContent = canEditContent && Boolean(meta?.can_edit_shared_content);
 
   function handleCompanySelectionChange(value) {
     setSelectedCompanyId(value);
@@ -3139,6 +3109,15 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
   if (error) return <section className="remote-training-panel remote-training-card" style={cardStyle}><ErrorText value={error} /></section>;
   if (!meta) return <section className="remote-training-panel remote-training-card" style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
   if (!meta.enabled) return <section className="remote-training-panel remote-training-card" style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} modülü henüz etkin değil.</section>;
+  if (canEditContent) {
+    return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
+      <section style={cardStyle} aria-label="Global yönetici uzaktan eğitim video yönetimi">
+        <h2 style={{marginTop: 0, color: '#123b59'}}>Uzaktan Eğitim Video Yönetimi</h2>
+        <p style={{marginBottom: 0, color: '#5e7485'}}>Eğitim paketi ve videolarının ekleme, düzenleme, silme ve yayınlama yetkisi yalnızca global yöneticidedir. OSGB, uzman ve diğer yetkili alt kullanıcılar yayımlanmış eğitimleri kendi firma ve personeline atar; ilerlemeyi, sınavları ve belgeleri takip eder.</p>
+      </section>
+      <div id="remote-training-catalog"><CatalogManagerPanel rollout={meta.strict_policy} canEditContent canEditSharedContent={canEditSharedContent} contentManagementOnly /></div>
+    </div>;
+  }
   if (workplaceMode) {
     return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
       <section style={{...cardStyle, borderTop: '4px solid #0f766e'}} aria-label="İşyeri uzaktan eğitim atama akışı">
@@ -3177,7 +3156,7 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
       <div className="remote-training-guide-launcher-content">
         <span className="remote-training-guide-kicker">UZMAN EKRANI · HIZLI BAŞLANGIÇ</span>
         <strong>Uzaktan eğitimi başlatmak için adım adım ilerleyin</strong>
-        <span>Video yükleme, firma kapsamı, çalışan ataması, sınav ve katılım belgesi arşivi tek rehberde.</span>
+        <span>Eğitim seçimi, firma kapsamı, çalışan ataması, sınav ve katılım belgesi arşivi tek rehberde.</span>
       </div>
       <a className="remote-training-guide-launcher-link" href="#remote-training-guide" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-guide')}>
         <span aria-hidden="true">✦</span><span>Adım adım rehberi aç</span><span aria-hidden="true">↓</span>
@@ -3192,7 +3171,7 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
       <div style={{margin: '0 0 16px'}}><RemoteCertificateHub /></div>
     </details>
     <div className="remote-training-flow" aria-label="Uzaktan eğitim yaşam döngüsü">
-      <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>1</span><div><strong>Video ekle</strong><small>Paketi seçin, videoları bölümlere yükleyin.</small></div></a>
+      <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>1</span><div><strong>Eğitim seç</strong><small>Global yöneticinin yayımladığı paketleri inceleyin.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>2</span><div><strong>Firma / işyeri seç</strong><small>Eğitim kutucuklarını işaretleyip hazırlayın.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-assignment-manager" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-assignment-manager')}><span>3</span><div><strong>Personel ata</strong><small>Giriş hesabını eşleyip programı atayın.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-employee-preview" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-employee-preview')}><span>4</span><div><strong>Çalışan tamamlasın</strong><small>%100 video + sınavda en az %70.</small></div></a>
