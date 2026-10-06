@@ -27,7 +27,7 @@ from app.core.config import (
 )
 from app.core.database import get_db
 from app.core.security import get_password_hash
-from app.models.entities import Branch, Company, Employee, TrainingQuestion, User, UserRole
+from app.models.entities import Branch, Company, Employee, EisaPlatformSetting, TrainingQuestion, User, UserRole
 from app.models.remote_training import (
     ASSET_TYPES,
     PROGRAM_STATUSES,
@@ -87,12 +87,10 @@ from app.services.object_store import (
 from app.services.upload_security import assert_safe_video_upload
 from app.services.osgb_subscription import (
     assert_osgb_subscription_access,
-    assert_osgb_write_access,
     resolve_user_osgb_id,
 )
 from app.services.osgb_admin import generate_temporary_password
 from app.services.remote_training import (
-    CATALOG_CONTENT_ROLES,
     MANAGE_ROLES,
     REMOTE_AUTO_EXAM_QUESTION_COUNT,
     VIEW_ROLES,
@@ -166,9 +164,10 @@ def _mask_public_name(value: str | None) -> str | None:
 
 router = APIRouter(prefix="/trainings/remote", tags=["Uzaktan Temel İSG Eğitimi"])
 logger = logging.getLogger(__name__)
+CATALOG_SEED_SETTING_KEY = "remote_training_catalog_initialized_v1"
 
 # A new revision is intentionally kept out of the published/current video
-# slot until an OSGB administrator reviews and publishes it.  It still needs
+# slot until a global administrator reviews and publishes it.  It still needs
 # to be visible in the administrator's catalog detail so the review workflow
 # can be completed.  Non-current historical unpublished/archived revisions
 # remain hidden.
@@ -243,21 +242,14 @@ def _catalog_manager(user: User) -> None:
 
 
 def _assert_catalog_content_editor(db: Session, user: User) -> None:
-    """Require the OSGB administrator for curriculum/package changes."""
-    _manager(user)
-    if (
-        user.role not in CATALOG_CONTENT_ROLES
-        or user.role != UserRole.COMPANY_ADMIN
-        or not user.osgb_id
-        or user.company_id is not None
-        or not is_catalog_content_manager(user)
-    ):
+    """Authorize every content mutation through the global administrator role."""
+    if not is_catalog_content_manager(user):
         raise HTTPException(
             403,
-            "Uzaktan eğitim içeriğini yalnızca OSGB yöneticisi değiştirebilir. "
-            "Uzmanlar sadece kendilerine atanmış firmalara paket atayabilir.",
+            "Uzaktan eğitim videolarını ve paket içeriğini yalnızca global yönetici "
+            "ekleyebilir, düzenleyebilir, yayımlayabilir veya silebilir. "
+            "Alt kullanıcılar yetkili oldukları firma ve personele eğitim atayabilir.",
         )
-    assert_osgb_write_access(db, user, int(user.osgb_id))
 
 
 def _viewer(user: User) -> None:
@@ -855,24 +847,17 @@ def _catalog_package_for_manager(
         if package.osgb_id not in (None, scope):
             raise HTTPException(403, "Bu merkezi eğitim paketi OSGB kapsamınız dışında.")
         assert_osgb_subscription_access(db, user, scope)
+        if package.status != "published":
+            raise HTTPException(404, "Yayımlanmış merkezi eğitim paketi bulunamadı.")
     return package
 
 
 def _catalog_content_package_for_manager(
     db: Session, user: User, package_id: int
 ) -> RemoteTrainingCatalogPackage:
-    """Return an OSGB-owned package that may be changed."""
-    package = _catalog_package_for_manager(db, user, package_id)
+    """Allow the global owner to manage shared and existing tenant packages."""
     _assert_catalog_content_editor(db, user)
-    scope = _catalog_scope(db, user)
-    if package.osgb_id is None:
-        raise HTTPException(
-            409,
-            "Ortak hazır paket değiştirilemez. Önce OSGB özel kopyasını oluşturun.",
-        )
-    if package.osgb_id != scope:
-        raise HTTPException(403, "Bu OSGB özel eğitim paketi kapsamınız dışında.")
-    return package
+    return _catalog_package_for_manager(db, user, package_id)
 
 
 def _catalog_section_for_manager(
@@ -1048,33 +1033,28 @@ def _catalog_package_output(
     return result
 
 
+def _mark_catalog_seed_initialized(db: Session) -> None:
+    """Keep explicit global deletions from being recreated on catalog reads."""
+    if db.scalar(select(EisaPlatformSetting.id).where(EisaPlatformSetting.key == CATALOG_SEED_SETTING_KEY)) is None:
+        db.add(EisaPlatformSetting(key=CATALOG_SEED_SETTING_KEY, value="1"))
+
+
 def _ensure_catalog_seed(db: Session, user: User) -> int | None:
-    """Ensure the approved catalog exists without creating tenant shadow copies."""
+    """Initialize approved templates once, exclusively for the global owner."""
     scope = _catalog_scope(db, user)
-    changed = False
+    # Reading or assigning content must never create/edit a tenant catalog.
+    # Existing tenant packages stay available without rewriting their records.
+    if not is_catalog_content_manager(user):
+        return scope
+    if db.scalar(select(EisaPlatformSetting.id).where(EisaPlatformSetting.key == CATALOG_SEED_SETTING_KEY)) is not None:
+        return scope
     for spec in REMOTE_CATALOG_PACKAGE_SPECS:
-        package = None
-        if scope is None:
-            package = db.scalar(
-                select(RemoteTrainingCatalogPackage).where(
-                    RemoteTrainingCatalogPackage.code == spec["code"],
-                    RemoteTrainingCatalogPackage.osgb_id.is_(None),
-                )
+        package = db.scalar(
+            select(RemoteTrainingCatalogPackage).where(
+                RemoteTrainingCatalogPackage.code == spec["code"],
+                RemoteTrainingCatalogPackage.osgb_id.is_(None),
             )
-        else:
-            package = db.scalar(
-                select(RemoteTrainingCatalogPackage).where(
-                    RemoteTrainingCatalogPackage.code == spec["code"],
-                    RemoteTrainingCatalogPackage.osgb_id == scope,
-                )
-            )
-            if package is None:
-                package = db.scalar(
-                    select(RemoteTrainingCatalogPackage).where(
-                        RemoteTrainingCatalogPackage.code == spec["code"],
-                        RemoteTrainingCatalogPackage.osgb_id.is_(None),
-                    )
-                )
+        )
         if package is None:
             package = RemoteTrainingCatalogPackage(
                 osgb_id=scope,
@@ -1086,16 +1066,8 @@ def _ensure_catalog_seed(db: Session, user: User) -> int | None:
             )
             db.add(package)
             db.flush()
-            changed = True
-        elif package.title != spec["title"] or package.description != spec["description"]:
-            # Shared package metadata is repaired only by the global owner.
-            if scope is None or package.osgb_id == scope:
-                package.title = spec["title"]
-                package.description = spec["description"]
-                changed = True
-
-        # A tenant request must never mutate a shared package while seeding.
-        if scope is not None and package.osgb_id is None:
+        else:
+            # Do not undo the global owner's edits/deletions on a list request.
             continue
 
         existing_codes = set(
@@ -1117,9 +1089,8 @@ def _ensure_catalog_seed(db: Session, user: User) -> int | None:
                     created_by_id=user.id,
                 )
             )
-            changed = True
-    if changed:
-        _commit(db, "Merkezi eğitim paketleri oluşturulamadı.")
+    _mark_catalog_seed_initialized(db)
+    _commit(db, "Merkezi eğitim paketleri oluşturulamadı.")
     return scope
 
 @router.get("/meta")
@@ -1144,6 +1115,8 @@ def remote_training_meta(
         # all privileged catalog/content operations remain separately scoped.
         "can_manage": bool(is_manager(user)),
         "can_operate": bool(is_manager(user)),
+        "can_edit_content": bool(is_catalog_content_manager(user)),
+        "can_edit_shared_content": bool(is_catalog_content_manager(user)),
         "workplace_scoped": bool(is_workplace_account(user)),
         "can_view_employee_panel": bool(feature_active() and employee_access(db, user) is not None),
         "strict_policy": {
@@ -1172,15 +1145,14 @@ def list_catalog_packages(
     stmt = select(RemoteTrainingCatalogPackage).where(
         RemoteTrainingCatalogPackage.code.in_(allowed_codes)
     )
-    if user.role == UserRole.GLOBAL_ADMIN:
-        stmt = stmt.where(RemoteTrainingCatalogPackage.osgb_id.is_(None))
-    else:
+    if user.role != UserRole.GLOBAL_ADMIN:
         stmt = stmt.where(
             or_(
                 RemoteTrainingCatalogPackage.osgb_id.is_(None),
                 RemoteTrainingCatalogPackage.osgb_id == scope,
             )
         )
+        stmt = stmt.where(RemoteTrainingCatalogPackage.status == "published")
     rows = list(
         db.scalars(
             stmt.order_by(RemoteTrainingCatalogPackage.code, RemoteTrainingCatalogPackage.id)
@@ -1204,12 +1176,16 @@ def get_catalog_package(
     user: User = Depends(get_current_user),
 ):
     package = _catalog_package_for_manager(db, user, package_id)
-    return _catalog_package_output(
+    output = _catalog_package_output(
         db,
         package,
         detail=True,
         include_pending=is_catalog_content_manager(user),
     )
+    if not is_catalog_content_manager(user):
+        for section in output["sections"]:
+            section["videos"] = [video for video in section["videos"] if video["status"] == "published"]
+    return output
 
 
 @router.post("/catalog/packages/{package_id}/fork", status_code=201)
@@ -2111,6 +2087,8 @@ def create_catalog_playback(
     user: User = Depends(get_current_user),
 ):
     video = _catalog_video_for_manager(db, user, video_id)
+    if not is_catalog_content_manager(user) and video.status != "published":
+        raise HTTPException(403, "Yayımlanmamış video önizlemesi yalnızca global yöneticiye açıktır.")
     if video.status not in {"ready_for_review", "published", "unpublished"}:
         raise HTTPException(409, "Bu durumdaki video önizlenemez.")
     token = create_catalog_playback_token(user=user, video=video)

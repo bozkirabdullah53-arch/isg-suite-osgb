@@ -1,7 +1,7 @@
-"""Additive edit/delete controls for OSGB-owned remote-training catalog content.
+"""Edit/delete controls for globally managed remote-training catalog content.
 
-Shared catalog packages remain protected. OSGB-owned packages can be edited or
-deleted by the OSGB content manager. When a package has already been materialized
+Shared and existing OSGB packages can be edited or deleted by the global
+content manager. When a package has already been materialized
 for a company, deleting the catalog row detaches only the source link; the
 company/employee snapshot, progress, exams, and certificates remain untouched.
 """
@@ -57,13 +57,8 @@ class RemoteCatalogSectionReorder(BaseModel):
 def _private_package(
     db: Session, user: User, package_id: int
 ) -> RemoteTrainingCatalogPackage:
-    package = remote_api._catalog_content_package_for_manager(db, user, package_id)
-    if package.osgb_id is None:
-        raise HTTPException(
-            409,
-            "Ortak hazır paket doğrudan değiştirilemez veya silinemez. Önce OSGB özel kopyasını oluşturun.",
-        )
-    return package
+    # Keep the compatibility name for existing route installers/callers.
+    return remote_api._catalog_content_package_for_manager(db, user, package_id)
 
 
 def _clean_title(value: str | None) -> str:
@@ -100,7 +95,7 @@ def _assert_unique_package_title(
         )
     )
     if duplicate:
-        raise HTTPException(409, "Bu OSGB içinde aynı adla başka bir eğitim paketi bulunuyor.")
+        raise HTTPException(409, "Bu katalog kapsamında aynı adla başka bir eğitim paketi bulunuyor.")
 
 
 def _snapshot_stable_section_links(db: Session, package: RemoteTrainingCatalogPackage) -> int:
@@ -165,6 +160,9 @@ def delete_catalog_package_safely(
     user: User = Depends(get_current_user),
 ):
     package = _private_package(db, user, package_id)
+
+    if package.osgb_id is None:
+        remote_api._mark_catalog_seed_initialized(db)
 
     materialized_count = int(
         db.scalar(

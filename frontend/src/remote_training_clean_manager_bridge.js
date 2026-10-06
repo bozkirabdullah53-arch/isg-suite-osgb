@@ -1,3 +1,4 @@
+import {canEditRemoteContent} from './remote_training_permissions';
 import {api, API_URL, uploadFile} from './api';
 
 window.__ISG_REMOTE_TRAINING_CLEAN_MANAGER__ = true;
@@ -13,7 +14,6 @@ let detail = null;
 let timer = null;
 let pollTimer = null;
 let busy = false;
-let forking = null;
 let allowed = null;
 
 const L = {
@@ -41,7 +41,7 @@ function css() {
   if (document.getElementById(S)) return;
   const x = document.createElement('style');
   x.id = S;
-  x.textContent = `.${H}>:not([${A}]){display:none!important}.rtc{color:#173b57}.rtc *{box-sizing:border-box}.rtc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:13px;border-bottom:1px solid #e3edf3}.rtc h3{margin:3px 0 4px;font-size:21px}.rtc-k{font-size:11px;font-weight:850;letter-spacing:.08em;color:#0f766e}.rtc-meta,.rtc-note{color:#60798b;font-size:12px}.rtc-meta{display:flex;gap:7px;flex-wrap:wrap}.rtc-actions,.rtc-sec-actions,.rtc-va{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rtc button{min-height:34px;padding:7px 10px;border:1px solid #bfd0dd;border-radius:8px;background:#fff;color:#173b57;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.rtc button:hover:not(:disabled){border-color:#2696a0}.rtc button:disabled{opacity:.55}.rtc .pri{background:#0f766e;border-color:#0f766e;color:#fff}.rtc .pub{background:#f2fff5;border-color:#9acdad;color:#17643a}.rtc .bad{background:#fff8f7;border-color:#e5aaa5;color:#ad2e25}.rtc-note{margin-top:11px;padding:9px 11px;border:1px solid #cfe3e7;border-radius:9px;background:#f7fcfd;line-height:1.45}.rtc-list{display:grid;gap:10px;margin-top:12px}.rtc-sec{border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;background:#fff}.rtc-sec.drag{opacity:.55;box-shadow:0 10px 28px rgba(16,46,66,.18)}.rtc-sec.over{outline:2px solid #18a3a5;outline-offset:2px}.rtc-sec-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 11px;background:#fbfdff;border-bottom:1px solid #edf2f6}.rtc-sec-id{display:flex;gap:8px;align-items:center;min-width:0}.rtc-grab{width:32px;min-width:32px!important;padding:0!important;border-style:dashed!important;color:#0f766e!important;cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none}.rtc-grab:active{cursor:grabbing!important}.rtc-grab:focus-visible{outline:3px solid #18a3a5;outline-offset:2px}.rtc-sec-name strong,.rtc-v strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rtc-sec-name span,.rtc-v span{display:block;margin-top:2px;color:#6a8090;font-size:11px}.rtc-sec-body{padding:9px 11px 11px}.rtc-upload{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 0 9px;color:#60798b;font-size:12px}.rtc-vlist{display:grid;gap:6px}.rtc-v{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:9px;align-items:center;padding:8px 9px;border:1px solid #e4edf3;border-radius:8px;background:#f9fbfd}.rtc-va button{min-height:30px;padding:5px 7px;font-size:11px}.rtc-empty{padding:18px;text-align:center;color:#60798b;border:1px dashed #bfd0dd;border-radius:9px}.rtc-pop{position:fixed;inset:0;z-index:10170;display:grid;place-items:center;padding:20px;background:rgba(7,25,39,.58)}.rtc-box{width:min(560px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 22px 65px rgba(7,30,48,.28)}.rtc-box-h{display:flex;justify-content:space-between;gap:10px;padding:15px 17px 11px;border-bottom:1px solid #e6edf3}.rtc-box-h h3{margin:0;font-size:18px}.rtc-close{border:0!important;font-size:22px!important}.rtc-form{padding:15px 17px}.rtc-form label{display:block;margin-bottom:10px;font-size:12px;font-weight:800}.rtc-form input,.rtc-form textarea{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #bfd0dd;border-radius:8px;font:inherit}.rtc-form textarea{min-height:80px}.rtc-form-a{display:flex;justify-content:flex-end;gap:7px}.rtc-preview{width:min(900px,96vw)}.rtc-preview video{width:100%;max-height:75vh;background:#000;display:block}.rtc-toast{position:fixed;right:20px;bottom:20px;z-index:10190;max-width:min(500px,90vw);padding:11px 13px;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800}.rtc-toast.err{background:#b42318}@media(max-width:820px){.rtc-head,.rtc-v{display:grid}.rtc-actions,.rtc-va,.rtc-sec-actions{justify-content:flex-start}.rtc-sec-head{align-items:flex-start}}`;
+  x.textContent = `.${H}>:not([${A}]):not([data-remote-package-management-toolbar]){display:none!important}.rtc{color:#173b57}.rtc *{box-sizing:border-box}.rtc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:13px;border-bottom:1px solid #e3edf3}.rtc h3{margin:3px 0 4px;font-size:21px}.rtc-k{font-size:11px;font-weight:850;letter-spacing:.08em;color:#0f766e}.rtc-meta,.rtc-note{color:#60798b;font-size:12px}.rtc-meta{display:flex;gap:7px;flex-wrap:wrap}.rtc-actions,.rtc-sec-actions,.rtc-va{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rtc button{min-height:34px;padding:7px 10px;border:1px solid #bfd0dd;border-radius:8px;background:#fff;color:#173b57;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.rtc button:hover:not(:disabled){border-color:#2696a0}.rtc button:disabled{opacity:.55}.rtc .pri{background:#0f766e;border-color:#0f766e;color:#fff}.rtc .pub{background:#f2fff5;border-color:#9acdad;color:#17643a}.rtc .bad{background:#fff8f7;border-color:#e5aaa5;color:#ad2e25}.rtc-note{margin-top:11px;padding:9px 11px;border:1px solid #cfe3e7;border-radius:9px;background:#f7fcfd;line-height:1.45}.rtc-list{display:grid;gap:10px;margin-top:12px}.rtc-sec{border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;background:#fff}.rtc-sec.drag{opacity:.55;box-shadow:0 10px 28px rgba(16,46,66,.18)}.rtc-sec.over{outline:2px solid #18a3a5;outline-offset:2px}.rtc-sec-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 11px;background:#fbfdff;border-bottom:1px solid #edf2f6}.rtc-sec-id{display:flex;gap:8px;align-items:center;min-width:0}.rtc-grab{width:32px;min-width:32px!important;padding:0!important;border-style:dashed!important;color:#0f766e!important;cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none}.rtc-grab:active{cursor:grabbing!important}.rtc-grab:focus-visible{outline:3px solid #18a3a5;outline-offset:2px}.rtc-sec-name strong,.rtc-v strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rtc-sec-name span,.rtc-v span{display:block;margin-top:2px;color:#6a8090;font-size:11px}.rtc-sec-body{padding:9px 11px 11px}.rtc-upload{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 0 9px;color:#60798b;font-size:12px}.rtc-vlist{display:grid;gap:6px}.rtc-v{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:9px;align-items:center;padding:8px 9px;border:1px solid #e4edf3;border-radius:8px;background:#f9fbfd}.rtc-va button{min-height:30px;padding:5px 7px;font-size:11px}.rtc-empty{padding:18px;text-align:center;color:#60798b;border:1px dashed #bfd0dd;border-radius:9px}.rtc-pop{position:fixed;inset:0;z-index:10170;display:grid;place-items:center;padding:20px;background:rgba(7,25,39,.58)}.rtc-box{width:min(560px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 22px 65px rgba(7,30,48,.28)}.rtc-box-h{display:flex;justify-content:space-between;gap:10px;padding:15px 17px 11px;border-bottom:1px solid #e6edf3}.rtc-box-h h3{margin:0;font-size:18px}.rtc-close{border:0!important;font-size:22px!important}.rtc-form{padding:15px 17px}.rtc-form label{display:block;margin-bottom:10px;font-size:12px;font-weight:800}.rtc-form input,.rtc-form textarea{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #bfd0dd;border-radius:8px;font:inherit}.rtc-form textarea{min-height:80px}.rtc-form-a{display:flex;justify-content:flex-end;gap:7px}.rtc-preview{width:min(900px,96vw)}.rtc-preview video{width:100%;max-height:75vh;background:#000;display:block}.rtc-toast{position:fixed;right:20px;bottom:20px;z-index:10190;max-width:min(500px,90vw);padding:11px 13px;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800}.rtc-toast.err{background:#b42318}@media(max-width:820px){.rtc-head,.rtc-v{display:grid}.rtc-actions,.rtc-va,.rtc-sec-actions{justify-content:flex-start}.rtc-sec-head{align-items:flex-start}}`;
   document.head.appendChild(x);
 }
 
@@ -77,7 +77,7 @@ async function ok() {
   if (allowed !== null) return allowed;
   try {
     const user = await api('/auth/me');
-    allowed = user?.role === 'company_admin' && Number(user?.osgb_id || 0) > 0 && !user?.company_id;
+    allowed = canEditRemoteContent(user);
     return allowed;
   } catch {
     allowed = false;
@@ -133,39 +133,10 @@ async function get(force = false) {
   return detail;
 }
 
-function sibling(source) {
-  return rows.find((row) => !row.is_shared && (
-    (source.code && row.code === source.code)
-    || String(row.title || '').trim().toLowerCase() === String(source.title || '').trim().toLowerCase()
-  ));
-}
-
-async function select(packageId) {
-  await load();
-  id = Number(packageId);
-  detail = null;
-  const button = cards().find((card) => Number(card.getAttribute(PACKAGE_ID_ATTR) || 0) === id);
-  button?.click();
-}
-
 async function editable(current = detail) {
+  if (!(await ok())) throw Error('Bu işlem yalnızca global yöneticiye açıktır.');
   if (!current) throw Error('Eğitim paketi seçilmedi.');
-  if (!current.is_shared) return current;
-  if (forking) return forking;
-  forking = (async () => {
-    await load();
-    let privatePackage = sibling(current);
-    if (!privatePackage) {
-      const created = await api(`${C}/${current.id}/fork`, {method: 'POST', _retries: 0});
-      privatePackage = {id: created.id};
-    }
-    await select(privatePackage.id);
-    detail = await api(`${C}/${privatePackage.id}`);
-    id = Number(privatePackage.id);
-    toast('Düzenleme hazır; değişiklikler yalnız bu OSGB için uygulanacak.');
-    return detail;
-  })().finally(() => { forking = null; });
-  return forking;
+  return current;
 }
 
 function sectionFor(currentDetail, sourceSection) {
@@ -436,7 +407,7 @@ function html(current) {
     return `<article class="rtc-sec" data-section-id="${Number(section.id)}" data-code="${esc(section.code)}"><header class="rtc-sec-head"><div class="rtc-sec-id"><button type="button" class="rtc-grab" title="Tut ve taşı" aria-label="${esc(section.title)} bölümünü taşı, sıra ${position}" aria-describedby="rtc-reorder-help" ${disabled}>⋮⋮</button><div class="rtc-sec-name"><strong>${esc(section.code)} · ${esc(section.title)}</strong><span>${videos.length} video</span></div></div><div class="rtc-sec-actions"><button type="button" data-sa="edit" ${disabled}>Düzenle</button><button type="button" class="bad" data-sa="delete" ${disabled}>Sil</button></div></header><div class="rtc-sec-body"><div class="rtc-upload"><span>Yeni video ekleyin.</span><button type="button" class="pri" data-sa="upload" ${disabled}>+ Video yükle</button></div><div class="rtc-vlist">${videoHtml}</div></div></article>`;
   }).join('');
 
-  return `<div class="rtc" ${A}="1" data-id="${esc(String(current.id ?? ''))}"><div class="rtc-head"><div><span class="rtc-k">OSGB EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(current.title)}</h3><div class="rtc-meta"><span>${esc(L[current.status] || current.status)}</span><span>·</span><span>${sections.length} bölüm</span><span>·</span><span>${Number(current.video_count) || sections.reduce((count, section) => count + (section.videos?.length || 0), 0)} video</span></div></div><div class="rtc-actions"><button type="button" class="pri" data-top="add" ${current.status === 'archived' ? 'disabled' : disabled}>+ Bölüm ekle</button>${packageActionHtml}</div></div><div class="rtc-note" id="rtc-reorder-help"><strong>${current.is_shared ? 'Hazır paket.' : 'OSGB paketi.'}</strong> ${current.is_shared ? 'İlk düzenlemede sistem otomatik olarak yalnız bu OSGB’ye ait güvenli çalışma kopyasını kullanır; ek bir kopyalama adımı görmezsiniz.' : 'Değişiklikler diğer OSGB’leri etkilemez.'} Bölüm sırası için ⋮⋮ tutamacını fare veya dokunmayla taşıyın; klavyede ↑ ↓ Home End tuşları da kullanılabilir.</div><div class="rtc-list">${sectionHtml || '<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`;
+  return `<div class="rtc" ${A}="1" data-id="${esc(String(current.id ?? ''))}"><div class="rtc-head"><div><span class="rtc-k">GLOBAL YÖNETİCİ · EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(current.title)}</h3><div class="rtc-meta"><span>${esc(L[current.status] || current.status)}</span><span>·</span><span>${sections.length} bölüm</span><span>·</span><span>${Number(current.video_count) || sections.reduce((count, section) => count + (section.videos?.length || 0), 0)} video</span></div></div><div class="rtc-actions"><button type="button" class="pri" data-top="add" ${current.status === 'archived' ? 'disabled' : disabled}>+ Bölüm ekle</button>${packageActionHtml}</div></div><div class="rtc-note" id="rtc-reorder-help"><strong>${current.is_shared ? 'Merkezi paket.' : 'Mevcut OSGB paketi.'}</strong> İçeriği yalnızca global yönetici değiştirebilir; alt kullanıcılar eğitim atama ve takip işlemlerini kullanır. Bölüm sırası için ⋮⋮ tutamacını fare veya dokunmayla taşıyın; klavyede ↑ ↓ Home End tuşları da kullanılabilir.</div><div class="rtc-list">${sectionHtml || '<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`;
 }
 
 function bind(element, current) {

@@ -1,3 +1,4 @@
+import {canEditRemoteContent} from './remote_training_permissions';
 import {api} from './api';
 
 const CATALOG_API = '/trainings/remote/catalog/packages';
@@ -88,7 +89,7 @@ async function canManage() {
   if (allowed !== null) return allowed;
   try {
     const user = await api('/auth/me', {_retries: 1});
-    allowed = Boolean(user?.role === 'company_admin' && Number(user?.osgb_id || 0) > 0 && !user?.company_id);
+    allowed = Boolean(canEditRemoteContent(user));
   } catch (_error) {
     allowed = false;
   }
@@ -471,7 +472,7 @@ function addToolbar(sectionRoot, detail, heading) {
   const packageActions = detail.status === 'archived'
     ? '<button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button>'
     : '<button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button><button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button>';
-  toolbar.innerHTML = '<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir ve OSGB özel paketini silebilirsiniz. Daha önce hazırlanmış firma/çalışan kopyaları korunur.' + (detail.status === 'archived' ? ' Arşivli paket yalnızca silinebilir; düzenlemek için önce ana panelde paketi düzenlemeye açın.' : '') + '<div class="rt-section-reorder-hint">Bölüm sırası: <strong>☷ Tut ve taşı</strong> düğmesine basılı tutup bölümü istediğiniz yere bırakın. Sıra otomatik kaydedilir; daha önce firmaya hazırlanmış çalışan kopyaları geriye dönük değişmez.</div></div><div class="rt-package-manage-toolbar__actions">' + packageActions + '</div>';
+  toolbar.innerHTML = '<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir ve eğitim paketini silebilirsiniz. Daha önce hazırlanmış firma/çalışan kopyaları korunur.' + (detail.status === 'archived' ? ' Arşivli paket yalnızca silinebilir; düzenlemek için önce ana panelde paketi düzenlemeye açın.' : '') + '<div class="rt-section-reorder-hint">Bölüm sırası: <strong>☷ Tut ve taşı</strong> düğmesine basılı tutup bölümü istediğiniz yere bırakın. Sıra otomatik kaydedilir; daha önce firmaya hazırlanmış çalışan kopyaları geriye dönük değişmez.</div></div><div class="rt-package-manage-toolbar__actions">' + packageActions + '</div>';
   toolbar.querySelector('.edit')?.addEventListener('click', () => openPackageEdit(detail));
   toolbar.querySelector('.delete')?.addEventListener('click', () => void deletePackage(detail));
   topRow.insertAdjacentElement('afterend', toolbar);
@@ -487,10 +488,6 @@ async function renderControls(forceDetail = false) {
   if (!detail) return;
 
   const existingToolbar = sectionRoot.querySelector(`[${TOOLBAR_ATTR}]`);
-  if (detail.is_shared) {
-    if (existingToolbar || sectionRoot.querySelector(`[${SECTION_ACTION_ATTR}]`) || sectionRoot.querySelector(`[${SECTION_HANDLE_ATTR}]`)) removeInjectedControls();
-    return;
-  }
 
   const heading = [...sectionRoot.querySelectorAll('h4')].find((node) => node.textContent?.trim() === String(detail.title || '').trim());
   if (!heading) return;

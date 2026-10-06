@@ -9,6 +9,7 @@ export const GLOBAL_ADMIN_MODULES = Object.freeze([
   'eisa_payments',
   'eisa_packages',
   'eisa_question_bank',
+  'eisa_remote_training',
   'eisa_error_reports',
   'eisa_notifications',
   'eisa_emails',

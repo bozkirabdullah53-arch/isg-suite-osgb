@@ -86,10 +86,14 @@ describe('protected video fallback', () => {
 
 
 describe('remote content editor access', () => {
-  it('allows only an OSGB administrator scope to edit content', () => {
+  it('reserves content editing for the global administrator', () => {
     expect(canEditRemoteContent({role: 'company_admin', company_id: 42})).toBe(false);
-    expect(canEditRemoteContent({role: 'company_admin', osgb_id: 7})).toBe(true);
+    expect(canEditRemoteContent({role: 'company_admin', osgb_id: 7})).toBe(false);
     expect(canEditRemoteContent({role: 'safety_specialist', osgb_id: 7})).toBe(false);
-    expect(canEditRemoteContent({role: 'global_admin'})).toBe(false);
+    expect(canEditRemoteContent({role: 'global_admin'})).toBe(true);
+    expect(canEditRemoteContent({role: 'workplace_physician', osgb_id: 7})).toBe(false);
+    expect(canEditRemoteContent({role: 'other_health_personnel', osgb_id: 7})).toBe(false);
+    expect(canEditRemoteContent({role: 'read_only', osgb_id: 7})).toBe(false);
+    expect(canEditRemoteContent(null)).toBe(false);
   });
 });

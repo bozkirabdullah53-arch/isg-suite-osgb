@@ -1,3 +1,4 @@
+import {canEditRemoteContent} from './remote_training_permissions';
 import {api} from './api';
 
 const TRIGGER_ATTR = 'data-remote-custom-package-trigger';
@@ -210,11 +211,7 @@ async function resolvePermission() {
   if (!permissionPromise) {
     permissionPromise = api('/auth/me', {_retries: 1})
       .then((user) => {
-        canCreatePackage = Boolean(
-          user?.role === 'company_admin'
-          && Number(user?.osgb_id || 0) > 0
-          && !user?.company_id,
-        );
+        canCreatePackage = canEditRemoteContent(user);
         return canCreatePackage;
       })
       .catch(() => {
@@ -303,7 +300,7 @@ async function openDialog() {
       <div class="remote-custom-package-head">
         <div>
           <h3 id="remote-custom-package-title">Yeni Eğitim Paketi Oluştur</h3>
-          <p>Bu paket yalnız sizin OSGB kapsamınızda oluşturulur. Mevcut ortak eğitim paketleri ve çalışan atamaları değişmez.</p>
+          <p>Bu merkezi paket global yönetici tarafından oluşturulur ve yayımlandığında alt kullanıcıların eğitim kataloğuna açılır. Mevcut çalışan atamaları korunur.</p>
         </div>
         <button type="button" class="remote-custom-package-close" aria-label="Kapat">×</button>
       </div>
@@ -435,7 +432,7 @@ async function injectTrigger() {
     button.className = 'remote-custom-package-trigger';
     button.setAttribute(TRIGGER_ATTR, 'true');
     button.textContent = '+ Yeni eğitim paketi';
-    button.title = 'Yalnız bu OSGB için sıfırdan yeni eğitim paketi oluştur';
+    button.title = 'Merkezi katalog için yeni eğitim paketi oluştur';
     button.addEventListener('click', () => void openDialog());
 
     refreshButton.parentElement.insertBefore(button, refreshButton);
