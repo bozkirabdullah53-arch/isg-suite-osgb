@@ -370,7 +370,7 @@ export function AnnualPlansPage({user}) {
         <h3 style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 0}}>
           <ClipboardCheck size={18} /> Aylık Dağılım ({year})
         </h3>
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 8}}>
+        <div className="annual-month-grid">
           {Array.from({length: 12}, (_, i) => i + 1).map((m) => (
             <div
               key={m}
@@ -503,4 +503,3 @@ export function AnnualPlansPage({user}) {
     </>
   );
 }
-

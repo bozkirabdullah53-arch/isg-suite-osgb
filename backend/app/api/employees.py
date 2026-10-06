@@ -1,6 +1,7 @@
 from datetime import date
 from io import BytesIO
 import logging
+from typing import Annotated
 from zipfile import BadZipFile
 
 from openpyxl.utils.exceptions import InvalidFileException
@@ -200,6 +201,7 @@ def list_employees(
     company_id: int | None = Query(None),
     q: str | None = Query(None),
     active: bool | None = Query(None),
+    branch_id: Annotated[int | None, Query(gt=0)] = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -224,6 +226,10 @@ def list_employees(
         )
     if active is not None:
         stmt = stmt.where(Employee.is_active == active)
+    if branch_id is not None:
+        if cid is not None:
+            validate_branch(db, cid, branch_id)
+        stmt = stmt.where(Employee.branch_id == branch_id)
     return list(db.scalars(stmt).all())
 
 

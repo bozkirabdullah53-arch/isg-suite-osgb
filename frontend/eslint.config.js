@@ -10,6 +10,8 @@ export default [
       "src/legal_acceptances.jsx",
       "src/memberships_panel.jsx",
       "src/api.js",
+      "src/dialog_accessibility.js",
+      "src/ui_modal.jsx",
       "src/validation.js",
       "src/field_offline.js",
       "src/duty_dashboard.jsx",

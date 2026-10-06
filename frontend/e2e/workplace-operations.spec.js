@@ -440,6 +440,8 @@ test('workplace password account can download and upload the personnel Excel tem
   const downloadButton = page.getByRole('button', {name: "Örnek Excel'i İndir"});
   const uploadInput = page.locator('input[type="file"][accept=".xlsx"]');
 
+  await page.locator('.employees-tools > summary').click();
+  await page.locator('.employees-import-help > summary').click();
   await expect(downloadButton).toBeVisible();
   await expect(page.getByText(/Dosya yalnızca kendi işyerinize aktarılır/)).toBeVisible();
   await Promise.all([

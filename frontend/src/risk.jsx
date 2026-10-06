@@ -2179,7 +2179,7 @@ export function RiskPage({user, onNavigate}) {
         <section className="panel" style={{marginBottom: 16}}>
           <h3 style={{marginTop: 0}}>Bölüm Yönetimi</h3>
           <p style={{color: '#64748b', fontSize: 14}}>PRO gibi işyeri bölümlerini ekleyin, önerilenlerden tek tıkla oluşturun.</p>
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 16}}>
+          <div className="risk-departments-layout">
             <form className="form-grid" onSubmit={saveDepartment} style={{alignContent: 'start'}}>
               <Field label="Bölüm Adı" required value={depForm.name} onChange={(e) => setDepForm({...depForm, name: e.target.value})} placeholder="Üretim, Depo..." />
               <Field label="Açıklama" value={depForm.description} onChange={(e) => setDepForm({...depForm, description: e.target.value})} />

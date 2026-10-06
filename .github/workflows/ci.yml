@@ -330,7 +330,7 @@ jobs:
       - name: Build
         run: npm run build
       - name: E2E smoke
-        run: npx playwright install --with-deps chromium && npm run test:e2e
+        run: npx playwright install --with-deps chromium webkit && npm run test:e2e
       - name: Upload browser test results
         if: always()
         uses: actions/upload-artifact@v4
