@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
+import smtplib
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -255,6 +256,7 @@ def send_reset_email(
     *,
     db: Session | None = None,
     user: User | None = None,
+    smtp_server: smtplib.SMTP | None = None,
 ) -> bool:
     # ISG-006: token fragment'te taşınır — sunucu/reverse-proxy loglarına düşmez.
     link = f"{settings.frontend_origin.rstrip('/')}/#sifre-sifirla={raw_token}"
@@ -272,6 +274,7 @@ def send_reset_email(
         user_id=user.id if user else None,
         osgb_id=user.osgb_id if user else None,
         related_type="password_reset_token",
+        smtp_server=smtp_server,
     )
     if not smtp_configured():
         env = (settings.environment or "").strip().lower()

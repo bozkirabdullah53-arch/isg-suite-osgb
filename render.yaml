@@ -32,34 +32,22 @@ services:
       - key: FRONTEND_ORIGIN
         value: https://www.isgsuite.tr
       - key: SMTP_HOST
-        value: mail.isgsuite.tr
+        value: giden.mailmatik.com
       - key: SMTP_PORT
-        value: "587"
+        value: "465"
       - key: SMTP_USERNAME
         value: info@isgsuite.tr
       - key: SMTP_PASSWORD
         sync: false
       - key: SMTP_FROM_EMAIL
         value: info@isgsuite.tr
-      # F-01 ENGELLENDİ (2026-09-21 probe): mail.isgsuite.tr:587 EHLO'da STARTTLS
-      # YOK; 465/993/995 timeout; pop3.isgsuite.tr CAPA'da STLS YOK (isimtescil
-      # "Mail Server 2"). TLS'i şimdi açmak parola sıfırlama mailini ve inbox
-      # senkronunu KIRARDI. Mevcut çalışan değerler korunuyor.
-      #
-      # BREVO SMTP RELAY CUTOVER (onaylandı 2026-09-21 — docs/SECURITY_INFRA_ROLLOUT.md):
-      # Brevo hesabı + domain auth (SPF/DKIM) hazır olunca Render Dashboard'da:
-      #   SMTP_HOST     = smtp-relay.brevo.com
-      #   SMTP_PORT     = 587
-      #   SMTP_USE_TLS  = true
-      #   SMTP_USERNAME = <Brevo SMTP login>        (secret — sync:false)
-      #   SMTP_PASSWORD = <Brevo SMTP key>          (secret — sync:false)
-      #   SMTP_FROM_EMAIL = info@isgsuite.tr        (Brevo'da doğrulanmış domain)
-      # Doğrulama: parola sıfırlama maili uçtan uca + delivery log "sent".
-      # Kod değişikliği GEREKMEZ (mailer.py SMTP/STARTTLS destekli).
+      # İsimtescil'in güncel resmi istemci rehberi SSL SMTP için bu ortak
+      # sunucuyu önerir. Hesap/parola değişmeden doğrulanmış TLS kullanılır.
+      # Kaynak: https://www.isimtescil.net/bilgibankasi/microsoft-mail-ve-outlook-new-mail-kurulum-ayarlar
       - key: SMTP_USE_TLS
         value: "false"
       - key: SMTP_USE_SSL
-        value: "false"
+        value: "true"
       # EİSA Global gelen kutusu — kullanıcı adı ve parola Render Secret olarak eklenir.
       - key: INBOUND_MAIL_ENABLED
         value: "true"

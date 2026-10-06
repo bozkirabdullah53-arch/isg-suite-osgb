@@ -1,6 +1,7 @@
 """SMTP e-posta gönderici — yapılandırma yoksa kuyruk/bildirim düşer, hata fırlatmaz."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime
 import logging
 import smtplib
@@ -18,6 +19,40 @@ logger = logging.getLogger(__name__)
 
 def smtp_configured() -> bool:
     return bool((settings.smtp_host or "").strip() and (settings.smtp_from_email or "").strip())
+
+
+def smtp_configuration_error() -> tuple[str, str] | None:
+    """Validate delivery settings without exposing credentials or contacting SMTP."""
+    if not smtp_configured():
+        return "smtp_not_configured", "SMTP e-posta ayarları yapılandırılmamış."
+    if not settings.smtp_use_ssl and not settings.smtp_use_tls:
+        return "smtp_tls_required", "SMTP aktarım şifrelemesi zorunludur (TLS/SSL)."
+    if settings.smtp_username and not settings.smtp_password:
+        return "smtp_credentials_missing", "SMTP kimlik doğrulama parolası eksik."
+    return None
+
+
+@contextmanager
+def open_smtp_connection():
+    """Authenticate only after verified TLS; callers may reuse one connection."""
+    problem = smtp_configuration_error()
+    if problem:
+        raise RuntimeError(problem[1])
+    tls_context = ssl.create_default_context()
+    server = (
+        smtplib.SMTP_SSL(
+            settings.smtp_host, settings.smtp_port, timeout=20, context=tls_context
+        )
+        if settings.smtp_use_ssl
+        else smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20)
+    )
+    with server:
+        if settings.smtp_use_tls and not settings.smtp_use_ssl:
+            server.starttls(context=tls_context)
+            server.ehlo()
+        if settings.smtp_username:
+            server.login(settings.smtp_username, settings.smtp_password or "")
+        yield server
 
 
 def email_provider_name() -> str:
@@ -90,6 +125,7 @@ def send_email(
     related_type: str | None = None,
     related_id: str | None = None,
     attachments: list[dict[str, Any]] | None = None,
+    smtp_server: smtplib.SMTP | None = None,
 ) -> dict[str, Any]:
     to = (to or "").strip()
     subject = (subject or "").strip()
@@ -114,18 +150,20 @@ def send_email(
             error_message="Alıcı e-posta adresi bulunamadı.",
         )
         return {"ok": False, "status": "no_recipient", "log_id": log_row.id if log_row else None}
-    if not smtp_configured():
-        logger.info("SMTP yok — e-posta kuyruğa alınmadı: %s | %s", to, subject)
+    problem = smtp_configuration_error()
+    if problem:
+        error_code, error_message = problem
+        logger.warning("E-posta gönderilemedi: %s", error_message)
         _finish_delivery_log(
             db,
             log_row,
             status="failed",
-            error_code="smtp_not_configured",
-            error_message="SMTP e-posta ayarları yapılandırılmamış.",
+            error_code=error_code,
+            error_message=error_message,
         )
         return {
             "ok": False,
-            "status": "smtp_not_configured",
+            "status": error_code,
             "to": to,
             "subject": subject,
             "provider": email_provider_name(),
@@ -144,27 +182,11 @@ def send_email(
         if isinstance(content, bytes):
             msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
     try:
-        server_class = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
-        tls_context = ssl.create_default_context()
-        if not settings.smtp_use_ssl and not settings.smtp_use_tls:
-            raise RuntimeError("SMTP aktarım şifrelemesi zorunludur (TLS/SSL).")
-        with server_class(
-            settings.smtp_host,
-            settings.smtp_port,
-            timeout=20,
-            context=tls_context,
-        ) if settings.smtp_use_ssl else server_class(
-            settings.smtp_host,
-            settings.smtp_port,
-            timeout=20,
-        ) as server:
-            if settings.smtp_use_tls and not settings.smtp_use_ssl:
-                server.starttls(context=tls_context)
-                # STARTTLS sonrası kabiliyetleri yeniden müzakere et.
-                server.ehlo()
-            if settings.smtp_username:
-                server.login(settings.smtp_username, settings.smtp_password or "")
-            server.send_message(msg)
+        if smtp_server is not None:
+            smtp_server.send_message(msg)
+        else:
+            with open_smtp_connection() as server:
+                server.send_message(msg)
         _finish_delivery_log(db, log_row, status="sent")
         return {
             "ok": True,

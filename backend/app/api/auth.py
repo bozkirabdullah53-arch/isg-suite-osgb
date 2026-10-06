@@ -7,6 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import logging
+import smtplib
 
 from app.api.deps import get_current_user, get_mfa_challenge_user, get_mfa_setup_user, oauth2_scheme
 from app.core.auth_cookies import (
@@ -52,6 +53,7 @@ from app.services.audit import add_audit_log
 from app.services.access_scope import ensure_login_scope
 from app.services.token_revoke import is_jti_revoked, revoke_jti
 from app.services.login_captcha import enforce_login_captcha, login_protection_configuration
+from app.services.mailer import open_smtp_connection, smtp_configuration_error
 
 router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
 logger = logging.getLogger(__name__)
@@ -487,23 +489,67 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     import time
 
     time.sleep(0.35)
+    if (settings.environment or "").strip().lower() in ("production", "prod", "live"):
+        # Check the same transport for every address BEFORE looking up a user.
+        # Outages must neither look like successful delivery nor reveal accounts.
+        problem = smtp_configuration_error()
+        if problem:
+            logger.warning("Password reset email unavailable: %s", problem[0])
+            raise _reset_email_unavailable()
+        try:
+            with open_smtp_connection() as server:
+                return _request_password_reset(payload, request, db, smtp_server=server)
+        except (smtplib.SMTPException, OSError) as exc:
+            logger.warning("Password reset SMTP unavailable: %s", type(exc).__name__)
+            raise _reset_email_unavailable() from exc
+    return _request_password_reset(payload, request, db)
+
+
+def _reset_email_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail="Şifre sıfırlama e-posta hizmeti şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
+        headers={"Retry-After": "60"},
+    )
+
+
+def _request_password_reset(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: Session,
+    *,
+    smtp_server: smtplib.SMTP | None = None,
+):
     email = str(payload.email).strip().lower()
     user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and user.is_active:
         raw = create_password_reset(db, user)
-        send_reset_email(user.email, raw, db=db, user=user)
+        sent = send_reset_email(user.email, raw, db=db, user=user, smtp_server=smtp_server)
+        if sent:
+            logger.info("Password reset email accepted by SMTP; user_id=%s", user.id)
+        else:
+            logger.warning("Password reset email delivery failed; user_id=%s", user.id)
         add_audit_log(
             db,
             user=user,
             action="password_reset_requested",
             entity_type="user",
             entity_id=str(user.id),
-            description="Parola sıfırlama istendi",
+            description=(
+                "Parola sıfırlama istendi; e-posta gönderimi tamamlandı."
+                if sent else "Parola sıfırlama istendi; e-posta gönderimi başarısız."
+            ),
             ip_address=_client_ip(request),
             module="auth",
         )
         db.commit()
-    return {"message": "Eğer hesap varsa sıfırlama bağlantısı e-posta ile gönderildi."}
+    return {
+        "message": (
+            "Şifre sıfırlama isteğiniz alındı. Bu adrese ait aktif hesabınız varsa "
+            "gelen kutunuzu ve spam klasörünü kontrol edin. "
+            "E-posta ulaşmazsa sistem yöneticinizle iletişime geçin."
+        )
+    }
 
 
 @router.post("/reset-password")
