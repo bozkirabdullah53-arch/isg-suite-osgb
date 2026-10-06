@@ -33,6 +33,8 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
+    // API fixtures must see every request rather than the PWA worker's cache.
+    serviceWorkers: "block",
     storageState: e2eStorageState,
   },
   webServer: {

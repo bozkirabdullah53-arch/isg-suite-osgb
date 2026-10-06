@@ -723,7 +723,11 @@ def test_forgot_password_keeps_neutral_response_and_does_not_crash(client):
     response = client.post("/api/v1/auth/forgot-password", json={"email": seed["users"][1]})
     assert response.status_code == 200, response.text
     assert response.json() == {
-        "message": "Eğer hesap varsa sıfırlama bağlantısı e-posta ile gönderildi."
+        "message": (
+            "Şifre sıfırlama isteğiniz alındı. Bu adrese ait aktif hesabınız varsa "
+            "gelen kutunuzu ve spam klasörünü kontrol edin. "
+            "E-posta ulaşmazsa sistem yöneticinizle iletişime geçin."
+        )
     }
 
     unknown = client.post("/api/v1/auth/forgot-password", json={"email": "unknown@example.com"})
