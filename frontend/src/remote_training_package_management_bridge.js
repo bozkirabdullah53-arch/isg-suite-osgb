@@ -481,9 +481,9 @@ function addToolbar(sectionRoot, detail, heading) {
 
 async function renderControls(forceDetail = false) {
   renderPending = false;
-  if (!(await canManage())) return;
   const sectionRoot = catalogSection();
   if (!sectionRoot) return;
+  if (!(await canManage())) return;
   const detail = await resolveSelectedDetail(forceDetail);
   if (!detail) return;
 

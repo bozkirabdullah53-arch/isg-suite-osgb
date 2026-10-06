@@ -1,6 +1,6 @@
 import {test, expect} from '@playwright/test';
 
-async function setup(page, role, {workplace = false} = {}) {
+async function setup(page, role, {workplace = false, authenticated = true} = {}) {
   const errors = [];
   const mutations = [];
   const isGlobal = role === 'global_admin';
@@ -13,10 +13,14 @@ async function setup(page, role, {workplace = false} = {}) {
     sections: [{...section, videos: [video]}]};
   let packageDeleted = false;
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.addInitScript(() => {
-    const payload = btoa(JSON.stringify({sub: '9', exp: Math.floor(Date.now() / 1000) + 3600}));
-    sessionStorage.setItem('isg_token', `e30.${payload}.fixture`);
-  });
+  const token = `e30.${Buffer.from(JSON.stringify({sub: '9', exp: Math.floor(Date.now() / 1000) + 3600})).toString('base64')}.fixture`;
+  await page.addInitScript(({token, authenticated}) => {
+    if (authenticated) sessionStorage.setItem('isg_token', token);
+    else {
+      sessionStorage.removeItem('isg_token');
+      localStorage.removeItem('isg_refresh_cookie');
+    }
+  }, {token, authenticated});
   const json = (route, body, status = 200) => route.fulfill({
     status, contentType: 'application/json', body: JSON.stringify(body),
   });
@@ -26,6 +30,8 @@ async function setup(page, role, {workplace = false} = {}) {
     const path = new URL(request.url()).pathname.replace('/api/v1', '').replace(/\/$/, '');
     if (path === '/live') return route.fulfill({status: 204, body: ''});
     if (request.method() === 'OPTIONS') return json(route, {});
+    if (path === '/auth/login') return json(route, {access_token: token, refresh_cookie: false});
+    if (path === '/auth/me' && !request.headers().authorization) return json(route, {detail: 'Oturum gerekli.'}, 401);
     if (path === '/auth/me') return json(route, {
       id: 9, role, full_name: 'Yetki Testi', email: 'permissions@example.com',
       osgb_id: isGlobal ? null : 7, company_id: workplace ? 42 : null,
@@ -98,6 +104,19 @@ test('global administrator can edit and delete a shared package from the same me
   await expect.poll(() => state.mutations.some((item) => item.method === 'DELETE'
     && item.path === '/trainings/remote/catalog/packages/10')).toBe(true);
   await expect(catalog.getByText('Henüz eğitim paketi yok. Yeni eğitim paketi ekleyebilirsiniz.', {exact: true})).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
+
+test('global content controls open after signing in from an anonymous session', async ({page}) => {
+  const state = await setup(page, 'global_admin', {authenticated: false});
+  await page.goto('/#m=eisa_remote_training');
+  await page.locator('.login-card input[autocomplete="username"]').fill('global@example.com');
+  await page.locator('.login-card input[autocomplete="current-password"]').fill('FixturePassword123!');
+  await page.getByRole('button', {name: 'Giriş Yap', exact: true}).click();
+  const catalog = page.getByRole('region', {name: 'Merkezi uzaktan eğitim paket kataloğu'});
+  await expect(catalog.getByRole('button', {name: 'Paket Bilgilerini Düzenle', exact: true})).toBeVisible();
+  await expect(catalog.getByRole('button', {name: 'Paketi Sil', exact: true})).toBeVisible();
+  await expect(catalog.locator('[data-sa="upload"]')).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 
