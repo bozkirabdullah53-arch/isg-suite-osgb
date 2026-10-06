@@ -42,6 +42,7 @@ jobs:
           tests/test_pentest_remediation.py tests/test_contextual_assistant.py
           tests/test_rate_limit_runtime_fallback.py tests/test_release_status.py
           tests/test_login_account_captcha.py
+          tests/test_pentest_scope_regression.py
 
   backend-sqlite:
     runs-on: ubuntu-latest
@@ -336,6 +337,11 @@ jobs:
         env:
           VITE_API_URL: /api/v1
         run: npm run build
+      - name: Nginx response security headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y nginx
+          python3 scripts/check_nginx_security_headers.py
       - name: E2E smoke
         run: npx playwright install --with-deps chromium webkit && npm run test:e2e
       - name: Upload browser test results
