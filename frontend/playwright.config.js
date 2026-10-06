@@ -44,8 +44,8 @@ export default defineConfig({
     timeout: 120_000,
   },
   projects: [
-    {name: "chromium", testIgnore: ["**/mobile-usability.spec.js", "**/personnel-profile-readonly.spec.js"], use: {...devices["Desktop Chrome"]}},
-    {name: "mobile-chromium", testMatch: "**/mobile-usability.spec.js", use: {...devices["Pixel 7"]}},
-    {name: "mobile-webkit", testMatch: "**/mobile-usability.spec.js", use: {...devices["iPhone 13"]}},
+    {name: "chromium", testIgnore: ["**/mobile-usability.spec.js", "**/eisa-mobile-members.spec.js", "**/personnel-profile-readonly.spec.js"], use: {...devices["Desktop Chrome"]}},
+    {name: "mobile-chromium", testMatch: ["**/mobile-usability.spec.js", "**/eisa-mobile-members.spec.js"], use: {...devices["Pixel 7"]}},
+    {name: "mobile-webkit", testMatch: ["**/mobile-usability.spec.js", "**/eisa-mobile-members.spec.js"], use: {...devices["iPhone 13"]}},
   ],
 });

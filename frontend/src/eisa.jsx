@@ -9,15 +9,15 @@ import {
 } from './legal_docs';
 import { AppModal } from './ui_modal';
 
-export function Page({ title, action, children }) {
+export function Page({ title, action, children, className = '' }) {
   return (
-    <>
+    <div className={`eisa-page${className ? ` ${className}` : ''}`}>
       <div className="page-title">
         <h3>{title}</h3>
         {action}
       </div>
       <section className="panel">{children}</section>
-    </>
+    </div>
   );
 }
 
@@ -89,7 +89,7 @@ export function SearchBar({ value, onChange, placeholder = 'Ara…' }) {
   return (
     <label className="field eisa-search-field" style={{ maxWidth: 320 }}>
       <span>Arama</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
     </label>
   );
 }
@@ -503,16 +503,16 @@ export function EisaOsgbUsersPage() {
   return (
     <Page title="OSGB Kullanıcıları" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
-        Üyeler listede görünür. Satıra tıklayınca kullanıcı bilgisi açılır.
+        Üye bilgilerini açarak hesap ve abonelik işlemlerini yönetebilirsiniz.
         Pasife Al geçici dondurur; Sil kalıcı kaldırır (önce merkezi yedek).
       </p>
-      <div className="eisa-toolbar">
+      <form className="eisa-toolbar" role="search" aria-label="OSGB üyelerini ara" onSubmit={(event) => { event.preventDefault(); if (!busy) void load(); }}>
         <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
-        <button type="button" disabled={busy} onClick={load}>Ara</button>
+        <button type="submit" disabled={busy}>Ara</button>
         <button type="button" className="secondary" disabled={busy || !rows.length} onClick={exportPdf}>
           <Download size={16} /> PDF İndir
         </button>
-      </div>
+      </form>
       <Msg text={msg} />
       <SimpleSubscriptionList
         title="OSGB üyeleri"
@@ -527,7 +527,7 @@ export function EisaOsgbUsersPage() {
         onOpen={setDetail}
       />
       {detail && (
-        <AppModal title="OSGB üyesi" close={() => setDetail(null)}>
+        <AppModal title="OSGB üyesi" close={() => setDetail(null)} className="eisa-sub-detail-modal">
           <dl className="eisa-sub-detail">
             <div><dt>OSGB</dt><dd>{detail.name || '—'}</dd></div>
             <div><dt>Yetkili</dt><dd>{detail.responsible_manager || '—'}</dd></div>
@@ -548,7 +548,7 @@ export function EisaOsgbUsersPage() {
             <button type="button" className="secondary" disabled={busy} onClick={() => toggleActive(detail)}>
               {osgbNeedsActivation(detail) ? 'Aktife Al' : 'Pasife Al'}
             </button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => deleteOsgb(detail)}>
+            <button type="button" className="danger" disabled={busy} onClick={() => deleteOsgb(detail)}>
               Sil
             </button>
           </div>
@@ -599,14 +599,16 @@ export function SimpleSubscriptionList({
 }) {
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
   const showPagination = pageCount > 1 && typeof onPageChange === 'function';
+  const nameOf = (row) => String(row.display_name || row.specialist_name || row.osgb_name || row.osgb_id || 'Üye');
+  const keyOf = (row) => `${row.kind || 'osgb'}-${row.id || row.osgb_id || row.user_id}`;
 
   return (
-    <section className="eisa-sub-list">
+    <section className="eisa-sub-list" aria-label={title} aria-busy={busy}>
       <header className="eisa-sub-list-head">
         <h4>{title}</h4>
-        <span>{totalCount}</span>
+        <span aria-label={`${totalCount} kayıt`}>{totalCount}</span>
       </header>
-      <div className="table-wrap">
+      <div className="table-wrap eisa-sub-table">
         <table>
           <thead>
             <tr>
@@ -618,27 +620,49 @@ export function SimpleSubscriptionList({
           <tbody>
             {rows.length ? rows.map((row) => (
               <tr
-                key={`${row.kind || 'osgb'}-${row.id || row.osgb_id || row.user_id}`}
+                key={keyOf(row)}
                 className="eisa-sub-row"
-                tabIndex={0}
                 onClick={() => !busy && onOpen(row)}
-                onKeyDown={(event) => {
-                  if (!busy && (event.key === 'Enter' || event.key === ' ')) {
-                    event.preventDefault();
-                    onOpen(row);
-                  }
-                }}
               >
-                <td>{row.display_name || row.specialist_name || row.osgb_name || row.osgb_id}</td>
+                <td>
+                  <button type="button" className="eisa-sub-name" disabled={busy} aria-label={`${nameOf(row)} bilgilerini aç`} onClick={(event) => { event.stopPropagation(); onOpen(row); }}>
+                    {nameOf(row)}
+                  </button>
+                </td>
                 <td><StatusBadge status={row.effective_status || row.status} /></td>
                 {rowAction && <td className="eisa-action-column">{rowAction(row)}</td>}
               </tr>
             )) : (
-              <tr><td colSpan={rowAction ? 3 : 2} className="empty">{empty}</td></tr>
+              <tr><td colSpan={rowAction ? 3 : 2} className="empty">{busy ? 'Üyeler yükleniyor…' : empty}</td></tr>
             )}
           </tbody>
         </table>
       </div>
+      <ul className="eisa-sub-cards">
+        {rows.length ? rows.map((row) => {
+          const name = nameOf(row);
+          const email = row.specialist_email || row.contact_email || row.admin_email;
+          return (
+            <li key={keyOf(row)} className="eisa-sub-card">
+              <div className="eisa-sub-card-head">
+                <h5>{name}</h5>
+                <StatusBadge status={row.effective_status || row.status} />
+              </div>
+              {email && <p className="eisa-sub-card-contact">{email}</p>}
+              <dl className="eisa-sub-card-fields">
+                <div><dt>Paket</dt><dd>{row.package_name || row.plan || '—'}</dd></div>
+                <div><dt>Bitiş</dt><dd>{subscriptionEndLabel(row)}</dd></div>
+              </dl>
+              <div className="eisa-sub-card-actions">
+                <button type="button" className="secondary" disabled={busy} aria-label={`${name} bilgilerini aç`} onClick={() => onOpen(row)}>
+                  Bilgileri Gör
+                </button>
+                {rowAction && rowAction(row)}
+              </div>
+            </li>
+          );
+        }) : <li className="eisa-sub-empty">{busy ? 'Üyeler yükleniyor…' : empty}</li>}
+      </ul>
       {showPagination && (
         <nav className="eisa-pagination" aria-label={`${title} sayfalama`}>
           <button type="button" className="secondary" disabled={busy || page <= 1} onClick={() => onPageChange(page - 1)}>
@@ -659,7 +683,7 @@ export function SubscriptionDetailModal({ row, busy, onClose, onEdit, onDelete }
   const individual = row.kind === 'individual';
   const name = row.display_name || row.specialist_name || row.osgb_name || '—';
   return (
-    <AppModal title={individual ? 'Bireysel üye' : 'OSGB abonesi'} close={onClose}>
+    <AppModal title={individual ? 'Bireysel üye' : 'OSGB abonesi'} close={onClose} className="eisa-sub-detail-modal">
       <dl className="eisa-sub-detail">
         <div><dt>Tür</dt><dd>{individual ? 'Bireysel' : 'OSGB'}</dd></div>
         <div><dt>{individual ? 'Uzman' : 'OSGB'}</dt><dd>{name}</dd></div>
@@ -688,7 +712,7 @@ export function SubscriptionDetailModal({ row, busy, onClose, onEdit, onDelete }
         {!individual && (
           <button type="button" className="secondary" disabled={busy} onClick={() => onEdit(row)}>Düzenle</button>
         )}
-        <button type="button" className="secondary" disabled={busy} onClick={() => onDelete(row)}>Sil</button>
+        <button type="button" className="danger" disabled={busy} onClick={() => onDelete(row)}>Sil</button>
       </div>
     </AppModal>
   );
@@ -842,12 +866,12 @@ function OsgbSubscriptionListPage({ title, filter }) {
   return (
     <Page title={title} action={<RefreshButton busy={s.busy} onClick={s.load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
-        OSGB aboneleri listede görünür. Satıra tıklayınca kullanıcı bilgisi açılır.
+        Üye bilgilerini açarak hesap ve abonelik işlemlerini yönetebilirsiniz.
       </p>
-      <div className="eisa-toolbar" style={{ marginBottom: 14 }}>
+      <form className="eisa-toolbar" role="search" aria-label="OSGB abonelerini ara" onSubmit={(event) => { event.preventDefault(); if (!s.busy) void s.load(); }}>
         <SearchBar value={s.q} onChange={s.setQ} placeholder="OSGB adı, e-posta…" />
-        <button type="button" disabled={s.busy} onClick={s.load}>Ara</button>
-      </div>
+        <button type="submit" disabled={s.busy}>Ara</button>
+      </form>
       <Msg text={s.msg} />
       <SimpleSubscriptionList
         title="OSGB aboneleri"
