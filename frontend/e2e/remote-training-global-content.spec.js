@@ -11,6 +11,7 @@ async function setup(page, role, {workplace = false} = {}) {
     status: 'published', video_count: 1, published_video_count: 1, section_count: 1,
     automatic_exam_ready: true, automatic_exam_question_count: 20,
     sections: [{...section, videos: [video]}]};
+  let packageDeleted = false;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
     const payload = btoa(JSON.stringify({sub: '9', exp: Math.floor(Date.now() / 1000) + 3600}));
@@ -23,6 +24,7 @@ async function setup(page, role, {workplace = false} = {}) {
   await page.route('**/api/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace('/api/v1', '').replace(/\/$/, '');
+    if (path === '/live') return route.fulfill({status: 204, body: ''});
     if (request.method() === 'OPTIONS') return json(route, {});
     if (path === '/auth/me') return json(route, {
       id: 9, role, full_name: 'Yetki Testi', email: 'permissions@example.com',
@@ -37,10 +39,18 @@ async function setup(page, role, {workplace = false} = {}) {
     });
     if (request.method() !== 'GET' && path.startsWith('/trainings/remote/catalog/')) {
       mutations.push({method: request.method(), path});
+      if (request.method() === 'PATCH' && path === '/trainings/remote/catalog/packages/10') {
+        Object.assign(packageRow, request.postDataJSON());
+        return json(route, packageRow);
+      }
+      if (request.method() === 'DELETE' && path === '/trainings/remote/catalog/packages/10') {
+        packageDeleted = true;
+        return json(route, {deleted: true, history_preserved: true, materialized_program_count: 1});
+      }
       return json(route, video, 201);
     }
-    if (path === '/trainings/remote/catalog/packages') return json(route, [packageRow]);
-    if (path === '/trainings/remote/catalog/packages/10') return json(route, packageRow);
+    if (path === '/trainings/remote/catalog/packages') return json(route, packageDeleted ? [] : [packageRow]);
+    if (path === '/trainings/remote/catalog/packages/10') return json(route, packageDeleted ? {detail: 'Paket bulunamadı.'} : packageRow, packageDeleted ? 404 : 200);
     if (path === '/companies') return json(route, [{id: 42, name: 'Yetkili Firma', is_active: true}]);
     if (path === '/dashboard/summary') return json(route, {});
     if (path === '/trainings/remote/certificates') return json(route, {items: []});
@@ -67,7 +77,27 @@ test('global administrator opens the dedicated menu and uploads a shared video w
   await chooser.setFiles({name: 'global-lesson.mp4', mimeType: 'video/mp4',
     buffer: Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypisom'), Buffer.alloc(16)])});
   await expect.poll(() => state.mutations.some((item) => item.path === '/trainings/remote/catalog/sections/20/videos')).toBe(true);
+  page.once('dialog', (dialog) => dialog.accept());
+  await catalog.locator('[data-va="delete"]').click();
+  await expect.poll(() => state.mutations.some((item) => item.method === 'DELETE'
+    && item.path === '/trainings/remote/catalog/videos/30')).toBe(true);
   expect(state.mutations.some((item) => item.path.endsWith('/fork'))).toBe(false);
+  expect(state.errors).toEqual([]);
+});
+
+test('global administrator can edit and delete a shared package from the same menu', async ({page}) => {
+  const state = await setup(page, 'global_admin');
+  await page.goto('/#m=eisa_remote_training');
+  const catalog = page.getByRole('region', {name: 'Merkezi uzaktan eğitim paket kataloğu'});
+  await catalog.getByRole('button', {name: 'Paket Bilgilerini Düzenle', exact: true}).click();
+  await page.getByLabel('Paket adı *', {exact: true}).fill('Global Güncel Eğitim');
+  await page.getByRole('button', {name: 'Değişiklikleri Kaydet', exact: true}).click();
+  await expect(catalog.getByRole('heading', {name: 'Global Güncel Eğitim', exact: true})).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await catalog.getByRole('button', {name: 'Paketi Sil', exact: true}).click();
+  await expect.poll(() => state.mutations.some((item) => item.method === 'DELETE'
+    && item.path === '/trainings/remote/catalog/packages/10')).toBe(true);
+  await expect(catalog.getByText('Henüz eğitim paketi yok. Yeni eğitim paketi ekleyebilirsiniz.', {exact: true})).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 
@@ -77,7 +107,7 @@ for (const role of ['company_admin', 'safety_specialist', 'workplace_physician',
     const moduleId = role === 'other_health_personnel' ? 'remote_training' : 'training';
     await page.goto(`/#m=${moduleId}`);
     if (moduleId === 'training') {
-      await page.getByRole('button', {name: 'Uzaktan Eğitim / Belgeler', exact: true}).click();
+      await page.getByRole('tab', {name: 'Uzaktan Eğitim / Belgeler', exact: true}).click();
     }
     await expect(page.getByLabel('Atama yapılacak firma')).toBeVisible();
     await expect(page.getByLabel('Merkezi Ortak Eğitim sektör paketini firmaya seç')).toBeVisible();
