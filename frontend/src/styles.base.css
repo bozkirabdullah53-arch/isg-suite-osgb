@@ -634,7 +634,7 @@ nav button.active {
 }
 
 .workspace { min-width: 0; }
-header {
+.workspace > header {
   position: sticky;
   top: 0;
   z-index: 3;
@@ -646,8 +646,8 @@ header {
   align-items: center;
   justify-content: space-between;
 }
-header h2 { margin: 0; font-size: 22px; }
-header p { margin: 4px 0 0; color: #6c7f87; }
+.workspace > header h2 { margin: 0; font-size: 22px; }
+.workspace > header p { margin: 4px 0 0; color: #6c7f87; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .header-icon { display: none; }
 .user-chip { text-align: right; display: grid; }
@@ -854,8 +854,8 @@ header p { margin: 4px 0 0; color: #6c7f87; }
     cursor: pointer;
   }
   .logout-mobile { color: #9f2d27 !important; background: #fde8e6 !important; }
-  header { padding: 15px 16px; }
-  header p, .user-chip span { display: none; }
+  .workspace > header { padding: 15px 16px; }
+  .workspace > header p, .user-chip span { display: none; }
   .content { padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 0px)); }
   .cards { grid-template-columns: 1fr 1fr; }
   .welcome svg { display: none; }

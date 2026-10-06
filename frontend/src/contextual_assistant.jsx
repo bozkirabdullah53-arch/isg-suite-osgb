@@ -4,6 +4,7 @@ import {ArrowRight, ChevronRight, CircleHelp, Compass, Loader2, MessageCircle, M
 import {api} from './api';
 import {assistantFeatureEnabled, getAssistantPageContext, getAssistantPageDefinition} from './contextual_assistant_registry';
 import './contextual_assistant.css';
+import {useDialogAccessibility} from './dialog_accessibility';
 
 export function highlightTarget(targetId) { if (!targetId || typeof document === 'undefined') return false; const target = document.querySelector(`[data-ai-action="${String(targetId).replace(/"/g, '\\"')}"]`); if (!target) return false; target.classList.remove('ai-assistant-target-highlight'); void target.offsetWidth; target.classList.add('ai-assistant-target-highlight'); target.scrollIntoView?.({behavior: 'smooth', block: 'center'}); window.setTimeout(() => target.classList.remove('ai-assistant-target-highlight'), 4200); return true; }
 function OhsCharacter({state = 'idle', compact = false}) { return <div className={`ohs-character ohs-character--${state}${compact ? ' ohs-character--compact' : ''}`} aria-hidden="true"><div className="ohs-character__helmet"><span /></div><div className="ohs-character__head"><i /><b /><em /></div><div className="ohs-character__vest"><span /><strong /><small /></div><div className="ohs-character__clipboard" /></div>; }
@@ -126,6 +127,16 @@ export function AssistantMessageText({text}) {
 
 function Panel({active, user, allowedModules, onNavigate}) {
   const [open, setOpen] = useState(false);
+  const [mobileLauncherTarget, setMobileLauncherTarget] = useState(null);
+  const panelRef = useRef(null);
+  useDialogAccessibility(panelRef, {enabled: open, close: () => closePanel()});
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 620px)');
+    const update = () => setMobileLauncherTarget(media.matches ? document.getElementById('mobile-assistant-slot') : null);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -529,14 +540,15 @@ function Panel({active, user, allowedModules, onNavigate}) {
     if (moved && (auto || isCoarsePointer(window))) closePanel({cancelSpeech: false});
   }
 
-  return <>
-    <button type="button" className="contextual-assistant-launcher" onClick={() => { unlockVoiceOutput(); openPanel(); }} aria-label="İSG Asistanını aç" aria-expanded={open}>
+  const launcher = <button type="button" className="contextual-assistant-launcher" onClick={() => { unlockVoiceOutput(); openPanel(); }} aria-label="İSG Asistanını aç" aria-expanded={open}>
       <OhsCharacter state="idle" compact />
       <span className="contextual-assistant-launcher__badge"><Sparkles size={12} /></span>
-    </button>
+    </button>;
+  return <>
+    {mobileLauncherTarget ? createPortal(launcher, mobileLauncherTarget) : launcher}
     {open && <>
       <button type="button" className="contextual-assistant-backdrop" onClick={closePanel} aria-label="İSG Asistanını kapat" />
-      <aside className="contextual-assistant-panel" role="dialog" aria-modal="true" aria-labelledby="contextual-assistant-title">
+      <aside ref={panelRef} tabIndex={-1} className="contextual-assistant-panel" role="dialog" aria-modal="true" aria-labelledby="contextual-assistant-title">
         <header className="contextual-assistant-head">
           <div className="contextual-assistant-head__identity">
             <OhsCharacter state={characterState} compact />

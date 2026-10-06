@@ -33,6 +33,8 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
+    // API fixtures must see every request rather than the PWA worker's cache.
+    serviceWorkers: "block",
     storageState: e2eStorageState,
   },
   webServer: {
@@ -41,5 +43,9 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
-  projects: [{name: "chromium", use: {...devices["Desktop Chrome"]}}],
+  projects: [
+    {name: "chromium", testIgnore: ["**/mobile-usability.spec.js", "**/personnel-profile-readonly.spec.js"], use: {...devices["Desktop Chrome"]}},
+    {name: "mobile-chromium", testMatch: "**/mobile-usability.spec.js", use: {...devices["Pixel 7"]}},
+    {name: "mobile-webkit", testMatch: "**/mobile-usability.spec.js", use: {...devices["iPhone 13"]}},
+  ],
 });

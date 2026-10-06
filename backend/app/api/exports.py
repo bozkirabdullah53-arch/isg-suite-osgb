@@ -3,8 +3,9 @@ from app.services.spreadsheet_safety import save_export_workbook
 from io import BytesIO
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from reportlab.lib import colors
@@ -17,7 +18,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from pathlib import Path
 from xml.sax.saxutils import escape
 from reportlab.pdfgen import canvas
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import assigned_company_ids
@@ -60,20 +61,41 @@ def _scoped_company_ids(user: User, requested: int | None, db: Session) -> list[
     return allowed
 
 
+def _employee_export_rows(db, user, company_id, branch_id, active, q):
+    scope = _scoped_company_ids(user, company_id, db)
+    if scope is not None and not scope:
+        return []
+    query = select(Employee).order_by(Employee.full_name)
+    if scope is not None:
+        query = query.where(Employee.company_id.in_(scope))
+    if branch_id is not None:
+        branch = db.get(Branch, branch_id)
+        if not branch or (company_id and branch.company_id != company_id):
+            raise HTTPException(422, "Şube firma ile uyumlu değil.")
+        if scope is not None and branch.company_id not in scope:
+            raise HTTPException(403, "Bu firmaya erişemezsiniz.")
+        query = query.where(Employee.branch_id == branch_id)
+    if active is not None:
+        query = query.where(Employee.is_active == active)
+    if q:
+        query = query.where(or_(
+            Employee.full_name.ilike(f"%{q}%"),
+            Employee.job_title.ilike(f"%{q}%"),
+            Employee.department.ilike(f"%{q}%"),
+        ))
+    return list(db.scalars(query).all())
+
+
 @router.get("/employees.xlsx")
 def export_employees_excel(
     company_id: int | None = None,
+    branch_id: Annotated[int | None, Query(gt=0)] = None,
+    active: bool | None = None,
+    q: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EMPLOYEE_EXPORT)),
 ):
-    scope = _scoped_company_ids(user, company_id, db)
-    if scope is not None and not scope:
-        rows = []
-    else:
-        query = select(Employee).order_by(Employee.full_name)
-        if scope is not None:
-            query = query.where(Employee.company_id.in_(scope))
-        rows = list(db.scalars(query).all())
+    rows = _employee_export_rows(db, user, company_id, branch_id, active, q)
 
     wb = Workbook()
     ws = wb.active
@@ -114,15 +136,14 @@ def export_employees_excel(
 @router.get("/employees.pdf")
 def export_employees_pdf(
     company_id: int | None = None,
+    branch_id: Annotated[int | None, Query(gt=0)] = None,
+    active: bool | None = None,
+    q: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EMPLOYEE_EXPORT)),
 ):
     """Seçili işyerinin personel listesini okunabilir yatay PDF olarak dışa aktarır."""
-    scope = _scoped_company_ids(user, company_id, db)
-    query = select(Employee).order_by(Employee.full_name)
-    if scope is not None:
-        query = query.where(Employee.company_id.in_(scope))
-    rows = list(db.scalars(query).all())
+    rows = _employee_export_rows(db, user, company_id, branch_id, active, q)
     branch_names = {
         branch.id: branch.name
         for branch in db.scalars(select(Branch).where(Branch.company_id.in_({row.company_id for row in rows}))).all()

@@ -67,6 +67,7 @@ import {COMPANY_CONTEXT_MODULES, canOpenCompanyCapa, normalizeCompanyId} from '.
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {SpecialistReportCenterPage} from './specialist_report_center';
 import {AppModal} from './ui_modal';
+import {useDialogAccessibility} from './dialog_accessibility';
 import {
   EisaOverviewPage,
   EisaOsgbUsersPage,
@@ -90,6 +91,7 @@ import './styles.css';
 import './theme-modern.css';
 import './osgb_application.css';
 import './emergency_plan_premium.css';
+import './mobile_layout.css';
 import {ContextualAssistant} from './contextual_assistant';
 import {PwaShortcutPrompt} from './pwa_shortcut_prompt';
 import {useUiTheme} from './theme';
@@ -1307,6 +1309,11 @@ function Employees({user}){
   const showExitDate=activeFilter!=='active';
   const[busy,setBusy]=useState(false);
   const[healthOpen,setHealthOpen]=useState(false);
+  const saveInFlight=useRef(false);
+  const listRequest=useRef(0);
+  const importInput=useRef(null);
+  const[listLoading,setListLoading]=useState(false);
+  const[listError,setListError]=useState('');
   const[healthEmployee,setHealthEmployee]=useState(null);
   const[healthRows,setHealthRows]=useState([]);
   const[healthBusy,setHealthBusy]=useState(false);
@@ -1334,26 +1341,38 @@ function Employees({user}){
     });
   }
 
-  async function loadEmployees(companyId=selectedCompanyId,search=q,filter=activeFilter){
-    if(!companyId){setData([]);setSelectedIds([]);return}
+  async function loadEmployees(companyId=selectedCompanyId,search=q,filter=activeFilter,branchId=selectedBranchId){
+    const request=++listRequest.current;
+    setSelectedIds([]);
+    setListError('');
+    if(!companyId){setData([]);setListLoading(false);return}
+    setListLoading(true);
     const params=new URLSearchParams({company_id:String(companyId)});
     if(search) params.set('q',search);
     if(filter!=='all') params.set('active',filter==='active'?'true':'false');
-    const rows=await api(`/employees?${params.toString()}`);
-    const fetched=Array.isArray(rows)?rows:[];
-    // Keep the archive view defensive even if an older API/cache response
-    // accidentally returns a row outside the requested active state.
-    const visible=fetched.filter((row)=>
-      filter==='all' || (filter==='active' ? row.is_active===true : row.is_active===false)
-    );
-    setData(visible);
-    setSelectedIds([]);
+    if(branchId) params.set('branch_id',String(branchId));
+    try{
+      const rows=await api(`/employees?${params.toString()}`);
+      if(request!==listRequest.current) return;
+      const fetched=Array.isArray(rows)?rows:[];
+      // Keep selection scoped even while an older deployment ignores branch_id.
+      setData(fetched.filter((row)=>
+        (!branchId || String(row.branch_id)===String(branchId)) &&
+        (filter==='all' || (filter==='active' ? row.is_active===true : row.is_active===false))
+      ));
+    }catch(error){
+      if(request===listRequest.current){setData([]);setListError(error.message||'Personel listesi yüklenemedi.');}
+    }finally{
+      if(request===listRequest.current) setListLoading(false);
+    }
   }
 
-  useEffect(()=>{void loadCompanies()},[]);
-  useEffect(()=>{void loadEmployees(selectedCompanyId,'',activeFilter)},[selectedCompanyId,activeFilter]);
+  useEffect(()=>{void loadCompanies().catch(error=>setListError(error.message||'İşyeri listesi yüklenemedi.'))},[]);
+  useEffect(()=>{void loadEmployees(selectedCompanyId,q,activeFilter,selectedBranchId)},[selectedCompanyId,activeFilter,selectedBranchId]);
+  useEffect(()=>()=>{listRequest.current+=1},[]);
 
   function chooseCompany(value){
+    listRequest.current+=1;
     const nextValue=String(value||'');
     const selected=companies.find(c=>String(c.id)===nextValue);
     setSelectedCompanyId(nextValue);
@@ -1367,6 +1386,13 @@ function Employees({user}){
     if(selected) window.dispatchEvent(new CustomEvent('isg:company-selected',{detail:{companyId:nextValue,company:selected}}));
   }
 
+  function chooseBranch(value){
+    listRequest.current+=1;
+    setSelectedIds([]);
+    setData([]);
+    setSelectedBranchId(value);
+  }
+
   function requireCompany(){
     if(selectedCompanyId) return true;
     alert('Personel işlemi yapmadan önce işyeri seçmelisiniz.');
@@ -1374,11 +1400,13 @@ function Employees({user}){
   }
 
   function toggleSelected(employeeId){
+    if(busy||listLoading) return;
     const id=Number(employeeId);
     setSelectedIds(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id]);
   }
 
   function toggleAll(){
+    if(busy||listLoading) return;
     setSelectedIds(allSelected?[]:visibleIds);
   }
 
@@ -1419,7 +1447,9 @@ function Employees({user}){
 
   async function save(e){
     e.preventDefault();
+    if(saveInFlight.current||busy) return;
     if(!requireCompany()) return;
+    saveInFlight.current=true;
     setBusy(true);
     try{
       const payload=editingRow
@@ -1441,12 +1471,12 @@ function Employees({user}){
         method:editingRow?'PUT':'POST',
         body:JSON.stringify(payload),
       });
+      await loadEmployees();
       setOpen(false);
       setEditingRow(null);
-      await loadEmployees();
       if(editingRow) alert('Personel bilgileri güncellendi.');
     }catch(ex){alert(ex.message|| (editingRow?'Personel bilgileri güncellenemedi.':'Personel kaydedilemedi.'))}
-    finally{setBusy(false)}
+    finally{saveInFlight.current=false;setBusy(false)}
   }
 
   async function deleteOne(row){
@@ -1566,14 +1596,22 @@ function Employees({user}){
 
   function exportEmployees(){
     if(!requireCompany()) return;
-    downloadFile(`/exports/employees.xlsx?company_id=${selectedCompanyId}`,
+    downloadFile(`/exports/employees.xlsx?${employeeReportQuery()}`,
       `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.xlsx`);
   }
 
   function exportEmployeesPdf(){
     if(!requireCompany()) return;
-    downloadFile(`/exports/employees.pdf?company_id=${selectedCompanyId}`,
+    downloadFile(`/exports/employees.pdf?${employeeReportQuery()}`,
       `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.pdf`);
+  }
+
+  function employeeReportQuery(){
+    const params=new URLSearchParams({company_id:String(selectedCompanyId)});
+    if(selectedBranchId) params.set('branch_id',selectedBranchId);
+    if(activeFilter!=='all') params.set('active',activeFilter==='active'?'true':'false');
+    if(q) params.set('q',q);
+    return params.toString();
   }
 
   async function openAllHealthInfo(){
@@ -1628,30 +1666,48 @@ function Employees({user}){
       `saglik-raporu-${(healthEmployee?.full_name||'personel').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.pdf`);
   }
 
-  return <Page title="Personel Yönetimi" action={<div className="actions">
-    {isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||healthBusy} onClick={openAllHealthInfo}><HeartPulse/>Sağlık Bilgileri</button>}
-    <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
-    <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployeesPdf}><FileText/>PDF Rapor</button>
-    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
-    <label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Doldurulan Excel'i Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
-    <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!visibleIds.length} onClick={toggleAll}>{allSelected?'Seçimi Kaldır':'Görünenlerin Tümünü Seç'}</button>
-    <button type="button" className="secondary" disabled={busy||!selectedIds.length} onClick={()=>setSelectedIds([])}>Seçimi Temizle</button>
-    {!isArchiveView&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
-    <button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>
-     <button data-ai-action="employee.create" disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
+  const rowActions=(r)=><div className="actions employee-row-actions">
+    <button type="button" className="mini secondary" disabled={busy||listLoading} onClick={()=>openEdit(r)}>Düzenle</button>
+    <details className="employee-row-more">
+      <summary className="button secondary mini">Diğer işlemler</summary>
+      <div className="employee-row-more-menu">
+        {isWorkplaceManager&&<button type="button" className="mini secondary" disabled={busy||healthBusy} onClick={()=>openHealthInfo(r)}><HeartPulse size={14}/>Sağlık Bilgileri</button>}
+        {r.is_active===true&&!isArchiveView
+          ? <button type="button" className="mini secondary" disabled={busy||listLoading} onClick={()=>deleteOne(r)}>Pasife Al</button>
+          : r.is_active===false
+            ? <button type="button" className="mini secondary" disabled={busy||listLoading} onClick={()=>reactivateOne(r)}>Aktifleştir</button>
+            : null}
+        <button type="button" className="mini danger" disabled={busy||listLoading} onClick={()=>purgeOne(r)}>Kalıcı Sil</button>
+      </div>
+    </details>
+  </div>;
+
+  return <Page title="Personel Yönetimi" className="employees-page" action={<div className="actions">
+    <button type="button" data-ai-action="employee.create" disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
+    <details className="employees-tools">
+      <summary className="button secondary"><Menu size={18}/>İşlemler</summary>
+      <div className="employees-tools-menu">
+        {isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||healthBusy} onClick={openAllHealthInfo}><HeartPulse/>Sağlık Bilgileri</button>}
+        <button type="button" className="secondary" disabled={busy||listLoading||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
+        <button type="button" className="secondary" disabled={busy||listLoading||!selectedCompanyId} onClick={exportEmployeesPdf}><FileText/>PDF Rapor</button>
+        <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Örnek Excel'i İndir</button>
+        <button type="button" className="secondary" data-ai-action="employee.import_excel" disabled={busy||!selectedCompanyId} onClick={()=>importInput.current?.click()}><Upload/>Doldurulan Excel'i Yükle</button>
+      </div>
+    </details>
   </div>}>
-    <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
+    <input ref={importInput} type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/>
+    <div className="form-grid employees-filters">
       <div data-ai-action="employee.company_select">
-      <Select label="İşyeri Seç (zorunlu)" required value={selectedCompanyId} onChange={e=>chooseCompany(e.currentTarget.value)}>
+      <Select label="İşyeri Seç (zorunlu)" required value={selectedCompanyId} disabled={busy} onChange={e=>chooseCompany(e.currentTarget.value)}>
         <option value="">Personel işlemi yapılacak işyerini seçiniz</option>
         {companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
       </div>
-      <Select label="Şube (isteğe bağlı)" value={selectedBranchId} disabled={!selectedCompanyId} onChange={e=>setSelectedBranchId(e.target.value)}>
-        <option value="">Tüm işyeri / şube seçilmedi</option>
+      <Select label="Şube filtresi" value={selectedBranchId} disabled={busy||!selectedCompanyId} onChange={e=>chooseBranch(e.target.value)}>
+        <option value="">Tüm şubeler</option>
         {selectedBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
       </Select>
-      <Select label="Personel görünümü" value={activeFilter} disabled={!selectedCompanyId} onChange={e=>setActiveFilter(e.target.value)}>
+      <Select label="Personel görünümü" value={activeFilter} disabled={busy||!selectedCompanyId} onChange={e=>{setSelectedIds([]);setData([]);setActiveFilter(e.target.value)}}>
         <option value="active">Aktif personel</option>
         <option value="inactive">Pasif / arşiv</option>
         <option value="all">Tüm personel</option>
@@ -1667,14 +1723,27 @@ function Employees({user}){
           {isWorkplaceManager?'Personel listesi ve tekli personel ekleme için işyeriniz yükleniyor.':'Personel listesi, tekli ekleme ve toplu Excel yükleme için önce işyeri seçmelisiniz.'}
         </div>}
 
-    <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
+    <details className="employees-import-help">
+    <summary>Excel ile toplu personel aktarımı</summary>
+    <p>
       {isWorkplaceManager
         ? "Toplu personel eklemek için Örnek Excel'i İndir → PERSONEL LİSTESİ sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Adı Soyadı zorunludur; diğer sütunlar boş bırakılabilir. Boş hücreler mevcut kayıtlardaki bilgileri silmez, dolu gönderilen alanlar birebir güncellenir. Çıkış Tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca kendi işyerinize aktarılır."
         : "Örnek Excel'i İndir → PERSONEL LİSTESİ sayfasındaki tabloyu doldur → Doldurulan Excel'i Yükle. Sütunlar: #, Adı Soyadı (zorunlu), TC Kimlik No, Görevi, Departman, Şube, İşe Giriş, İşten Çıkış (GG.AA.YYYY), Özel Durum. Durum ve işlem sütunları sistem tarafından oluşturulur. Boş hücreler mevcut kayıtlardaki bilgileri silmez; dolu gönderilen alanlar birebir işlenir. Çıkış Tarihi girilen kayıtlar otomatik pasiflenir. Dosya yalnızca seçili işyerine aktarılır."}
-    </p>
+    </p></details>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
+    {listError&&<div className="employees-list-error" role="alert"><span>{listError}</span><button type="button" className="secondary" onClick={()=>{void loadCompanies().catch(error=>setListError(error.message));void loadEmployees()}}>Tekrar Dene</button></div>}
+    {listLoading&&<p role="status">Personel listesi yükleniyor…</p>}
+    {!!data.length&&!listLoading&&<div className="employees-selection-bar" aria-label="Toplu personel işlemleri">
+      <button type="button" className="secondary mini" disabled={busy} onClick={toggleAll}>{allSelected?'Seçimi Kaldır':'Görünenlerin Tümünü Seç'}</button>
+      {!!selectedIds.length&&<>
+        <span role="status">{selectedIds.length} personel seçildi</span>
+        <button type="button" className="secondary mini" disabled={busy} onClick={()=>setSelectedIds([])}>Seçimi Temizle</button>
+        {!isArchiveView&&<button type="button" className="secondary mini" disabled={busy} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
+        <button type="button" className="danger mini" disabled={busy} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>
+      </>}
+    </div>}
     <Table className={`employees-table ${showExitDate?'employees-table--with-exit-date':'employees-table--active'}`} cols={[
-      {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
+      {key:'select',label:<input type="checkbox" disabled={busy||listLoading} checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" disabled={busy||listLoading} checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
       {key:'full_name',label:'Ad Soyad',render:r=><span className="employee-name" title={r.full_name||'—'}>{r.full_name||'—'}</span>},
       {key:'national_id_masked',label:'TC Kimlik No',render:r=>r.national_id_masked||'—'},
       {key:'job_title',label:'Görev'},
@@ -1685,17 +1754,30 @@ function Employees({user}){
       {key:'gender',label:'Cinsiyet',render:r=>r.gender||'—'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active===true}/>},
-      {key:'actions',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>
-        {isWorkplaceManager&&<button type="button" className="mini" disabled={busy||healthBusy} onClick={()=>openHealthInfo(r)}><HeartPulse size={14}/>Sağlık Bilgileri</button>}
-        <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)}>Düzenle</button>
-        {r.is_active===true && !isArchiveView
-          ? <button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Pasife Al</button>
-          : r.is_active===false
-            ? <button type="button" className="mini secondary" disabled={busy} onClick={()=>reactivateOne(r)}>Aktifleştir</button>
-            : null}
-        <button type="button" className="mini danger" disabled={busy} onClick={()=>purgeOne(r)}>Kalıcı Sil</button>
-      </div>},
+      {key:'actions',label:'İşlem',render:rowActions},
     ].filter(Boolean)} rows={selectedCompanyId?data:[]}/>
+    <div className="employees-cards" role="list" aria-label="Personel listesi">
+      {selectedCompanyId&&!listLoading&&data.map(r=><article key={r.id} className="employee-card" role="listitem" aria-labelledby={`employee-card-${r.id}`}>
+        <div className="employee-card-head">
+          <label className="employee-card-select"><input type="checkbox" disabled={busy} checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/></label>
+          <div><h4 id={`employee-card-${r.id}`}>{r.full_name||'—'}</h4><p>{r.job_title||'Görev belirtilmemiş'}</p></div>
+          <Badge ok={r.is_active===true}/>
+        </div>
+        <dl className="employee-card-fields">
+          <div><dt>Şube</dt><dd>{branches.find(b=>b.id===r.branch_id)?.name||'—'}</dd></div>
+          <div><dt>Departman</dt><dd>{r.department||'—'}</dd></div>
+          <div><dt>İşe giriş</dt><dd><time dateTime={r.start_date||undefined}>{r.start_date||'—'}</time></dd></div>
+          {showExitDate&&<div><dt>İşten çıkış</dt><dd><time dateTime={r.exit_date||undefined}>{r.exit_date||'—'}</time></dd></div>}
+        </dl>
+        <details className="employee-card-details"><summary>Diğer bilgiler</summary><dl className="employee-card-fields">
+          <div><dt>TC Kimlik No</dt><dd>{r.national_id_masked||'—'}</dd></div>
+          <div><dt>Cinsiyet</dt><dd>{r.gender||'—'}</dd></div>
+          <div><dt>Özel durum</dt><dd>{r.special_status||'—'}</dd></div>
+        </dl></details>
+        {rowActions(r)}
+      </article>)}
+      {!listLoading&&!data.length&&<p className="employees-empty" role="status">{selectedCompanyId?'Personel bulunamadı.':'Personel listesi için işyeri seçiniz.'}</p>}
+    </div>
 
     {healthOpen&&<Modal title={healthEmployee?`Sağlık Bilgileri — ${healthEmployee.full_name||'Personel'}`:'Sağlık Bilgileri — Seçili İşyeri'} close={closeHealthInfo}>
       <div style={{display:'grid',gap:12}}>
@@ -1767,7 +1849,7 @@ function Employees({user}){
         <option value="">Tüm işyeri / şube seçilmedi</option>
         {selectedBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
       </Select>
-      <Submit disabled={busy}/>
+      <Submit disabled={busy} busy={busy}/>
     </form></Modal>}
   </Page>;
 }
@@ -2346,7 +2428,7 @@ function SubscriptionPage({user}){
 }
 
 function SearchBar({q,setQ,go}){return <div className="search"><Search size={19}/><input placeholder="Ara..." value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/><button className="secondary" onClick={go}>Ara</button></div>}
-function Badge({ok}){return <span className={'badge '+(ok?'ok':'off')}>{ok?'Aktif':'Pasif'}</span>};function Submit(){return <div className="form-actions"><button type="submit">Kaydet</button></div>};function Page({title,action,children}){return <><div className="page-title"><h3>{title}</h3>{action}</div><section className="panel">{children}</section></>}
+function Badge({ok}){return <span className={'badge '+(ok?'ok':'off')}>{ok?'Aktif':'Pasif'}</span>};function Submit({disabled=false,busy=false}){return <div className="form-actions"><button type="submit" disabled={disabled||busy} aria-busy={busy}>{busy?'Kaydediliyor…':'Kaydet'}</button></div>};function Page({title,action,children,className=''}){return <><div className={`page-title${className?` ${className}-title`:''}`}><h3>{title}</h3>{action}</div><section className={`panel ${className}`}>{children}</section></>}
 function Dashboard({summary, user, onNavigate}){
   const field=['safety_specialist','workplace_physician','other_health_personnel'];
   if(field.includes(user?.role)){
@@ -2618,6 +2700,14 @@ function App(){
   });
   const[c360Id,setC360Id]=useState(null);
   const[mobileMoreOpen,setMobileMoreOpen]=useState(false);
+  const mobileMenuRef=useRef(null);
+  useDialogAccessibility(mobileMenuRef,{enabled:mobileMoreOpen,close:()=>setMobileMoreOpen(false)});
+  useEffect(()=>{
+    const media=window.matchMedia('(max-width: 620px)');
+    const closeDesktopMenu=()=>{if(!media.matches) setMobileMoreOpen(false)};
+    media.addEventListener('change',closeDesktopMenu);
+    return ()=>media.removeEventListener('change',closeDesktopMenu);
+  },[]);
   const navRef=useRef(null);
   const[naceCatalog,setNaceCatalog]=useState([]);
   const[contextCompanies,setContextCompanies]=useState([]);
@@ -3421,7 +3511,7 @@ function App(){
       {mobileMoreOpen&&(
         <>
           <button type="button" className="mobile-nav-backdrop" aria-label="Menüyü kapat" onClick={()=>setMobileMoreOpen(false)}/>
-          <div className="mobile-nav-sheet" id="mobile-nav-sheet" role="dialog" aria-label="Tüm modüller">
+          <div ref={mobileMenuRef} tabIndex={-1} className="mobile-nav-sheet" id="mobile-nav-sheet" role="dialog" aria-modal="true" aria-label="Tüm modüller">
             <div className="mobile-nav-sheet-head">
               <strong>Modüller</strong>
               <button type="button" className="mini secondary" onClick={()=>setMobileMoreOpen(false)}>Kapat</button>
@@ -3443,6 +3533,7 @@ function App(){
                 </React.Fragment>
               ))}
             </div>
+            <a className="mobile-menu-help" href="mailto:info@isgsuite.tr">İletişim / Yardım</a>
           </div>
         </>
       )}
@@ -3467,6 +3558,7 @@ function App(){
                   <KeyRound size={18}/>
                 </button>
               )}
+              <div id="mobile-assistant-slot" className="mobile-assistant-slot"/>
             </div>
             <div className="user-chip">
               <strong>{user.full_name}</strong>

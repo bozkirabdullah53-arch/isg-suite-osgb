@@ -384,7 +384,7 @@ export function PpePage({user}) {
             Kullanım, bakım ve muhafaza kurallarına uygun hareket edeceğimi; kayıp, hasar veya
             yenileme ihtiyacını işverene / İSG birimine bildireceğimi kabul ederim.
           </p>
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 28}}>
+          <div className="ppe-signature-grid">
             {[
               ['Teslim Eden (İSG)', zimmet.delivered_by],
               ['Teslim Alan (Çalışan)', zimmet.employee_name],

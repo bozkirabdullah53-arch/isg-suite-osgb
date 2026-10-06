@@ -192,7 +192,7 @@ function WorkGraph({firms = [], completed = [], incomplete = []}) {
         {checks.map((c) => {
           const total = c.ok + c.gap;
           return (
-            <div key={c.code} style={{display: 'grid', gridTemplateColumns: 'minmax(130px,1.15fr) minmax(100px,1.5fr) auto', gap: 12, alignItems: 'center'}}>
+            <div key={c.code} className="performance-coverage-row">
               <div style={{fontSize: 12.5, fontWeight: 650, color: '#334155', lineHeight: 1.3}}>{c.title}</div>
               <ProgressRibbon done={c.ok} total={total || 1} />
               <div style={{display: 'flex', gap: 4, justifyContent: 'flex-end', minWidth: 56}}>

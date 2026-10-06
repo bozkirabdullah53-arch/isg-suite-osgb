@@ -88,6 +88,8 @@ jobs:
           tests/test_emergency_team_minimums.py
           tests/test_first_aid_compliance.py
           tests/test_workplace_status.py
+          tests/test_password_reset_delivery.py
+          tests/test_employee_branch_filter.py
           tests/test_object_store.py
           tests/test_object_storage_remote_required.py
           tests/test_remote_training_video_r2_backfill.py
@@ -329,9 +331,13 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Build
+        # Match production's same-origin API. WebKit preflights to the local
+        # development port cannot be fulfilled by the page-route fixtures.
+        env:
+          VITE_API_URL: /api/v1
         run: npm run build
       - name: E2E smoke
-        run: npx playwright install --with-deps chromium && npm run test:e2e
+        run: npx playwright install --with-deps chromium webkit && npm run test:e2e
       - name: Upload browser test results
         if: always()
         uses: actions/upload-artifact@v4
