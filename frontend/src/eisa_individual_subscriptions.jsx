@@ -92,15 +92,15 @@ export function EisaIndividualSubscriptionsPage() {
   return (
     <Page title="Bireysel Abonelik" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
-        Bireysel üyeler listede görünür. Satıra tıklayınca kullanıcı bilgisi açılır.
+        Üye bilgilerini açarak hesap ve abonelik durumunu inceleyebilirsiniz.
       </p>
-      <div className="eisa-toolbar">
+      <form className="eisa-toolbar" role="search" aria-label="Bireysel üyeleri ara" onSubmit={(event) => { event.preventDefault(); if (!busy) void load(); }}>
         <SearchBar value={q} onChange={setQ} placeholder="Uzman adı, e-posta, belge no…" />
-        <button type="button" disabled={busy} onClick={load}>Ara</button>
+        <button type="submit" disabled={busy}>Ara</button>
         <button type="button" className="secondary" disabled={busy || !rows.length} onClick={exportPdf}>
           <Download size={16} /> PDF İndir
         </button>
-      </div>
+      </form>
       <Msg text={msg} />
       <SimpleSubscriptionList
         title="Bireysel üyeler"

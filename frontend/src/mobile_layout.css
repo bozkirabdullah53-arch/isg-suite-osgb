@@ -115,6 +115,89 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .performance-coverage-row { display: grid; grid-template-columns: minmax(130px, 1.15fr) minmax(100px, 1.5fr) auto; gap: 12px; align-items: center; }
 .mobile-assistant-slot { display: none; }
 
+/* One member directory serves individual, OSGB and subscription pages. */
+.eisa-page { min-width: 0; }
+.eisa-page .eisa-toolbar { align-items: flex-end; gap: 10px; margin-bottom: 16px; }
+.eisa-page .eisa-toolbar .field { flex: 1 1 260px; min-width: 0; margin: 0; }
+.eisa-page .eisa-toolbar button { min-height: 44px; justify-content: center; }
+.eisa-sub-table .eisa-action-column { width: 96px; }
+.eisa-sub-table button:not(.eisa-sub-name) { min-width: 72px; white-space: nowrap; overflow-wrap: normal; }
+html .eisa-sub-table button.eisa-sub-name {
+  display: block;
+  max-width: 100%;
+  padding: 8px 0;
+  background: transparent !important;
+  color: #18344d !important;
+  border: 0 !important;
+  border-radius: 4px;
+  box-shadow: none !important;
+  transform: none;
+  text-align: left;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.eisa-sub-name::after { display: none; }
+.eisa-sub-cards { display: none; }
+.eisa-sub-cards > li { margin: 0; }
+.eisa-sub-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dcebed;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, .04);
+}
+.eisa-sub-card-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.eisa-sub-card-head h5 { margin: 0; color: #18344d; font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+.eisa-sub-card-head .status-badge { margin-top: 2px; white-space: nowrap; }
+.eisa-sub-card-contact { margin: 6px 0 0; color: #64748b; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.eisa-sub-card-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.eisa-sub-card-fields dt { color: #64748b; font-size: 12px; }
+.eisa-sub-card-fields dd { margin: 4px 0 0; color: #18344d; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.eisa-sub-card-actions { display: flex; gap: 8px; }
+html .eisa-sub-card .eisa-sub-card-actions > button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  justify-content: center;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  box-shadow: none;
+}
+.eisa-sub-card-actions > .secondary { flex: 1 1 auto; }
+.eisa-sub-card-actions > .eisa-inline-delete { flex: 0 0 72px; }
+.eisa-sub-card-actions svg { flex-shrink: 0; }
+.eisa-sub-empty { padding: 20px 14px; color: #64748b; text-align: center; }
+.eisa-sub-detail-modal .eisa-sub-detail { padding: 18px 20px; margin: 0; }
+.eisa-sub-detail > div { min-width: 0; grid-template-columns: 100px minmax(0, 1fr); }
+.eisa-sub-detail dd { min-width: 0; overflow-wrap: anywhere; }
+.eisa-sub-detail-modal .form-actions { padding: 16px 20px; margin: 0; border-top: 1px solid #dcebed; flex-wrap: wrap; }
+
+@media screen and (max-width: 760px) {
+  .eisa-page > .panel { padding: 14px; }
+  .eisa-page > .panel > p { font-size: 14px; line-height: 1.55; }
+  .eisa-page .eisa-toolbar[role="search"] { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 8px; }
+  .eisa-page .eisa-toolbar[role="search"] .field { max-width: none !important; }
+  .eisa-page .eisa-toolbar[role="search"] button[type="submit"] { min-width: 64px; white-space: nowrap; }
+  .eisa-page .eisa-toolbar[role="search"] .secondary { grid-column: 1 / -1; width: 100%; }
+  .eisa-page .eisa-toolbar[role="search"] input { min-width: 0; font-size: 16px; min-height: 44px; }
+  .eisa-sub-list { border: 0; background: transparent; }
+  .eisa-sub-list-head { padding: 10px 0 14px; gap: 12px; }
+  .eisa-sub-list-head h4 { min-width: 0; }
+  .eisa-sub-list-head > span { flex-shrink: 0; }
+  .eisa-sub-table { display: none; }
+  .eisa-sub-cards { display: grid; gap: 12px; padding: 0; margin: 0; list-style: none; }
+  .eisa-pagination { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; padding: 16px 0 0; }
+  .eisa-page .eisa-sub-list .eisa-pagination button { min-width: 0; min-height: 44px; padding-inline: 8px; justify-content: center; white-space: nowrap; }
+  .eisa-pagination span { font-size: 12px; white-space: nowrap; }
+  .eisa-sub-detail-modal .eisa-sub-detail { padding: 16px; }
+  .eisa-sub-detail-modal .eisa-sub-detail > div { grid-template-columns: 80px minmax(0, 1fr); }
+  .eisa-sub-detail-modal .form-actions { padding: 16px; }
+  .eisa-sub-detail-modal .form-actions > button { flex: 1 1 90px; min-width: 0; min-height: 44px; justify-content: center; }
+}
+
 /* Application headers must not style dialog or report headers. */
 .modal > header {
   display: flex;
@@ -152,6 +235,10 @@ body:has(.modal-bg, .risk-modal-bg, .mobile-nav-sheet) .contextual-assistant-lau
 }
 
 @media (max-width: 620px) {
+  /* Desktop navigation padding must not truncate the five phone shortcuts. */
+  html .app-shell .nav-mobile-primary { gap: 2px; padding: 0; }
+  html .app-shell .nav-mobile-primary button { padding: 8px 2px; min-height: 54px; }
+  html .app-shell .nav-mobile-primary button span { font-size: 10px; letter-spacing: normal; }
   .workspace > header .header-actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 44px;
