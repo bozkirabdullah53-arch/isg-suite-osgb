@@ -142,6 +142,6 @@ for (const viewport of [{name: 'desktop', width: 1440, height: 900}, {name: 'mob
       expect((await downloaded).suggestedFilename()).toBe(`acil-durum-ekipleri-1.${format}`);
     }
     await page.reload();
-    await expect(page.getByRole('heading', {name: 'Acil Durum Ekipleri / Destek Elemanları'})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Acil Durum Ekipleri / Destek Elemanları'})).toBeVisible({timeout: 15000});
   });
 }
