@@ -36,6 +36,12 @@ async function prepare(page, {role = 'safety_specialist', downloadError = false,
       if (downloadError) return json({detail: 'PDF şu anda alınamıyor.'}, 503);
       return route.fulfill({status: 200, headers, contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF'});
     }
+    if (path === '/emergency-teams/export.pdf' || path === '/emergency-teams/export.xlsx') {
+      const format = path.endsWith('.pdf') ? 'pdf' : 'xlsx';
+      return route.fulfill({status: 200, headers: {...headers, 'Content-Disposition': `attachment; filename="acil-durum-ekipleri-1.${format}"`},
+        contentType: format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        body: format === 'pdf' ? '%PDF-1.4\n%%EOF' : 'PK-test-report'});
+    }
     return json([]);
   });
   await page.goto('/#m=acil_ekipler');
@@ -115,3 +121,27 @@ test('assignment failures stay visible inside the open dialog', async ({page}) =
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 });
+
+for (const viewport of [{name: 'desktop', width: 1440, height: 900}, {name: 'mobile', width: 390, height: 844}]) {
+  test(`${viewport.name}: workplace account opens its emergency teams and downloads reports`, async ({page}) => {
+    await page.setViewportSize(viewport);
+    await prepare(page, {role: 'company_admin'});
+    const panel = page.locator('.emergency-teams-page');
+    const companySelect = panel.getByRole('combobox', {name: 'İşyeri', exact: true});
+    await expect(companySelect).toHaveValue('1');
+    await expect(companySelect).toBeDisabled();
+    await expect(companySelect.locator('option[value="2"]')).toHaveCount(0);
+    await expect(panel.getByRole('button', {name: 'Destek Elemanı Ekle', exact: true})).toHaveCount(0);
+    await expect(panel.getByRole('button', {name: 'Yeni Ekip', exact: true})).toHaveCount(0);
+    await expect(panel.getByRole('button', {name: 'Silinenleri Geri Al', exact: true})).toHaveCount(0);
+    await expect(panel.getByRole('button', {name: 'Excel', exact: true})).toBeVisible();
+    await expect(panel.getByRole('button', {name: 'PDF', exact: true})).toBeVisible();
+    for (const [label, format] of [['Excel', 'xlsx'], ['PDF', 'pdf']]) {
+      const downloaded = page.waitForEvent('download');
+      await panel.getByRole('button', {name: label, exact: true}).click();
+      expect((await downloaded).suggestedFilename()).toBe(`acil-durum-ekipleri-1.${format}`);
+    }
+    await page.reload();
+    await expect(page.getByRole('heading', {name: 'Acil Durum Ekipleri / Destek Elemanları'})).toBeVisible({timeout: 15000});
+  });
+}

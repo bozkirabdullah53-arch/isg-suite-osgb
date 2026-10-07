@@ -2,8 +2,8 @@
 
 Mevcut modüllere dokunmaz; yalnızca yeni tablolarla çalışır. Tenant izolasyonu
 company_ids_for_query / ensure_company_access üzerinden yapılır. Silme yumuşaktır
-(is_active=False). İşyeri hekimi salt-okunur (VIEW), düzenleme yalnızca global
-yönetici ve İSG uzmanına açıktır.
+(is_active=False). İşyeri hekimi ve tek işyerine bağlı işyeri hesabı salt-okunur
+(VIEW); düzenleme yalnızca global yönetici ve İSG uzmanına açıktır.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_roles, require_roles_or_workplace_manager
 from app.core.config import settings
 from app.core.database import get_db
 from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
@@ -309,7 +309,7 @@ def meta(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
 def overview(
     company_id: int = Query(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     company_id = ensure_company_access(db, user, company_id)
     company = db.get(Company, company_id)
@@ -382,7 +382,7 @@ def overview(
 def list_teams(
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     company_ids = company_ids_for_query(db, user, company_id)
     if company_ids == []:
@@ -677,7 +677,7 @@ def list_assignments(
     active_only: bool = True,
     cert_status: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     company_ids = company_ids_for_query(db, user, company_id)
     if company_ids == []:
@@ -985,7 +985,7 @@ def restore_assignment(
 def list_trainings(
     assignment_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)
@@ -1158,7 +1158,7 @@ def _company_teams_payload(db: Session, company_id: int) -> list[dict]:
 def export_xlsx(
     company_id: int = Query(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     company_id = ensure_company_access(db, user, company_id)
     company = db.get(Company, company_id)
@@ -1177,7 +1177,7 @@ def export_xlsx(
 def export_pdf(
     company_id: int = Query(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     company_id = ensure_company_access(db, user, company_id)
     company = db.get(Company, company_id)
@@ -1197,7 +1197,7 @@ def export_pdf(
 def assignment_letter(
     assignment_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)

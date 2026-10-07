@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {TeamMinimum, TeamRequirementsSummary} from './emergency_team_requirements';
+import {isWorkplaceAccountUser} from './workplace_user_policy';
 import './emergency_teams.css';
 
 const CERT_BADGE = {
@@ -141,6 +142,7 @@ function Kpi({label, value, tone}) {
 
 export function EmergencyTeamsPage({user}) {
   const canEdit = user.role === 'safety_specialist' || user.role === 'global_admin';
+  const isWorkplaceAccount = isWorkplaceAccountUser(user);
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user.company_id || '');
   const selectedCompanyRef = useRef(companyId);
@@ -175,7 +177,9 @@ export function EmergencyTeamsPage({user}) {
   async function loadCompanies() {
     try {
       const c = await api('/companies');
-      setCompanies(c || []);
+      setCompanies(isWorkplaceAccount
+        ? (c || []).filter((company) => Number(company.id) === Number(user.company_id))
+        : (c || []));
     } catch (ex) {
       setErr(ex.message || 'Firmalar yüklenemedi.');
     }
@@ -520,7 +524,7 @@ export function EmergencyTeamsPage({user}) {
         <div className="toolbar" style={{gap: 12, flexWrap: 'wrap', alignItems: 'flex-end'}}>
           <label className="field" style={{minWidth: 240}}>
             <span>İşyeri</span>
-            <select value={companyId} onChange={(e) => selectCompany(e.target.value)}>
+            <select value={companyId} disabled={isWorkplaceAccount} onChange={(e) => selectCompany(e.target.value)}>
               <option value="">Firma seçin</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>

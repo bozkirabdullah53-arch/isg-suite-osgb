@@ -38,6 +38,7 @@ describe('workplace user policy', () => {
       'periyodik_kontrol',
       'sds',
       'ortam_olcum',
+      'acil_ekipler',
       'tatbikat',
       'near_miss',
       'accident',
@@ -58,6 +59,7 @@ describe('workplace user policy', () => {
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('security');
     expect(WORKPLACE_MANAGER_MODULES[0]).toBe('workplace_home');
     expect(workplaceMenuSection(manager, 'ppe')).toBe('İSG Kayıtları');
+    expect(workplaceMenuSection(manager, 'acil_ekipler')).toBe('İSG Kayıtları');
     expect(workplaceMenuSection(manager, 'employees')).toBe('Personel ve Eğitim');
     expect(workplaceMenuSection(manager, 'remote_training')).toBe('Personel ve Eğitim');
     expect(workplaceMenuSection(manager, 'workplace_home')).toBe('İşyeri Özeti');
@@ -71,7 +73,7 @@ describe('workplace user policy', () => {
     const kiosk = {...manager, email: 'isyeri.42@kiosk.isgsuite.tr'};
     expect(isWorkplaceAccountUser(kiosk)).toBe(true);
     const modules = workplaceModulesForUser(kiosk);
-    for (const id of ['employees', 'ppe', 'sds', 'periyodik_kontrol', 'ortam_olcum', 'near_miss', 'accident', 'capa', 'isg_kurulu', 'site_qr_kiosk']) {
+    for (const id of ['employees', 'ppe', 'sds', 'periyodik_kontrol', 'ortam_olcum', 'acil_ekipler', 'near_miss', 'accident', 'capa', 'isg_kurulu', 'site_qr_kiosk']) {
       expect(modules).toContain(id);
       expect(workplaceMenuSection(kiosk, id)).not.toBe('');
     }
