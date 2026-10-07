@@ -16,6 +16,7 @@ import imaplib
 import logging
 import hashlib
 import poplib
+import ssl
 import re
 import time
 
@@ -168,6 +169,26 @@ def _message_payload(raw: bytes, *, uid: int, mailbox: str) -> dict[str, object]
     }
 
 
+def _close_mail_client(client, protocol: str, *, graceful: bool = True) -> None:
+    """Release local I/O even when the provider refuses logout or TLS failed."""
+    if graceful:
+        try:
+            client.logout() if protocol == "imap" else client.quit()
+        except Exception:
+            pass
+    try:
+        client.shutdown() if protocol == "imap" else client.close()
+    except Exception:
+        # A failed graceful close/partial TLS handshake must not retain the
+        # file wrapper's descriptor or the socket through an exception traceback.
+        for resource in (getattr(client, "file", None), getattr(client, "sock", None)):
+            if resource is not None:
+                try:
+                    resource.close()
+                except Exception:
+                    pass
+
+
 def _connect_imap_with_retry():
     """Connect and authenticate despite transient MailEnable EOF responses."""
     last_error: Exception | None = None
@@ -179,6 +200,7 @@ def _connect_imap_with_retry():
                     settings.inbound_mail_host,
                     int(settings.inbound_mail_port),
                     timeout=int(settings.inbound_mail_timeout_sec),
+                    ssl_context=ssl.create_default_context(),
                 )
             else:
                 client = imaplib.IMAP4(
@@ -186,16 +208,13 @@ def _connect_imap_with_retry():
                     int(settings.inbound_mail_port),
                     timeout=int(settings.inbound_mail_timeout_sec),
                 )
-                client.starttls()
+                client.starttls(ssl_context=ssl.create_default_context())
             client.login(settings.inbound_mail_username, settings.inbound_mail_password)
             return client
         except (OSError, EOFError, imaplib.IMAP4.error) as exc:
             last_error = exc
             if client is not None:
-                try:
-                    client.logout()
-                except Exception:  # noqa: BLE001 — retry cleanup
-                    pass
+                _close_mail_client(client, "imap", graceful=False)
             if attempt < 2:
                 time.sleep(0.75 * (attempt + 1))
     raise RuntimeError("IMAP sunucusuna bağlanılamadı.") from last_error
@@ -208,19 +227,17 @@ def _connect_pop3_with_retry():
         client = None
         try:
             if settings.inbound_mail_use_ssl:
-                client = poplib.POP3_SSL(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec))
+                client = poplib.POP3_SSL(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec), context=ssl.create_default_context())
             else:
                 client = poplib.POP3(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec))
+                client.stls(context=ssl.create_default_context())
             client.user(settings.inbound_mail_username)
             client.pass_(settings.inbound_mail_password)
             return client
         except (OSError, EOFError, poplib.error_proto) as exc:
             last_error = exc
             if client is not None:
-                try:
-                    client.quit()
-                except Exception:  # noqa: BLE001
-                    pass
+                _close_mail_client(client, "pop3", graceful=False)
             if attempt < 2:
                 time.sleep(0.75 * (attempt + 1))
     raise RuntimeError("POP3 sunucusuna bağlanılamadı.") from last_error
