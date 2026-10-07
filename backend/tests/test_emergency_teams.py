@@ -455,6 +455,139 @@ def test_company_isolation(client):
     assert r.status_code == 403
 
 
+def _emergency_viewer_headers(seed, *, email, company_bound=True, role=None):
+    from app.core.database import SessionLocal
+    from app.core.security import create_access_token
+    from app.models.entities import Company, User, UserRole, WorkplaceMembership
+
+    with SessionLocal() as db:
+        specialist = db.query(User).filter_by(email="acil-uzman@test.com").one()
+        user = User(
+            email=email, full_name="Ekip Görüntüleyen",
+            hashed_password=specialist.hashed_password,
+            role=role or UserRole.COMPANY_ADMIN,
+            company_id=seed["company_id"] if company_bound else None,
+            osgb_id=db.get(Company, seed["company_id"]).osgb_id,
+            is_active=True,
+        )
+        db.add(user)
+        db.flush()
+        if company_bound:
+            # Eski/hatalı üyelik başka işyerine erişim vermemeli.
+            db.add(WorkplaceMembership(
+                user_id=user.id, company_id=seed["other_company_id"],
+                role="company_admin", is_active=True,
+            ))
+        token = create_access_token(str(user.id))
+        db.commit()
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.parametrize("email", ["workplace@test.com", "isyeri.1@kiosk.isgsuite.tr"])
+def test_workplace_emergency_teams_read_only_and_company_scoped(client, email):
+    from app.core.database import SessionLocal
+    from app.models.entities import EmergencyTeamAssignment, EmergencyTeamTraining, Employee, User
+    from app.services.emergency_team_logic import ensure_default_teams
+
+    seed = _seed(client)
+    headers = _emergency_viewer_headers(seed, email=email)
+    own_id, foreign_id = seed["company_id"], seed["other_company_id"]
+    base = "/api/v1/emergency-teams"
+
+    # Görüntüleme boş işyerine ekip/görevlendirme oluşturmaz.
+    empty = client.get(f"{base}/overview?company_id={own_id}", headers=headers)
+    assert empty.status_code == 200, empty.text
+    assert empty.json()["teams"] == []
+    assert empty.json()["can_edit"] is False
+
+    with SessionLocal() as db:
+        specialist = db.query(User).filter_by(email="acil-uzman@test.com").one()
+        teams = {}
+        assignments = {}
+        for cid in (own_id, foreign_id):
+            team = ensure_default_teams(db, cid, specialist.id)[0]
+            employee = db.query(Employee).filter_by(company_id=cid).first()
+            member = EmergencyTeamAssignment(
+                company_id=cid, team_id=team.id, employee_id=employee.id,
+                membership="asil", created_by_id=specialist.id,
+            )
+            db.add(member)
+            db.flush()
+            db.add(EmergencyTeamTraining(assignment_id=member.id, training_type="Ekip Eğitimi"))
+            teams[cid] = {"id": team.id, "type_id": team.type_id}
+            assignments[cid] = member.id
+        db.commit()
+
+    assert client.get(f"{base}/meta", headers=headers).status_code == 200
+    overview = client.get(f"{base}/overview?company_id={own_id}", headers=headers)
+    assert overview.status_code == 200, overview.text
+    assert overview.json()["company"]["id"] == own_id
+    assert overview.json()["can_edit"] is False
+    for resource in ("teams", "assignments"):
+        for query in ("", f"?company_id={own_id}"):
+            result = client.get(f"{base}/{resource}{query}", headers=headers)
+            assert result.status_code == 200, result.text
+            assert result.json()
+            assert {row["company_id"] for row in result.json()} == {own_id}
+
+    own_member = assignments[own_id]
+    foreign_member = assignments[foreign_id]
+    trainings = client.get(f"{base}/assignments/{own_member}/trainings", headers=headers)
+    assert trainings.status_code == 200, trainings.text
+    assert trainings.json()[0]["training_type"] == "Ekip Eğitimi"
+    for path in (f"export.xlsx?company_id={own_id}", f"export.pdf?company_id={own_id}",
+                 f"assignments/{own_member}/letter.pdf"):
+        result = client.get(f"{base}/{path}", headers=headers)
+        assert result.status_code == 200, result.text
+        assert result.content.startswith(b"PK" if ".xlsx" in path else b"%PDF")
+
+    for path in (f"overview?company_id={foreign_id}", f"teams?company_id={foreign_id}",
+                 f"assignments?company_id={foreign_id}", f"export.xlsx?company_id={foreign_id}",
+                 f"export.pdf?company_id={foreign_id}", f"assignments/{foreign_member}/trainings",
+                 f"assignments/{foreign_member}/letter.pdf"):
+        assert client.get(f"{base}/{path}", headers=headers).status_code == 403, path
+
+    # Kendi işyerinde bile mevcut uzman düzenleme/silme sınırı korunur.
+    own_team = teams[own_id]
+    for method, path, payload in (
+        ("POST", "teams", {"company_id": own_id, "type_id": own_team["type_id"], "name": "Yeni Ekip"}),
+        ("PUT", f"teams/{own_team['id']}", {"name": "Değiştirildi"}),
+        ("DELETE", f"teams/{own_team['id']}", None),
+        ("POST", f"teams/{own_team['id']}/restore", None),
+        ("POST", f"restore-inactive?company_id={own_id}", None),
+        ("POST", "assignments", {"company_id": own_id, "team_id": own_team["id"], "employee_id": seed["employee_ids"][1]}),
+        ("PUT", f"assignments/{own_member}", {"notes": "Değiştirildi"}),
+        ("DELETE", f"assignments/{own_member}", None),
+        ("POST", f"assignments/{own_member}/restore", None),
+        ("POST", f"assignments/{own_member}/trainings", {"training_type": "Yeni Eğitim"}),
+    ):
+        result = client.request(method, f"{base}/{path}", headers=headers, json=payload)
+        assert result.status_code == 403, (method, path, result.text)
+    upload = client.post(f"{base}/assignments/{own_member}/certificate-file", headers=headers,
+                         files={"file": ("belge.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")})
+    assert upload.status_code == 403
+    with SessionLocal() as db:
+        member = db.get(EmergencyTeamAssignment, own_member)
+        assert member.is_active is True and member.notes is None
+        assert len(member.trainings) == 1
+
+
+@pytest.mark.parametrize("account", ["osgb_admin", "employee"])
+def test_emergency_teams_does_not_expand_osgb_or_employee_access(client, account):
+    from app.models.entities import UserRole
+
+    seed = _seed(client)
+    headers = _emergency_viewer_headers(
+        seed, email=f"{account}@test.com", company_bound=account == "employee",
+        role=UserRole.READ_ONLY if account == "employee" else UserRole.COMPANY_ADMIN,
+    )
+    base = "/api/v1/emergency-teams"
+    for path in (f"overview?company_id={seed['company_id']}", "teams", "assignments",
+                 f"export.xlsx?company_id={seed['company_id']}",
+                 f"export.pdf?company_id={seed['company_id']}"):
+        assert client.get(f"{base}/{path}", headers=headers).status_code == 403, path
+
+
 def test_export_xlsx_and_pdf(client):
     seed = _seed(client)
     headers = {"Authorization": f"Bearer {seed['token']}"}
