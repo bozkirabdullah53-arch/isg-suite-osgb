@@ -777,11 +777,16 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
 def certificate_meta_parts(training, *, kural: dict, curriculum: dict | None = None) -> list[str]:
     """Katılım belgesi üst satırı — süre, tehlike sınıfı, tür, şekil, doğrulama."""
     curriculum = curriculum or {}
-    sure = curriculum.get("duration_label") or (
-        f"{training.duration_hours} DERS SAAT"
-        if getattr(training, "duration_hours", None)
-        else kural["sure"]
-    )
+    if getattr(training, "_remote_certificate_view", False):
+        # Remote package titles can name a special topic (e.g. height work),
+        # but the document's total Basic OHS hours come from its NACE scope.
+        sure = f"{training.duration_hours} DERS SAAT"
+    else:
+        sure = curriculum.get("duration_label") or (
+            f"{training.duration_hours} DERS SAAT"
+            if getattr(training, "duration_hours", None)
+            else kural["sure"]
+        )
     parts = [
         f"Süre: {sure}",
         f"Tehlike Sınıfı: {training.hazard_class}",

@@ -95,6 +95,7 @@ jobs:
           tests/test_remote_training_video_r2_backfill.py
           tests/test_remote_training_storage_guard.py
           tests/test_remote_basic_ohs_video_training.py
+          tests/test_remote_training_duration.py
           tests/test_remote_training_global_content_permissions.py
           tests/test_remote_training_package_management.py
           tests/test_remote_training_live_video_sync.py

@@ -167,9 +167,8 @@ def build_remote_certificate_pdf(db: Session, certificate) -> bytes:
         employee_id=certificate.employee_id,
         certificate_number=certificate.certificate_number,
     )
-    duration_hours = max(
-        1,
-        (int(certificate.training_duration_seconds or 0) + 2699) // 2700,
+    duration = remote_service.remote_training_duration(
+        certificate.nace_code_snapshot, certificate.hazard_class_snapshot,
     )
     instructor_name = (
         certificate.instructor_name_snapshot
@@ -198,11 +197,11 @@ def build_remote_certificate_pdf(db: Session, certificate) -> bytes:
         delivery_method=remote_service.REMOTE_CERTIFICATE_TRAINING_TYPE,
         start_date=certificate.training_date,
         end_date=certificate.training_date,
-        duration_hours=duration_hours,
+        duration_hours=duration["duration_hours"],
         evaluation_method="Final sınavı",
         passing_score=program.passing_score,
         location=certificate.workplace_name_snapshot or "Uzaktan eğitim",
-        hazard_class=certificate.hazard_class_snapshot or "",
+        hazard_class=duration["hazard_class"],
         sector=certificate.nace_code_snapshot or "",
         instructor_name=instructor_name,
         instructor_qualification=instructor_qualification,
