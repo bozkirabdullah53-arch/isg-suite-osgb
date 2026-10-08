@@ -269,11 +269,17 @@ def test_unknown_classification_preserves_completed_exam_without_issuing_documen
     "Yüksekte Çalışma İSG Paketi",
     "Ortak Temel İSG + Yüksekte Çalışma İSG Paketi",
 ])
-def test_package_title_cannot_override_basic_course_lesson_hours(scope, title):
+def test_package_title_cannot_override_basic_course_lesson_hours(scope, title, monkeypatch):
     from app.services.remote_training_document_extension import build_remote_certificate_pdf
+    from app.services import training_pdfs, training_runtime_patches
+
+    # Exercise the same premium/height renderer dispatch installed at startup.
+    monkeypatch.setattr(training_pdfs, "_draw_certificate_page", training_pdfs._draw_certificate_page)
+    training_runtime_patches._patch_certificate_renderer()
 
     scope.program.title = title
     certificate = service.ensure_certificate(scope.db, scope.assignment)
     text = "\n".join(page.extract_text() for page in PdfReader(BytesIO(build_remote_certificate_pdf(scope.db, certificate))).pages)
 
     assert "Süre: 16 DERS SAAT" in text
+    assert "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ" in text

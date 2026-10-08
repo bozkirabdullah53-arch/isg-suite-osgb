@@ -250,6 +250,10 @@ SPECIAL_TOPICS_HEADER = "EĞİTİM PROGRAMI VE KONU SÜRELERİ"
 
 def resolve_special_profile_key(training) -> str | None:
     """Eğitim kaydından özel profil kodunu çözer."""
+    # Remote Basic OHS packages can mention a special topic in their title.
+    # Their certificate still covers the Basic OHS curriculum and NACE hours.
+    if getattr(training, "_remote_certificate_view", False):
+        return None
     fields = [
         str(getattr(training, "training_type", None) or "").strip().casefold(),
         str(getattr(training, "title", None) or "").strip().casefold(),
