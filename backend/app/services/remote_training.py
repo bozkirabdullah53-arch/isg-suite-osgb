@@ -77,6 +77,7 @@ from app.services.object_store import (
 )
 from app.services.training_nace_classification import resolve_exact_nace
 from app.services.training_question_bank import _curated_pack
+from app.services.training_topics import TEHLIKE_EGITIM_KURALLARI
 from app.services.upload_security import assert_safe_video_upload
 
 logger = logging.getLogger(__name__)
@@ -777,9 +778,12 @@ def company_snapshot(db: Session, company_id: int, branch_id: int | None = None)
     branch = validate_branch(db, company_id, branch_id)
     nace_code = str(getattr(company, "nace_code", None) or "").strip() or None
     nace_description = None
+    hazard_class = str(company.hazard_class or "").strip() or None
     if nace_code:
         try:
-            nace_description = resolve_exact_nace(nace_code).nace_description
+            classification = resolve_exact_nace(nace_code)
+            nace_description = classification.nace_description
+            hazard_class = classification.hazard_class
         except (TypeError, ValueError):
             nace_description = None
     sgk = str((branch.sgk_registry_no if branch else None) or company.sgk_registry_no or "").strip() or None
@@ -792,14 +796,14 @@ def company_snapshot(db: Session, company_id: int, branch_id: int | None = None)
         "sgk_registration_number": sgk,
         "nace_code": nace_code,
         "nace_description": nace_description,
-        "hazard_class": str(company.hazard_class or "").strip() or None,
+        "hazard_class": hazard_class,
         "warnings": [
             item
             for item, missing in (
                 ("SGK sicil numarası işyeri kaydında bulunamadı.", not sgk),
                 ("NACE kodu işyeri kaydında bulunamadı.", not nace_code),
                 ("NACE kodunun açıklaması resmî katalogda çözülemedi.", bool(nace_code) and not nace_description),
-                ("Tehlike sınıfı işyeri kaydında bulunamadı.", not company.hazard_class),
+                ("Tehlike sınıfı işyeri kaydında bulunamadı.", not hazard_class),
             )
             if missing
         ],
@@ -1315,6 +1319,33 @@ def _remote_document_defaults(db: Session, company_id: int) -> dict[str, Any]:
     return (training_defaults(db, company_id) or {}).get("defaults") or {}
 
 
+def remote_training_duration(
+    nace_code: str | None, hazard_class: str | None
+) -> dict[str, Any]:
+    """Resolve total Basic OHS lesson hours from the historical workplace scope.
+
+    Video seconds describe media/progress only. A lesson hour includes 45
+    minutes teaching and 15 minutes break. Legacy NACE codes absent from the
+    current catalog retain their recorded, recognized hazard-class rule.
+    """
+    try:
+        hazard = resolve_exact_nace(nace_code).hazard_class
+    except (TypeError, ValueError):
+        hazard = str(hazard_class or "").strip()
+    rule = TEHLIKE_EGITIM_KURALLARI.get(hazard)
+    if not rule:
+        raise HTTPException(
+            409,
+            "Katılım belgesi süresi için geçerli NACE kodu veya kayıtlı tehlike sınıfı gerekir.",
+        )
+    hours = int(rule["saat"])
+    return {
+        "hazard_class": hazard,
+        "duration_hours": hours,
+        "duration_seconds": hours * 3600,
+    }
+
+
 def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> RemoteTrainingCertificate | None:
     current = db.scalar(
         select(RemoteTrainingCertificate).where(
@@ -1378,6 +1409,16 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
     )
     seed = f"remote-basic-ohs|{assignment.id}|{assignment.employee_id}|{datetime.utcnow().isoformat()}|{secrets.token_hex(8)}"
     employee = db.get(Employee, assignment.employee_id)
+    try:
+        duration = remote_training_duration(
+            assignment.nace_code_snapshot, assignment.hazard_class_snapshot
+        )
+    except HTTPException as error:
+        if error.status_code != 409:
+            raise
+        # Completion events must still commit their progress/exam evidence.
+        # Invalid workplace classification only prevents document issuance.
+        return None
     certificate = RemoteTrainingCertificate(
         company_id=assignment.company_id,
         program_id=assignment.program_id,
@@ -1394,7 +1435,7 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
         # Keep the persisted legacy type for compatibility; the document
         # adapter below deliberately presents the Turkish certificate label.
         training_type=REMOTE_TRAINING_TYPE,
-        training_duration_seconds=program.total_duration_seconds,
+        training_duration_seconds=duration["duration_seconds"],
         training_date=(assignment.completed_at.date() if assignment.completed_at else date.today()),
         instructor_name_snapshot=program.instructor_name or defaults.get("instructor_name"),
         instructor_qualification_snapshot=(
@@ -1473,7 +1514,9 @@ def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -
         employee_id=certificate.employee_id,
         certificate_number=certificate.certificate_number,
     )
-    duration_hours = max(1, (int(certificate.training_duration_seconds or 0) + 2699) // 2700)
+    duration = remote_training_duration(
+        certificate.nace_code_snapshot, certificate.hazard_class_snapshot
+    )
     instructor_name = (
         certificate.instructor_name_snapshot
         or program.instructor_name
@@ -1495,12 +1538,12 @@ def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -
         delivery_method=REMOTE_CERTIFICATE_TRAINING_TYPE,
         start_date=certificate.training_date,
         end_date=certificate.training_date,
-        duration_hours=duration_hours,
+        duration_hours=duration["duration_hours"],
         evaluation_method="Final sınavı",
         passing_score=program.passing_score,
         location=certificate.workplace_name_snapshot or "Uzaktan eğitim",
         # Keep the historical workplace identity captured at assignment time.
-        hazard_class=certificate.hazard_class_snapshot or "",
+        hazard_class=duration["hazard_class"],
         sector=certificate.nace_code_snapshot or "",
         instructor_name=instructor_name,
         instructor_qualification=instructor_qualification,
@@ -1543,12 +1586,13 @@ def combined_remote_certificate_view(
     titles: list[str] = []
     scores: list[int] = []
     dates: list[date] = []
-    duration_seconds = 0
+    duration = remote_training_duration(
+        primary.nace_code_snapshot, primary.hazard_class_snapshot
+    )
     for certificate in certificates:
         title = str(certificate.training_name or "").strip()
         if title and title not in titles:
             titles.append(title)
-        duration_seconds += int(certificate.training_duration_seconds or 0)
         if certificate.examination_score is not None:
             scores.append(int(certificate.examination_score))
         if certificate.training_date:
@@ -1566,10 +1610,11 @@ def combined_remote_certificate_view(
         sgk_registration_number_snapshot=primary.sgk_registration_number_snapshot,
         nace_code_snapshot=primary.nace_code_snapshot,
         nace_description_snapshot=primary.nace_description_snapshot,
-        hazard_class_snapshot=primary.hazard_class_snapshot,
+        hazard_class_snapshot=duration["hazard_class"],
         training_name=" + ".join(titles) or primary.training_name,
         training_type=primary.training_type,
-        training_duration_seconds=duration_seconds,
+        # The packages form one Basic OHS course in this workplace scope.
+        training_duration_seconds=duration["duration_seconds"],
         training_date=min(dates) if dates else primary.training_date,
         instructor_name_snapshot=primary.instructor_name_snapshot,
         instructor_qualification_snapshot=primary.instructor_qualification_snapshot,

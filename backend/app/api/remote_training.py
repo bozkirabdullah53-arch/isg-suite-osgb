@@ -129,6 +129,7 @@ from app.services.remote_training import (
     recalculate_assignment,
     recalculate_catalog_package_duration,
     recalculate_program_duration,
+    remote_training_duration,
     reconcile_strict_video_end,
     remote_employee_login_email,
     remote_employee_username,
@@ -4662,6 +4663,9 @@ def get_remote_certificate(
         if assignment.status != "completed":
             raise HTTPException(409, "Katılım belgesi için video, video içi sorular ve final sınavı tamamlanmalıdır.")
         raise HTTPException(409, "Katılım belgesi için atama tarihindeki SGK/NACE/tehlike sınıfı snapshot alanları eksik; veri uydurulmadı.")
+    duration = remote_training_duration(
+        certificate.nace_code_snapshot, certificate.hazard_class_snapshot
+    )
     db.commit()
     return {
         "id": certificate.id,
@@ -4672,10 +4676,11 @@ def get_remote_certificate(
         "sgk_registration_number": certificate.sgk_registration_number_snapshot,
         "nace_code": certificate.nace_code_snapshot,
         "nace_description": certificate.nace_description_snapshot,
-        "hazard_class": certificate.hazard_class_snapshot,
+        "hazard_class": duration["hazard_class"],
         "training_name": certificate.training_name,
         "training_type": REMOTE_CERTIFICATE_TRAINING_TYPE,
-        "training_duration_seconds": certificate.training_duration_seconds,
+        "training_duration_seconds": duration["duration_seconds"],
+        "training_duration_hours": duration["duration_hours"],
         "training_date": _iso(certificate.training_date),
         "instructor_name": certificate.instructor_name_snapshot,
         "instructor_qualification": certificate.instructor_qualification_snapshot,
@@ -4738,6 +4743,9 @@ def verify_remote_certificate(
     ) if clean else None
     if not certificate:
         return {"valid": False, "verification_code": clean, "message": "Bu kodla eşleşen uzaktan eğitim katılım belgesi bulunamadı."}
+    duration = remote_training_duration(
+        certificate.nace_code_snapshot, certificate.hazard_class_snapshot
+    )
     return {
         "valid": True,
         "verification_code": clean,
@@ -4750,7 +4758,9 @@ def verify_remote_certificate(
         "training_date": _iso(certificate.training_date),
         "examination_score": certificate.examination_score,
         "nace_code": certificate.nace_code_snapshot,
-        "hazard_class": certificate.hazard_class_snapshot,
+        "hazard_class": duration["hazard_class"],
+        "training_duration_seconds": duration["duration_seconds"],
+        "training_duration_hours": duration["duration_hours"],
         "message": "Katılım belgesi doğrulandı.",
     }
 
