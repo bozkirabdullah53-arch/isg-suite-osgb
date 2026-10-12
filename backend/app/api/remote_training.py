@@ -27,7 +27,7 @@ from app.core.config import (
 )
 from app.core.database import get_db
 from app.core.security import get_password_hash
-from app.models.entities import Branch, Company, Employee, EisaPlatformSetting, TrainingQuestion, User, UserRole
+from app.models.entities import Branch, Company, Employee, EisaPlatformSetting, OsgbOrganization, TrainingQuestion, User, UserRole
 from app.models.remote_training import (
     ASSET_TYPES,
     PROGRAM_STATUSES,
@@ -41,6 +41,7 @@ from app.models.remote_training import (
     RemoteTrainingCertificate,
     REMOTE_CATALOG_PACKAGE_SPECS,
     RemoteTrainingCatalogPackage,
+    RemoteTrainingCatalogPackageGrant,
     RemoteTrainingCatalogSection,
     RemoteTrainingCatalogVideo,
     RemoteTrainingCheckpointAnswer,
@@ -834,6 +835,20 @@ def _catalog_scope(db: Session, user: User) -> int | None:
     raise HTTPException(403, "Merkezi eğitim kataloğu için OSGB kapsamı bulunamadı.")
 
 
+def _require_global_catalog_admin(user: User) -> None:
+    if user.role != UserRole.GLOBAL_ADMIN:
+        raise HTTPException(403, "OSGB eğitim erişimlerini yalnızca global yönetici değiştirebilir.")
+
+
+def _catalog_package_granted(db: Session, package_id: int, osgb_id: int) -> bool:
+    return db.scalar(
+        select(RemoteTrainingCatalogPackageGrant.id).where(
+            RemoteTrainingCatalogPackageGrant.package_id == package_id,
+            RemoteTrainingCatalogPackageGrant.osgb_id == osgb_id,
+        )
+    ) is not None
+
+
 
 def _catalog_package_for_manager(
     db: Session, user: User, package_id: int
@@ -850,6 +865,8 @@ def _catalog_package_for_manager(
         assert_osgb_subscription_access(db, user, scope)
         if package.status != "published":
             raise HTTPException(404, "Yayımlanmış merkezi eğitim paketi bulunamadı.")
+        if package.osgb_id is None and not _catalog_package_granted(db, package.id, scope) and not is_catalog_content_manager(user):
+            raise HTTPException(404, "Bu eğitim OSGB'nize açılmamış.")
     return package
 
 
@@ -1149,8 +1166,13 @@ def list_catalog_packages(
     if user.role != UserRole.GLOBAL_ADMIN:
         stmt = stmt.where(
             or_(
-                RemoteTrainingCatalogPackage.osgb_id.is_(None),
                 RemoteTrainingCatalogPackage.osgb_id == scope,
+                select(RemoteTrainingCatalogPackageGrant.id)
+                .where(
+                    RemoteTrainingCatalogPackageGrant.package_id == RemoteTrainingCatalogPackage.id,
+                    RemoteTrainingCatalogPackageGrant.osgb_id == scope,
+                )
+                .exists(),
             )
         )
         stmt = stmt.where(RemoteTrainingCatalogPackage.status == "published")
@@ -1168,6 +1190,96 @@ def list_catalog_packages(
     order = {spec["code"]: index for index, spec in enumerate(REMOTE_CATALOG_PACKAGE_SPECS)}
     rows = sorted(rows, key=lambda row: (order.get(row.code, len(order)), row.id))
     return [_catalog_package_output(db, row) for row in rows]
+
+
+@router.get("/catalog/grant-targets")
+def list_catalog_grant_targets(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _require_global_catalog_admin(user)
+    rows = db.scalars(
+        select(OsgbOrganization)
+        .where(OsgbOrganization.is_active.is_(True))
+        .order_by(OsgbOrganization.name)
+    ).all()
+    return [
+        {"id": row.id, "name": row.name, "is_individual": bool(getattr(row, "is_individual", False))}
+        for row in rows
+    ]
+
+
+@router.get("/catalog/packages/{package_id}/grants")
+def list_catalog_package_grants(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _require_global_catalog_admin(user)
+    package = db.get(RemoteTrainingCatalogPackage, package_id)
+    if package is None or package.osgb_id is not None:
+        raise HTTPException(404, "Ortak eğitim paketi bulunamadı.")
+    grants = db.scalars(
+        select(RemoteTrainingCatalogPackageGrant).where(
+            RemoteTrainingCatalogPackageGrant.package_id == package_id
+        )
+    ).all()
+    return [{"id": row.id, "package_id": row.package_id, "osgb_id": row.osgb_id} for row in grants]
+
+
+@router.put("/catalog/packages/{package_id}/grants/{osgb_id}")
+def grant_catalog_package(
+    package_id: int,
+    osgb_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _require_global_catalog_admin(user)
+    package = db.get(RemoteTrainingCatalogPackage, package_id)
+    if package is None or package.osgb_id is not None:
+        raise HTTPException(404, "Ortak eğitim paketi bulunamadı.")
+    if package.status != "published":
+        raise HTTPException(409, "Yalnızca yayımlanmış eğitimler OSGB'lere açılabilir.")
+    target = db.get(OsgbOrganization, osgb_id)
+    if target is None or not target.is_active:
+        raise HTTPException(404, "Aktif OSGB bulunamadı.")
+    grant = db.scalar(
+        select(RemoteTrainingCatalogPackageGrant).where(
+            RemoteTrainingCatalogPackageGrant.package_id == package_id,
+            RemoteTrainingCatalogPackageGrant.osgb_id == osgb_id,
+        )
+    )
+    if grant is None:
+        db.add(RemoteTrainingCatalogPackageGrant(package_id=package_id, osgb_id=osgb_id, granted_by_id=user.id))
+        db.commit()
+    return {"ok": True, "package_id": package_id, "osgb_id": osgb_id}
+
+
+@router.delete("/catalog/packages/{package_id}/grants/{osgb_id}")
+def revoke_catalog_package(
+    package_id: int,
+    osgb_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _require_global_catalog_admin(user)
+    package = db.get(RemoteTrainingCatalogPackage, package_id)
+    if package is None or package.osgb_id is not None:
+        raise HTTPException(404, "Ortak eğitim paketi bulunamadı.")
+    grant = db.scalar(
+        select(RemoteTrainingCatalogPackageGrant).where(
+            RemoteTrainingCatalogPackageGrant.package_id == package_id,
+            RemoteTrainingCatalogPackageGrant.osgb_id == osgb_id,
+        )
+    )
+    if grant is not None:
+        db.delete(grant)
+        db.commit()
+    return {"ok": True, "package_id": package_id, "osgb_id": osgb_id}
 
 
 @router.get("/catalog/packages/{package_id}")
@@ -1202,8 +1314,8 @@ def fork_catalog_package(
     objects are copied into the tenant scope. Existing company programs
     reference their original package snapshot and are untouched.
     """
-    source = _catalog_package_for_manager(db, user, package_id)
     _assert_catalog_content_editor(db, user)
+    source = _catalog_package_for_manager(db, user, package_id)
     scope = _catalog_scope(db, user)
     if scope is None:
         raise HTTPException(409, "Global yönetici ortak paket için özel OSGB kopyası oluşturamaz.")

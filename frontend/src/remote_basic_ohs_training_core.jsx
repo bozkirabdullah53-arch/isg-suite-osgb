@@ -1233,6 +1233,9 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState(null);
+  const [grantTargets, setGrantTargets] = useState([]);
+  const [packageGrants, setPackageGrants] = useState([]);
+  const [grantBusyId, setGrantBusyId] = useState(null);
   const uploadInputRefs = useRef({});
   const quickUploadInputRef = useRef(null);
 
@@ -1278,9 +1281,32 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     }
   }
 
-  useEffect(() => { loadPackages(); if (!contentManagementOnly) loadCompanies(); }, []);
+  async function loadGrants(id = selectedId) {
+    if (!id || !canEditSharedContent) return;
+    try {
+      const rows = await api(`/trainings/remote/catalog/packages/${Number(id)}/grants`);
+      setPackageGrants(Array.isArray(rows) ? rows : []);
+    } catch (err) { setError(err.message || 'OSGB erişimleri alınamadı.'); }
+  }
+
+  async function toggleGrant(osgbId, enabled) {
+    if (!selectedPackage || selectedPackage.status !== 'published') return;
+    setGrantBusyId(Number(osgbId)); setError(''); setMessage('');
+    try {
+      await api(`/trainings/remote/catalog/packages/${selectedPackage.id}/grants/${Number(osgbId)}`, {method: enabled ? 'PUT' : 'DELETE'});
+      await loadGrants(selectedPackage.id);
+      const target = grantTargets.find((row) => Number(row.id) === Number(osgbId));
+      setMessage(`${target?.name || 'OSGB'} için eğitim erişimi ${enabled ? 'açıldı' : 'kapatıldı'}.`);
+    } catch (err) { setError(err.message || 'OSGB eğitim erişimi güncellenemedi.'); }
+    finally { setGrantBusyId(null); }
+  }
+
+  useEffect(() => {
+    loadPackages(); if (!contentManagementOnly) loadCompanies();
+    if (canEditSharedContent) api('/trainings/remote/catalog/grant-targets').then((rows) => setGrantTargets(Array.isArray(rows) ? rows : [])).catch(() => setGrantTargets([]));
+  }, []);
   useEffect(() => { if (!contentManagementOnly) loadBranches(); }, [companyId]);
-  useEffect(() => { if (selectedId) loadPackage(selectedId); }, [selectedId]);
+  useEffect(() => { if (selectedId) { loadPackage(selectedId); loadGrants(selectedId); } }, [selectedId, canEditSharedContent]);
   useEffect(() => {
     // remote-catalog-processing-poll
     const hasPendingVideo = (selectedPackage?.sections || []).some((section) =>
@@ -1494,6 +1520,17 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       </div>
       <ErrorText value={error} />
       {message && <div role="status" aria-live="polite" style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
+      {canEditSharedContent && selectedPackage?.is_shared && <div style={{marginTop: 14, padding: 14, border: '2px solid #0f766e', borderRadius: 10, background: '#f0fdfa'}} aria-label="OSGB eğitim erişimi yönetimi">
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
+          <div><strong style={{display: 'block', color: '#115e59', fontSize: 16}}>OSGB erişimi</strong><span style={{display: 'block', color: '#36556d', fontSize: 12, marginTop: 4}}>Seçili ortak paketi hangi OSGB’lerin kullanabileceğini buradan açıp kapatın. Bu işlem çalışan ataması yapmaz.</span></div>
+          <span style={{fontSize: 12, color: '#115e59', fontWeight: 800}}>{packageGrants.length} OSGB erişimi açık</span>
+        </div>
+        {selectedPackage.status !== 'published' && <div style={{marginTop: 10, padding: 9, borderRadius: 7, background: '#fff8e8', color: '#795500', fontSize: 12}}>OSGB erişimi açmak için önce paketi yayımlayın.</div>}
+        {selectedPackage.status === 'published' && <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 8, marginTop: 11}}>
+          {grantTargets.map((target) => { const enabled = packageGrants.some((grant) => Number(grant.osgb_id) === Number(target.id)); const targetBusy = grantBusyId === Number(target.id); return <label key={target.id} style={{display: 'flex', gap: 9, alignItems: 'center', padding: 10, border: `1px solid ${enabled ? '#6ee7b7' : '#cbd5e1'}`, borderRadius: 8, background: enabled ? '#ecfdf5' : '#fff', cursor: targetBusy ? 'wait' : 'pointer'}}><input type="checkbox" checked={enabled} disabled={targetBusy} onChange={(event) => toggleGrant(target.id, event.target.checked)} aria-label={`${target.name} eğitim erişimi`} /><span><strong style={{display: 'block', color: '#123b59'}}>{target.name}</strong><small style={{color: '#5e7485'}}>{target.is_individual ? 'Bireysel çalışma alanı' : 'OSGB aboneliği'} · {targetBusy ? 'Kaydediliyor…' : enabled ? 'Eğitim açık' : 'Eğitim kapalı'}</small></span></label>; })}
+          {!grantTargets.length && <span style={{color: '#5e7485', fontSize: 12}}>Aktif OSGB bulunamadı.</span>}
+        </div>}
+      </div>}
       {!contentManagementOnly && <><div className="remote-training-rollout-note" role="note">
         <strong>Firma bazlı manuel atama:</strong>{' '}
         {rollout?.enabled && !rollout?.force_off
