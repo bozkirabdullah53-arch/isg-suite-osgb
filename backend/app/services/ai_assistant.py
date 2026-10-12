@@ -10,6 +10,7 @@ tek yanıtta sunar.
 """
 from __future__ import annotations
 
+import html
 from typing import Any
 
 from app.services.ai_hazard_hint import suggest_hazard_from_text
@@ -68,14 +69,25 @@ def suggest(
         except Exception:
             mevzuat_report = None
 
-    return {
+    return _escape_strings({
         "engine": ASSISTANT_ENGINE,
         "hazard_hint": hazard,
         "risk_suggestion": risk_suggestion,
         "compliance_preview": compliance,
         "mevzuat_report": mevzuat_report,
         "next_actions": _next_actions(hazard, risk_suggestion, compliance),
-    }
+    })
+
+
+def _escape_strings(value: Any) -> Any:
+    """Keep user-controlled assistant fields inert in HTML-based clients."""
+    if isinstance(value, str):
+        return html.escape(value, quote=False)
+    if isinstance(value, list):
+        return [_escape_strings(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _escape_strings(item) for key, item in value.items()}
+    return value
 
 
 def _next_actions(hazard, risk_suggestion, compliance) -> list[str]:

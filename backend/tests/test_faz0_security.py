@@ -354,6 +354,12 @@ def test_mfa_setup_and_login(client):
     )
     assert r.status_code == 200
     assert r.json().get("access_token")
+
+    reset = client.post(
+        "/api/v1/auth/mfa/restart-setup",
+        json={"email": "uzman@example.com", "password": "UzmanPass123!"},
+    )
+    assert reset.status_code == 403
     assert r.json().get("recovery_codes")
 
     r = _login(client, "uzman@example.com", "UzmanPass123!")

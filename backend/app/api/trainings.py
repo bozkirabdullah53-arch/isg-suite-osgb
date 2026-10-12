@@ -55,6 +55,7 @@ from app.services.regulatory_identity_vault import (
 )
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
+from app.services.excel_security import safe_excel_value
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.training_exam_pdf import build_exam_pdf
 from app.services.upload_gateway import delete_relative, persist_relative
@@ -686,19 +687,19 @@ def export_trainings_xlsx(
         st = r.status.value if hasattr(r.status, "value") else str(r.status)
         ws.append(
             [
-                companies.get(r.company_id, str(r.company_id)),
-                r.title,
-                r.training_type,
-                r.delivery_method,
-                r.start_date.isoformat() if r.start_date else "",
-                r.end_date.isoformat() if r.end_date else "",
+                safe_excel_value(companies.get(r.company_id, str(r.company_id))),
+                safe_excel_value(r.title),
+                safe_excel_value(r.training_type),
+                safe_excel_value(r.delivery_method),
+                safe_excel_value(r.start_date.isoformat() if r.start_date else ""),
+                safe_excel_value(r.end_date.isoformat() if r.end_date else ""),
                 r.duration_hours,
-                r.hazard_class,
-                r.sector or "",
-                r.instructor_name,
+                safe_excel_value(r.hazard_class),
+                safe_excel_value(r.sector or ""),
+                safe_excel_value(r.instructor_name),
                 len(r.participants or []),
-                st,
-                r.verification_code or "",
+                safe_excel_value(st),
+                safe_excel_value(r.verification_code or ""),
             ]
         )
     stream = BytesIO()

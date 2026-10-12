@@ -26,6 +26,7 @@ from app.schemas.annual_plan import (
     AnnualPlanUpdate,
 )
 from app.services.annual_plan_pdf import build_annual_plan_pdf
+from app.services.excel_security import safe_excel_value
 from app.services.annual_plan_template import template_for_hazard
 from app.services.assigned_team import team_names
 from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
@@ -455,19 +456,19 @@ def export_plan_xlsx(
         st = it.status.value if hasattr(it.status, "value") else str(it.status or "")
         ws.append(
             [
-                firm,
+                safe_excel_value(firm),
                 it.year,
                 it.month,
                 month_names[it.month] if 1 <= int(it.month or 0) <= 12 else it.month,
-                CATEGORIES.get(it.category or "", it.category or ""),
-                it.activity or "",
-                it.description or "",
-                it.legal_basis or "",
-                it.responsible_name or "",
-                it.target_date.isoformat() if it.target_date else "",
-                status_labels.get(st, st),
-                it.completion_date.isoformat() if it.completion_date else "",
-                it.notes or "",
+                safe_excel_value(CATEGORIES.get(it.category or "", it.category or "")),
+                safe_excel_value(it.activity or ""),
+                safe_excel_value(it.description or ""),
+                safe_excel_value(it.legal_basis or ""),
+                safe_excel_value(it.responsible_name or ""),
+                safe_excel_value(it.target_date.isoformat() if it.target_date else ""),
+                safe_excel_value(status_labels.get(st, st)),
+                safe_excel_value(it.completion_date.isoformat() if it.completion_date else ""),
+                safe_excel_value(it.notes or ""),
             ]
         )
     widths = [28, 8, 6, 12, 18, 40, 36, 36, 22, 14, 14, 14, 36]
