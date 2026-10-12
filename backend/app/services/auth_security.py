@@ -26,14 +26,12 @@ LOGIN_MAX_FAILURES = 8
 LOGIN_LOCK_MINUTES = 15
 LOGIN_WINDOW_ATTEMPTS = 10
 LOGIN_WINDOW_MINUTES = 10
-LOGIN_IP_WINDOW_ATTEMPTS = 10
 RESET_TOKEN_HOURS = 2
 MFA_REQUIRED_ROLES = frozenset({UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN})
 MFA_SETUP_GRACE_DAYS = 7
 
 # in-memory throttle: key -> list[datetime]
 _login_hits: dict[str, list[datetime]] = {}
-_login_ip_hits: dict[str, list[datetime]] = {}
 
 
 def _utcnow() -> datetime:
@@ -141,31 +139,19 @@ def mfa_setup_grace_active(user: User) -> bool:
 
 def throttle_login(email: str, ip: str | None) -> None:
     """Raises ValueError if too many attempts."""
-    normalized_ip = (ip or "").strip()
-    key = f"{(email or '').strip().lower()}|{normalized_ip}"
+    key = f"{(email or '').strip().lower()}|{(ip or '').strip()}"
     now = _utcnow()
     window = now - timedelta(minutes=LOGIN_WINDOW_MINUTES)
     hits = [t for t in _login_hits.get(key, []) if t >= window]
     if len(hits) >= LOGIN_WINDOW_ATTEMPTS:
         raise ValueError("Çok fazla giriş denemesi. Lütfen birkaç dakika sonra tekrar deneyin.")
-    # Bind the limit to the source as well as the account. Otherwise a spray
-    # against many addresses can bypass the per-account bucket entirely.
-    ip_hits = [t for t in _login_ip_hits.get(normalized_ip, []) if t >= window]
-    if len(ip_hits) >= LOGIN_IP_WINDOW_ATTEMPTS:
-        raise ValueError("Bu ağ adresinden çok fazla giriş denemesi yapıldı. Lütfen bekleyin.")
     hits.append(now)
     _login_hits[key] = hits
-    ip_hits.append(now)
-    _login_ip_hits[normalized_ip] = ip_hits
 
 
 def clear_throttle(email: str, ip: str | None) -> None:
     key = f"{(email or '').strip().lower()}|{(ip or '').strip()}"
     _login_hits.pop(key, None)
-    # A successful authenticated flow proves the source is legitimate. Clear
-    # its spray bucket too, otherwise unrelated test/users behind one NAT can
-    # inherit stale failed-attempt counters.
-    _login_ip_hits.pop((ip or "").strip(), None)
 
 
 def is_locked(user: User) -> bool:
