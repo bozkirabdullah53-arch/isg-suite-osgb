@@ -532,3 +532,15 @@ def validate_runtime_settings() -> None:
         raise RuntimeError(
             "Production ortamında FRONTEND_ORIGIN yalnızca tam bir HTTPS origin olmalıdır."
         )
+
+    # Production uploads fail closed unless antivirus scanning is enforced.
+    if not bool(getattr(settings, "clamav_required", False)):
+        raise RuntimeError(
+            "Production ortamında CLAMAV_REQUIRED=true zorunludur; "
+            "dosya yükleme antivirüs taraması olmadan açılamaz."
+        )
+    if not (getattr(settings, "clamav_host", None) or "").strip():
+        raise RuntimeError(
+            "Production ortamında CLAMAV_HOST zorunludur; "
+            "antivirüs taraması yapılandırılmadan başlanamaz."
+        )
