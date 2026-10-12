@@ -189,7 +189,33 @@ def test_production_allows_strong_secret(monkeypatch):
     monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
     monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
     monkeypatch.setattr(settings, "redis_url", "redis://redis:6379/0")
+    monkeypatch.setattr(settings, "clamav_required", True)
+    monkeypatch.setattr(settings, "clamav_host", "clamav")
     validate_runtime_settings()
+
+
+def test_production_requires_clamav_enforcement(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "secret_key", "x" * 40)
+    monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
+    monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
+    monkeypatch.setattr(settings, "redis_url", "redis://redis:6379/0")
+    monkeypatch.setattr(settings, "clamav_required", False)
+    monkeypatch.setattr(settings, "clamav_host", "clamav")
+    with pytest.raises(RuntimeError, match="CLAMAV_REQUIRED"):
+        validate_runtime_settings()
+
+
+def test_production_requires_clamav_host(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "secret_key", "x" * 40)
+    monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
+    monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
+    monkeypatch.setattr(settings, "redis_url", "redis://redis:6379/0")
+    monkeypatch.setattr(settings, "clamav_required", True)
+    monkeypatch.setattr(settings, "clamav_host", None)
+    with pytest.raises(RuntimeError, match="CLAMAV_HOST"):
+        validate_runtime_settings()
 
 
 def test_production_requires_shared_redis(monkeypatch):
