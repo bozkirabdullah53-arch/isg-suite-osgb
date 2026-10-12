@@ -17,7 +17,7 @@ def content_scope(remote_client, monkeypatch):
         ProfessionalType, User, UserRole, WorkplaceAssignment,
     )
     from app.models.remote_training import (
-        RemoteTrainingCatalogPackage, RemoteTrainingCatalogSection,
+        RemoteTrainingCatalogPackage, RemoteTrainingCatalogPackageGrant, RemoteTrainingCatalogSection,
         RemoteTrainingCatalogVideo, RemoteTrainingEmployeeAccess,
         RemoteTrainingProgram, RemoteTrainingSection, RemoteTrainingVideo,
     )
@@ -91,6 +91,7 @@ def content_scope(remote_client, monkeypatch):
         )
         db.add_all([shared, legacy])
         db.flush()
+        db.add(RemoteTrainingCatalogPackageGrant(package_id=shared.id, osgb_id=osgb.id))
         section = RemoteTrainingCatalogSection(
             package_id=shared.id, code="GEN-01", title="Merkezi Ders", order_index=1,
         )

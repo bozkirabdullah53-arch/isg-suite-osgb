@@ -543,6 +543,29 @@ class RemoteTrainingCatalogPackage(Base):
     )
 
 
+class RemoteTrainingCatalogPackageGrant(Base):
+    """Explicit OSGB access to a published shared training package."""
+
+    __tablename__ = "remote_training_catalog_package_grants"
+    __table_args__ = (
+        UniqueConstraint("package_id", "osgb_id", name="uq_remote_catalog_package_grant"),
+        Index("ix_remote_catalog_package_grants_osgb", "osgb_id"),
+        Index("ix_remote_catalog_package_grants_package", "package_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    package_id: Mapped[int] = mapped_column(
+        ForeignKey("remote_training_catalog_packages.id", ondelete="CASCADE"), nullable=False
+    )
+    osgb_id: Mapped[int] = mapped_column(
+        ForeignKey("osgb_organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    granted_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class RemoteTrainingCatalogSection(Base):
     """Merkezi paketin firma seçilmeden video yüklenebilen bölümü."""
 
