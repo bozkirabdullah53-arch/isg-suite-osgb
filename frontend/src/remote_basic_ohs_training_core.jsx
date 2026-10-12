@@ -1330,6 +1330,23 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     finally { setGrantBusyId(null); }
   }
 
+  async function toggleAllPackageGrants(osgbId, enabled) {
+    const target = grantTargets.find((item) => Number(item.id) === Number(osgbId));
+    const eligible = packages.filter((item) => item.is_shared && item.status === 'published');
+    if (!target || !eligible.length) return;
+    setGrantBusyId(`all:${osgbId}`); setError(''); setMessage('');
+    const results = await Promise.allSettled(eligible.map((item) => api(
+      `/trainings/remote/catalog/packages/${Number(item.id)}/grants/${Number(osgbId)}`,
+      {method: enabled ? 'PUT' : 'DELETE'},
+    )));
+    const failed = results.filter((result) => result.status === 'rejected').length;
+    const refreshed = await Promise.all(eligible.map(async (item) => [String(item.id), await api(`/trainings/remote/catalog/packages/${Number(item.id)}/grants`)]));
+    setGrantByPackage((current) => ({...current, ...Object.fromEntries(refreshed)}));
+    setGrantBusyId(null);
+    setMessage(`${target.name} için ${eligible.length - failed} paket ${enabled ? 'açıldı' : 'kaldırıldı'}${failed ? `, ${failed} işlem başarısız oldu` : ''}.`);
+    if (failed) setError('Bazı paket işlemleri tamamlanamadı; durumları listeden kontrol edin.');
+  }
+
   useEffect(() => {
     loadPackages(); if (!contentManagementOnly) loadCompanies();
     if (canEditSharedContent) api('/trainings/remote/catalog/grant-targets').then((rows) => setGrantTargets(Array.isArray(rows) ? rows : [])).catch(() => setGrantTargets([]));
@@ -1571,6 +1588,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
             <div><span style={{display: 'block', color: '#6a8090', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 800}}>Seçili hedef</span><strong style={{display: 'block', color: '#123b59', fontSize: 16, marginTop: 5}}>{target?.name || 'Hedef seçilmedi'}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>{target ? (target.is_individual ? 'Bireysel çalışma alanı' : 'OSGB aboneliği') : 'Listeden bir hedef seçin'} · Paketleri aşağıdan yönetin</span></div>
             <label htmlFor="remote-grant-package-search" style={{display: 'block', color: '#36556d', fontSize: 12, fontWeight: 800, margin: '14px 0 7px'}}>Eğitim paketi ara</label>
             <input id="remote-grant-package-search" value={grantPackageSearch} onChange={(event) => setGrantPackageSearch(event.target.value)} placeholder="Paket adı ara..." style={{width: '100%', padding: '9px 11px', border: '1px solid #c9d8e3', borderRadius: 8, marginBottom: 8}} />
+            <div style={{display: 'flex', gap: 8, marginBottom: 9}}><button type="button" disabled={!target || grantBusyId === `all:${target?.id}`} onClick={() => toggleAllPackageGrants(target.id, true)} style={{flex: 1, padding: '9px 10px', border: 0, borderRadius: 7, background: '#0f766e', color: '#fff', fontSize: 11, fontWeight: 800}}>{grantBusyId === `all:${target?.id}` ? 'İşleniyor…' : 'Tümünü ekle'}</button><button type="button" disabled={!target || grantBusyId === `all:${target?.id}`} onClick={() => toggleAllPackageGrants(target.id, false)} style={{flex: 1, padding: '9px 10px', border: '1px solid #e4aaa4', borderRadius: 7, background: '#fff', color: '#b42318', fontSize: 11, fontWeight: 800}}>Tümünü kaldır</button></div>
             <div style={{display: 'grid', gap: 7, maxHeight: 230, overflowY: 'auto', paddingRight: 2}}>
               {visiblePackages.map((row) => { const enabled = target && (grantByPackage[String(row.id)] || []).some((grant) => Number(grant.osgb_id) === Number(target.id)); const busy = target && grantBusyId === `${row.id}:${target.id}`; return <div key={row.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 10px', borderRadius: 8, border: `1px solid ${enabled ? '#79d9b5' : '#d7e6ef'}`, background: enabled ? '#ecfdf5' : '#fbfdff'}}><div><strong style={{display: 'block', color: '#123b59', fontSize: 13}}>{row.title || row.name}</strong><small style={{color: '#6a8090'}}>{enabled ? 'Erişim açık' : 'Erişim kapalı'}</small></div><button type="button" disabled={!target || busy} onClick={() => togglePackageGrant(row.id, target.id, !enabled)} style={{padding: '7px 10px', borderRadius: 7, border: enabled ? '1px solid #e4aaa4' : 0, background: enabled ? '#fff' : '#0f766e', color: enabled ? '#b42318' : '#fff', fontSize: 11, fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>{busy ? '...' : enabled ? 'Kaldır' : 'Ekle'}</button></div>; })}
               {!visiblePackages.length && <span style={{color: '#6a8090', fontSize: 12}}>Yayımlanmış paket bulunamadı.</span>}
