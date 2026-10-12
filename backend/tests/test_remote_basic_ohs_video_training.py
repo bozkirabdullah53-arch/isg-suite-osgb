@@ -1094,7 +1094,8 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
     from app.core.security import get_password_hash
     from app.models.entities import Company, OsgbOrganization, User, UserRole
     from app.models.remote_training import (
-        RemoteTrainingCatalogPackage,
+            RemoteTrainingCatalogPackage,
+            RemoteTrainingCatalogPackageGrant,
         RemoteTrainingCatalogSection,
     )
 
@@ -2347,6 +2348,7 @@ def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_ar
     from app.models.entities import OsgbOrganization, User, UserRole
     from app.models.remote_training import (
         RemoteTrainingCatalogPackage,
+        RemoteTrainingCatalogPackageGrant,
         RemoteTrainingCatalogSection,
         RemoteTrainingCatalogVideo,
     )
@@ -2376,6 +2378,7 @@ def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_ar
         )
         db.add_all([expert, package])
         db.flush()
+        db.add(RemoteTrainingCatalogPackageGrant(package_id=package.id, osgb_id=osgb.id))
         section = RemoteTrainingCatalogSection(
             package_id=package.id,
             code="GID-01",
