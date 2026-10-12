@@ -1236,6 +1236,8 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   const [grantTargets, setGrantTargets] = useState([]);
   const [packageGrants, setPackageGrants] = useState([]);
   const [grantBusyId, setGrantBusyId] = useState(null);
+  const [grantTargetId, setGrantTargetId] = useState('');
+  const [grantTargetSearch, setGrantTargetSearch] = useState('');
   const uploadInputRefs = useRef({});
   const quickUploadInputRef = useRef(null);
 
@@ -1307,6 +1309,9 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   }, []);
   useEffect(() => { if (!contentManagementOnly) loadBranches(); }, [companyId]);
   useEffect(() => { if (selectedId) { loadPackage(selectedId); loadGrants(selectedId); } }, [selectedId, canEditSharedContent]);
+  useEffect(() => {
+    if (grantTargets.length && !grantTargetId) setGrantTargetId(String(grantTargets[0].id));
+  }, [grantTargets, grantTargetId]);
   useEffect(() => {
     // remote-catalog-processing-poll
     const hasPendingVideo = (selectedPackage?.sections || []).some((section) =>
@@ -1520,15 +1525,25 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       </div>
       <ErrorText value={error} />
       {message && <div role="status" aria-live="polite" style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
-      {canEditSharedContent && selectedPackage?.is_shared && <div style={{marginTop: 14, padding: 14, border: '2px solid #0f766e', borderRadius: 10, background: '#f0fdfa'}} aria-label="OSGB eğitim erişimi yönetimi">
-        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
-          <div><strong style={{display: 'block', color: '#115e59', fontSize: 16}}>OSGB erişimi</strong><span style={{display: 'block', color: '#36556d', fontSize: 12, marginTop: 4}}>Seçili ortak paketi hangi OSGB’lerin kullanabileceğini buradan açıp kapatın. Bu işlem çalışan ataması yapmaz.</span></div>
-          <span style={{fontSize: 12, color: '#115e59', fontWeight: 800}}>{packageGrants.length} OSGB erişimi açık</span>
+      {canEditSharedContent && selectedPackage?.is_shared && <div style={{marginTop: 14, padding: 18, border: '1px solid #b9d9d5', borderRadius: 14, background: 'linear-gradient(135deg, #f0fdfa 0%, #f8fbff 100%)', boxShadow: '0 8px 24px rgba(15, 118, 110, .08)'}} aria-label="OSGB eğitim erişimi yönetimi">
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start'}}>
+          <div><span style={{display: 'block', color: '#0f766e', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase'}}>Erişim yönetimi</span><strong style={{display: 'block', color: '#123b59', fontSize: 20, marginTop: 4}}>Kime açık?</strong><span style={{display: 'block', color: '#557083', fontSize: 13, marginTop: 5}}>Bir OSGB veya bireysel kullanıcı seçin; bu pakete erişimi tek tıkla yönetin.</span></div>
+          <div style={{padding: '9px 13px', borderRadius: 10, background: '#fff', border: '1px solid #c9e7df', color: '#0f766e', fontSize: 12, fontWeight: 800}}>{packageGrants.length} aktif erişim</div>
         </div>
-        {selectedPackage.status !== 'published' && <div style={{marginTop: 10, padding: 9, borderRadius: 7, background: '#fff8e8', color: '#795500', fontSize: 12}}>OSGB erişimi açmak için önce paketi yayımlayın.</div>}
-        {selectedPackage.status === 'published' && <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 8, marginTop: 11}}>
-          {grantTargets.map((target) => { const enabled = packageGrants.some((grant) => Number(grant.osgb_id) === Number(target.id)); const targetBusy = grantBusyId === Number(target.id); return <label key={target.id} style={{display: 'flex', gap: 9, alignItems: 'center', padding: 10, border: `1px solid ${enabled ? '#6ee7b7' : '#cbd5e1'}`, borderRadius: 8, background: enabled ? '#ecfdf5' : '#fff', cursor: targetBusy ? 'wait' : 'pointer'}}><input type="checkbox" checked={enabled} disabled={targetBusy} onChange={(event) => toggleGrant(target.id, event.target.checked)} aria-label={`${target.name} eğitim erişimi`} /><span><strong style={{display: 'block', color: '#123b59'}}>{target.name}</strong><small style={{color: '#5e7485'}}>{target.is_individual ? 'Bireysel çalışma alanı' : 'OSGB aboneliği'} · {targetBusy ? 'Kaydediliyor…' : enabled ? 'Eğitim açık' : 'Eğitim kapalı'}</small></span></label>; })}
-          {!grantTargets.length && <span style={{color: '#5e7485', fontSize: 12}}>Aktif OSGB bulunamadı.</span>}
+        {selectedPackage.status !== 'published' && <div style={{marginTop: 14, padding: 11, borderRadius: 9, background: '#fff8e8', color: '#795500', fontSize: 12}}>Erişim açmadan önce paketi yayımlayın.</div>}
+        {selectedPackage.status === 'published' && <div style={{marginTop: 16, display: 'grid', gridTemplateColumns: 'minmax(240px, 1.2fr) minmax(220px, .8fr)', gap: 14, alignItems: 'stretch'}}>
+          <div style={{padding: 14, borderRadius: 11, background: '#fff', border: '1px solid #d7e6ef'}}>
+            <label htmlFor="remote-grant-target-search" style={{display: 'block', color: '#36556d', fontSize: 12, fontWeight: 800, marginBottom: 7}}>Hedef ara</label>
+            <input id="remote-grant-target-search" value={grantTargetSearch} onChange={(event) => setGrantTargetSearch(event.target.value)} placeholder="OSGB veya kullanıcı adı ara..." style={{width: '100%', padding: '10px 12px', border: '1px solid #c9d8e3', borderRadius: 8, marginBottom: 9}} />
+            <label htmlFor="remote-grant-target" style={{display: 'block', color: '#36556d', fontSize: 12, fontWeight: 800, marginBottom: 7}}>Hedef seçin</label>
+            <select id="remote-grant-target" value={grantTargetId} onChange={(event) => setGrantTargetId(event.target.value)} style={{width: '100%', padding: '11px 12px', border: '1px solid #9fc7c2', borderRadius: 8, background: '#f8fffd', color: '#123b59', fontWeight: 700}}>
+              {grantTargets.filter((target) => !grantTargetSearch.trim() || target.name.toLowerCase().includes(grantTargetSearch.trim().toLowerCase())).map((target) => <option key={target.id} value={target.id}>{target.name} · {target.is_individual ? 'Bireysel' : 'OSGB'}</option>)}
+            </select>
+          </div>
+          {(() => { const target = grantTargets.find((row) => String(row.id) === String(grantTargetId)); const enabled = target && packageGrants.some((grant) => Number(grant.osgb_id) === Number(target.id)); const busy = target && grantBusyId === Number(target.id); return <div style={{padding: 14, borderRadius: 11, background: enabled ? '#ecfdf5' : '#fff', border: `1px solid ${enabled ? '#79d9b5' : '#d7e6ef'}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14}}>
+            <div><span style={{display: 'block', color: '#6a8090', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 800}}>Seçili hedef</span><strong style={{display: 'block', color: '#123b59', fontSize: 16, marginTop: 5}}>{target?.name || 'Hedef seçilmedi'}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>{target ? (target.is_individual ? 'Bireysel çalışma alanı' : 'OSGB aboneliği') : 'Listeden bir hedef seçin'}</span></div>
+            <button type="button" disabled={!target || busy} onClick={() => toggleGrant(target.id, !enabled)} style={{width: '100%', padding: '11px 14px', borderRadius: 8, border: 0, background: enabled ? '#fff' : '#0f766e', color: enabled ? '#b42318' : '#fff', boxShadow: enabled ? 'inset 0 0 0 1px #e7b4b0' : '0 5px 12px rgba(15,118,110,.18)', fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>{busy ? 'Kaydediliyor…' : enabled ? 'Eğitim erişimini kaldır' : 'Bu paketi aç'}</button>
+          </div>; })()}
         </div>}
       </div>}
       {!contentManagementOnly && <><div className="remote-training-rollout-note" role="note">
