@@ -1238,6 +1238,8 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   const [grantBusyId, setGrantBusyId] = useState(null);
   const [grantTargetId, setGrantTargetId] = useState('');
   const [grantTargetSearch, setGrantTargetSearch] = useState('');
+  const [grantByPackage, setGrantByPackage] = useState({});
+  const [grantPackageSearch, setGrantPackageSearch] = useState('');
   const uploadInputRefs = useRef({});
   const quickUploadInputRef = useRef(null);
 
@@ -1247,6 +1249,16 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       const next = Array.isArray(rows) ? rows : [];
       setPackages(next);
       if (!selectedId && next[0]?.id) setSelectedId(String(next[0].id));
+      if (canEditSharedContent) {
+        const shared = next.filter((row) => row.is_shared && row.status === 'published');
+        const entries = await Promise.all(shared.map(async (row) => {
+          try {
+            const grants = await api(`/trainings/remote/catalog/packages/${Number(row.id)}/grants`);
+            return [String(row.id), Array.isArray(grants) ? grants : []];
+          } catch (_err) { return [String(row.id), []]; }
+        }));
+        setGrantByPackage(Object.fromEntries(entries));
+      }
     } catch (err) {
       setError(err.message || 'Merkezi eğitim paketleri alınamadı.');
     }
@@ -1300,6 +1312,21 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       const target = grantTargets.find((row) => Number(row.id) === Number(osgbId));
       setMessage(`${target?.name || 'OSGB'} için eğitim erişimi ${enabled ? 'açıldı' : 'kapatıldı'}.`);
     } catch (err) { setError(err.message || 'OSGB eğitim erişimi güncellenemedi.'); }
+    finally { setGrantBusyId(null); }
+  }
+
+  async function togglePackageGrant(packageId, osgbId, enabled) {
+    const row = packages.find((item) => Number(item.id) === Number(packageId));
+    if (!row || row.status !== 'published') return;
+    const key = `${packageId}:${osgbId}`;
+    setGrantBusyId(key); setError(''); setMessage('');
+    try {
+      await api(`/trainings/remote/catalog/packages/${Number(packageId)}/grants/${Number(osgbId)}`, {method: enabled ? 'PUT' : 'DELETE'});
+      const grants = await api(`/trainings/remote/catalog/packages/${Number(packageId)}/grants`);
+      setGrantByPackage((current) => ({...current, [String(packageId)]: Array.isArray(grants) ? grants : []}));
+      const target = grantTargets.find((item) => Number(item.id) === Number(osgbId));
+      setMessage(`${target?.name || 'Hedef'} için “${row.title || row.name}” eğitimi ${enabled ? 'açıldı' : 'kaldırıldı'}.`);
+    } catch (err) { setError(err.message || 'Eğitim erişimi güncellenemedi.'); }
     finally { setGrantBusyId(null); }
   }
 
@@ -1540,9 +1567,14 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
               {grantTargets.filter((target) => !grantTargetSearch.trim() || target.name.toLowerCase().includes(grantTargetSearch.trim().toLowerCase())).map((target) => <option key={target.id} value={target.id}>{target.name} · {target.is_individual ? 'Bireysel' : 'OSGB'}</option>)}
             </select>
           </div>
-          {(() => { const target = grantTargets.find((row) => String(row.id) === String(grantTargetId)); const enabled = target && packageGrants.some((grant) => Number(grant.osgb_id) === Number(target.id)); const busy = target && grantBusyId === Number(target.id); return <div style={{padding: 14, borderRadius: 11, background: enabled ? '#ecfdf5' : '#fff', border: `1px solid ${enabled ? '#79d9b5' : '#d7e6ef'}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14}}>
-            <div><span style={{display: 'block', color: '#6a8090', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 800}}>Seçili hedef</span><strong style={{display: 'block', color: '#123b59', fontSize: 16, marginTop: 5}}>{target?.name || 'Hedef seçilmedi'}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>{target ? (target.is_individual ? 'Bireysel çalışma alanı' : 'OSGB aboneliği') : 'Listeden bir hedef seçin'}</span></div>
-            <button type="button" disabled={!target || busy} onClick={() => toggleGrant(target.id, !enabled)} style={{width: '100%', padding: '11px 14px', borderRadius: 8, border: 0, background: enabled ? '#fff' : '#0f766e', color: enabled ? '#b42318' : '#fff', boxShadow: enabled ? 'inset 0 0 0 1px #e7b4b0' : '0 5px 12px rgba(15,118,110,.18)', fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>{busy ? 'Kaydediliyor…' : enabled ? 'Eğitim erişimini kaldır' : 'Bu paketi aç'}</button>
+          {(() => { const target = grantTargets.find((row) => String(row.id) === String(grantTargetId)); const visiblePackages = packages.filter((row) => row.is_shared && row.status === 'published' && (!grantPackageSearch.trim() || String(row.title || row.name || '').toLowerCase().includes(grantPackageSearch.trim().toLowerCase()))); return <div style={{padding: 14, borderRadius: 11, background: '#fff', border: '1px solid #d7e6ef'}}>
+            <div><span style={{display: 'block', color: '#6a8090', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 800}}>Seçili hedef</span><strong style={{display: 'block', color: '#123b59', fontSize: 16, marginTop: 5}}>{target?.name || 'Hedef seçilmedi'}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>{target ? (target.is_individual ? 'Bireysel çalışma alanı' : 'OSGB aboneliği') : 'Listeden bir hedef seçin'} · Paketleri aşağıdan yönetin</span></div>
+            <label htmlFor="remote-grant-package-search" style={{display: 'block', color: '#36556d', fontSize: 12, fontWeight: 800, margin: '14px 0 7px'}}>Eğitim paketi ara</label>
+            <input id="remote-grant-package-search" value={grantPackageSearch} onChange={(event) => setGrantPackageSearch(event.target.value)} placeholder="Paket adı ara..." style={{width: '100%', padding: '9px 11px', border: '1px solid #c9d8e3', borderRadius: 8, marginBottom: 8}} />
+            <div style={{display: 'grid', gap: 7, maxHeight: 230, overflowY: 'auto', paddingRight: 2}}>
+              {visiblePackages.map((row) => { const enabled = target && (grantByPackage[String(row.id)] || []).some((grant) => Number(grant.osgb_id) === Number(target.id)); const busy = target && grantBusyId === `${row.id}:${target.id}`; return <div key={row.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 10px', borderRadius: 8, border: `1px solid ${enabled ? '#79d9b5' : '#d7e6ef'}`, background: enabled ? '#ecfdf5' : '#fbfdff'}}><div><strong style={{display: 'block', color: '#123b59', fontSize: 13}}>{row.title || row.name}</strong><small style={{color: '#6a8090'}}>{enabled ? 'Erişim açık' : 'Erişim kapalı'}</small></div><button type="button" disabled={!target || busy} onClick={() => togglePackageGrant(row.id, target.id, !enabled)} style={{padding: '7px 10px', borderRadius: 7, border: enabled ? '1px solid #e4aaa4' : 0, background: enabled ? '#fff' : '#0f766e', color: enabled ? '#b42318' : '#fff', fontSize: 11, fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>{busy ? '...' : enabled ? 'Kaldır' : 'Ekle'}</button></div>; })}
+              {!visiblePackages.length && <span style={{color: '#6a8090', fontSize: 12}}>Yayımlanmış paket bulunamadı.</span>}
+            </div>
           </div>; })()}
         </div>}
       </div>}
