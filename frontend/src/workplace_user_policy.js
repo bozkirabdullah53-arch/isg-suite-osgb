@@ -18,6 +18,19 @@ export function isWorkplaceManagerUser(user) {
   return isWorkplaceAccountUser(user);
 }
 
+/**
+ * Acil durum ekipleri / destek elemanları düzenleme yetkisi.
+ * Backend ``can_edit`` bayrağı esastır; bayrak yüklenmemişse role ve işyeri
+ * hesabına göre davranılır. İşyeri hesabı yalnızca kendi firmasında işlem yapar.
+ */
+export function canEditEmergencyTeams(user, canEditFlag) {
+  if (canEditFlag === true || canEditFlag === false) return canEditFlag;
+  const role = user?.role;
+  return role === 'safety_specialist'
+    || role === 'global_admin'
+    || isWorkplaceAccountUser(user);
+}
+
 
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'workplace_home',

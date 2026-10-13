@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
 import {
+  canEditEmergencyTeams,
   isWorkplaceKioskUser,
   isWorkplaceAccountUser,
   isWorkplaceManagerUser,
@@ -91,6 +92,22 @@ describe('workplace user policy', () => {
     expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);
     expect(workplaceModulesForUser({...manager, role: 'read_only'})).toBe(null);
     expect(workplaceModulesForUser(manager)).toEqual(WORKPLACE_MANAGER_MODULES);
+  });
+
+  it('allows the workplace account to manage its own emergency teams', () => {
+    // İşyeri hesabı kendi firmasında ekip/destek elemanı ekleyip silebilir.
+    expect(canEditEmergencyTeams(manager)).toBe(true);
+    expect(canEditEmergencyTeams({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(true);
+    // OSGB yöneticisi (company_id yok) ve salt-okunur roller düzenleyemez.
+    expect(canEditEmergencyTeams({...manager, company_id: null})).toBe(false);
+    expect(canEditEmergencyTeams({...manager, role: 'read_only'})).toBe(false);
+    expect(canEditEmergencyTeams({...manager, role: 'workplace_physician'})).toBe(false);
+    // Uzman ve global yönetici düzenleyebilir.
+    expect(canEditEmergencyTeams({role: 'safety_specialist', osgb_id: 7})).toBe(true);
+    expect(canEditEmergencyTeams({role: 'global_admin'})).toBe(true);
+    // Backend can_edit bayrağı esastır.
+    expect(canEditEmergencyTeams({role: 'read_only'}, true)).toBe(true);
+    expect(canEditEmergencyTeams(manager, false)).toBe(false);
   });
 
   it('hides only the workplace QR kiosk when OSGB disables visit QR', () => {
