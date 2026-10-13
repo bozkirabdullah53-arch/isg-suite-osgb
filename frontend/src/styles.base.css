@@ -713,7 +713,7 @@ nav button.active {
   }
 }
 
-  @media (max-width: 620px) {
+  @media (max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px) {
   .app-shell { display: block; padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
   .app-shell > aside {
     position: fixed;
@@ -1038,7 +1038,7 @@ nav button.active {
 
 /* Final mobile shell pass: keep utility controls in one compact row and
    reserve the full viewport for the page itself. */
-@media (max-width: 620px) {
+@media (max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px) {
   .mobile-nace-context { display: block; }
 
   .workspace > header {
@@ -1572,7 +1572,7 @@ header.workspace-header,
 }
 
 /* Mobile viewport containment: prevent horizontal page drift without changing desktop layout. */
-@media (max-width: 620px) {
+@media (max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px) {
   html,
   body,
   #root {

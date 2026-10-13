@@ -3,7 +3,7 @@
 
 @media screen and (min-width: 901px) {
   html .app-shell {
-    --sidebar-width: 280px;
+    --sidebar-width: 248px;
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   }
 
@@ -12,31 +12,34 @@
     min-width: var(--sidebar-width);
     max-width: var(--sidebar-width);
     height: 100dvh;
-    padding: 18px 14px;
+    padding: 16px 12px;
     overflow: hidden;
   }
 
   .app-shell > aside .logo {
-    gap: 4px;
-    padding: 2px 8px 18px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 4px 10px 20px;
   }
 
   .app-shell > aside .sidebar-logo.eisa-logo-icon {
-    width: 64px;
-    max-width: 64px;
-    margin-bottom: 6px;
+    width: 38px;
+    max-width: 38px;
+    margin-bottom: 0;
   }
 
   .app-shell > aside .logo-caption {
     font-size: 11px;
     letter-spacing: .1em;
     line-height: 1.4;
+    text-align: left;
   }
 
   .app-shell > aside .nav-desktop {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 3px;
     padding: 3px 5px 6px 3px;
     scrollbar-gutter: stable;
     scroll-padding-block: 6px;
@@ -46,16 +49,17 @@
   .app-shell > aside .nav-desktop > button,
   .app-shell > aside > .logout {
     flex: 0 0 auto;
-    gap: 12px;
-    min-height: 48px;
+    gap: 10px;
+    min-height: 44px;
     height: auto;
-    padding: 11px 12px;
-    border: 1px solid #e0eaed;
-    border-radius: 12px;
-    background: #f7fafb;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
     color: #3d5864;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.4;
     letter-spacing: 0;
     transition: background .16s ease, border-color .16s ease, color .16s ease;
@@ -63,9 +67,10 @@
 
   .app-shell > aside .nav-desktop > button > svg,
   .app-shell > aside > .logout > svg {
-    width: 20px;
-    height: 20px;
-    flex: 0 0 20px;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    stroke-width: 1.7;
   }
 
   .app-shell > aside .nav-desktop > button > span,
@@ -102,10 +107,10 @@
 
   .app-shell > aside .nav-section-label {
     flex: 0 0 auto;
-    margin: 14px 9px 3px;
-    padding-top: 13px;
+    margin: 16px 10px 5px;
+    padding-top: 12px;
     color: #607880;
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1.5;
     letter-spacing: .07em;
   }
@@ -118,6 +123,12 @@
 
   .app-shell > aside .global-nace-context-desktop {
     margin-top: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow: none;
+    max-height: 28dvh;
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
 
   .app-shell > aside > .logout {
@@ -132,8 +143,8 @@
 
   html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button,
   html[data-ui-theme="modern"] .app-shell > aside > .logout {
-    border-color: rgba(166, 208, 216, .12);
-    background: rgba(255, 255, 255, .035);
+    border-color: transparent;
+    background: transparent;
     color: #c4d8df;
   }
 
@@ -144,10 +155,10 @@
   }
 
   html[data-ui-theme="modern"] .app-shell > aside .nav-desktop > button.active {
-    border-color: rgba(94, 234, 212, .48);
-    background: linear-gradient(110deg, rgba(45, 212, 191, .22), rgba(14, 116, 144, .15));
+    border-color: rgba(94, 234, 212, .16);
+    background: rgba(45, 212, 191, .12);
     color: #99f6e4;
-    box-shadow: inset 3px 0 0 #5eead4, 0 4px 12px rgba(0, 0, 0, .12);
+    box-shadow: inset 2px 0 0 #5eead4;
     animation: none;
   }
 
@@ -158,6 +169,16 @@
 
   html[data-ui-theme="modern"] .app-shell > aside .nav-section-label {
     color: #93b3bd;
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside {
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, .07);
+  }
+
+  html[data-ui-theme="modern"] .app-shell > aside .global-nace-context-desktop {
+    border-color: rgba(166, 208, 216, .16);
+    background: rgba(255, 255, 255, .035);
+    box-shadow: none;
   }
 
   html[data-ui-theme="modern"] .app-shell > aside > .logout {

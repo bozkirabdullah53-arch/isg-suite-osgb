@@ -1,12 +1,16 @@
 import {test, expect} from '@playwright/test';
 
+test.beforeEach(async ({}, testInfo) => {
+  if (testInfo.project.name === 'mobile-webkit') test.setTimeout(120_000);
+});
+
 const company = {id: 176, name: 'Mobil Görünüm Test İşyerinin Uzun Ticari Unvanı', is_active: true};
 const employees = [
   {id: 1, company_id: 176, branch_id: 11, full_name: 'Ayşe Uzun İsimli Örnek Personel', job_title: 'Üretim ve kalite kontrol sorumlusu', department: 'Üretim', is_active: true, start_date: '2025-01-01'},
   {id: 2, company_id: 176, branch_id: 12, full_name: 'Mehmet Örnek', job_title: 'Depo', department: 'Lojistik', is_active: true},
 ];
 
-async function boot(page, {theme = 'modern', pendingSave = false, route = '/#m=employees'} = {}) {
+async function boot(page, {theme = 'modern', pendingSave = false, route = '/#m=employees', employeeRows = employees, emergencyMembers = []} = {}) {
   const errors = [];
   const employeeQueries = [];
   let writes = 0;
@@ -39,11 +43,13 @@ async function boot(page, {theme = 'modern', pendingSave = false, route = '/#m=e
     if (path === '/dashboard/summary') return json({});
     if (path === '/companies') return json([company]);
     if (path === '/osgb') return json([{id: 4, name: 'Test OSGB'}]);
+    if (path === '/osgb-personnel-profiles/readiness') return json({enabled: false, visible: false, scope: 'osgb_professionals_only'});
+    if (path === '/osgb-personnel-profiles/professionals') return json([]);
     if (path === '/branches') return json([{id: 11, company_id: 176, name: 'Üretim'}, {id: 12, company_id: 176, name: 'Depo'}]);
     if (path === '/employees') {
       employeeQueries.push(url.search);
       // Intentionally return both branches: older API responses must not widen selection.
-      return json(employees);
+      return json(employeeRows);
     }
     if (path === '/trainings/sectors') return json(Array.from({length: 500}, (_, id) => ({code: `nace_${id}`, name: `Faaliyet ${id}`})));
     if (path === '/trainings/premium-policy') return json({enabled: true, force_off: false, cutover: null, version: 'test', rules: {}});
@@ -52,11 +58,15 @@ async function boot(page, {theme = 'modern', pendingSave = false, route = '/#m=e
     if (path === '/annual-plans') return json([]);
     if (path === '/annual-plans/summary') return json({total: 0, completed: 0, waiting: 0, delayed: 0, by_month: {}});
     if (path === '/notifications') return json([]);
+    if (path === '/emergency-teams/meta') return json({team_types: [], memberships: ['asil', 'yedek']});
+    if (path === '/emergency-teams/overview') return json({company, employee_count: emergencyMembers.length, teams: [{id: 1, name: 'Kurtarma Ekibi', type_code: 'rescue'}], kpi: {team_count: 1, member_count: emergencyMembers.length}});
+    if (path === '/emergency-teams/assignments') return json(emergencyMembers);
     errors.push(`Unmocked API request: ${path}`);
     return json({});
   });
   await page.route('**/live', (requestRoute) => requestRoute.fulfill({status: 204, body: ''}));
   await page.goto(route);
+  await expect(page.locator('.app-shell')).toBeVisible({timeout: 30_000});
   return {errors, employeeQueries, writes: () => writes, releaseSave};
 }
 
@@ -167,3 +177,95 @@ test('annual plan month tiles wrap into two columns on a phone', async ({page}) 
   await assertControlsInsideViewport(page, '.annual-month-grid > div');
   expect(state.errors).toEqual([]);
 });
+
+for (const theme of ['modern', 'classic']) {
+  for (const viewport of [{width: 844, height: 390}, {width: 932, height: 430}]) {
+    test(`${theme} ${viewport.width}x${viewport.height}: landscape shell keeps the last personnel row accessible`, async ({page}) => {
+      await page.setViewportSize(viewport);
+      const employeeRows = Array.from({length: 18}, (_, index) => ({...employees[index % 2], id: index + 1, full_name: `Landscape Personel ${index + 1}`}));
+      const state = await boot(page, {theme, employeeRows});
+      await expect(page.locator('.employees-table tbody tr')).toHaveCount(18);
+      await expect(page.locator('.nav-desktop')).toBeHidden();
+      await expect(page.locator('.nav-mobile-primary')).toBeVisible();
+      await expect(page.locator('#mobile-assistant-slot button')).toBeVisible();
+      await expect(page.locator('.employees-cards')).toBeHidden();
+      const aside = await page.locator('.app-shell > aside').boundingBox();
+      // WebKit reserves space for the document scrollbar in fixed elements.
+      expect(aside.width).toBeGreaterThanOrEqual(viewport.width - 20);
+      expect(aside.width).toBeLessThanOrEqual(viewport.width);
+      expect(aside.height).toBeLessThan(100);
+      await assertControlsInsideViewport(page, '.nav-mobile-primary button, .header-tools > button, .header-tools .contextual-assistant-launcher');
+      const table = page.locator('.employees-table');
+      await expect.poll(() => table.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+      const lastRow = table.locator('tbody tr').last();
+      await assertUncovered(page, lastRow.getByRole('button', {name: 'Düzenle', exact: true}));
+      await expect(lastRow).toContainText('Landscape Personel 18');
+      expect(await table.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      expect(state.errors).toEqual([]);
+    });
+  }
+
+  test(`${theme}: rotation preserves the mobile menu and restores desktop utilities`, async ({page}) => {
+    await page.setViewportSize({width: 390, height: 844});
+    const state = await boot(page, {theme});
+    await expect(page.locator('.employee-card')).toHaveCount(2);
+    await page.locator('.nav-mobile-primary button').last().click();
+    const menu = page.getByRole('dialog', {name: 'Tüm modüller'});
+    await expect(menu).toBeVisible();
+    await page.setViewportSize({width: 844, height: 390});
+    await expect(menu).toBeVisible();
+    await assertUncovered(page, menu.getByRole('link', {name: 'İletişim / Yardım'}));
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(page.locator('#mobile-assistant-slot button')).toBeVisible();
+    await page.locator('#mobile-assistant-slot button').click();
+    const assistant = page.getByRole('dialog', {name: 'İSG Asistanı'});
+    await expect(assistant).toBeVisible();
+    await assertUncovered(page, assistant.getByRole('button', {name: 'İSG Asistanını kapat', exact: true}));
+    await page.keyboard.press('Escape');
+    await expect(assistant).toHaveCount(0);
+    await page.setViewportSize({width: 390, height: 844});
+    await expect(page.locator('.employees-table')).toBeHidden();
+    await assertUncovered(page, page.locator('.employee-card').last().getByRole('button', {name: 'Düzenle', exact: true}));
+    await page.locator('.nav-mobile-primary button').last().click();
+    await page.setViewportSize({width: 1440, height: 900});
+    await expect(menu).toHaveCount(0);
+    await expect(page.locator('.nav-desktop')).toBeVisible();
+    await expect(page.locator('#mobile-assistant-slot button')).toHaveCount(0);
+    await expect(page.getByRole('button', {name: 'İSG Asistanını aç'})).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+    expect(state.errors).toEqual([]);
+  });
+
+  test(`${theme}: desktop sidebar labels and final navigation remain accessible`, async ({page}, testInfo) => {
+    await page.setViewportSize({width: 1440, height: 900});
+    const state = await boot(page, {theme});
+    await expect(page.locator('.nav-desktop')).toBeVisible();
+    await expect(page.locator('.nav-mobile-primary')).toBeHidden();
+    const aside = await page.locator('.app-shell > aside').boundingBox();
+    expect(Math.round(aside.width)).toBe(248);
+    const first = page.locator('.nav-desktop > button').first();
+    expect((await first.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    const clipped = await page.locator('.nav-desktop > button > span').evaluateAll((labels) => labels.filter((label) => label.scrollHeight > label.clientHeight + 1 || label.scrollWidth > label.clientWidth + 1).map((label) => label.textContent));
+    expect(clipped).toEqual([]);
+    await page.screenshot({path: testInfo.outputPath(`sidebar-${theme}.png`)});
+    const last = page.locator('.nav-desktop > button').last();
+    await assertUncovered(page, last);
+    await last.click({trial: true});
+    expect(state.errors).toEqual([]);
+  });
+
+  test(`${theme}: landscape emergency team table exposes its final row and actions`, async ({page}) => {
+    await page.setViewportSize({width: 932, height: 430});
+    const emergencyMembers = Array.from({length: 18}, (_, index) => ({id: index + 1, employee_name: `Emergency Member ${index + 1}`, team_id: 1, team_name: 'Kurtarma Ekibi', membership: 'asil', cert_status: 'grey'}));
+    const state = await boot(page, {theme, route: '/#m=acil_ekipler', emergencyMembers});
+    await page.getByRole('combobox', {name: 'İşyeri', exact: true}).selectOption('176');
+    const table = page.getByRole('table').filter({has: page.getByRole('columnheader', {name: 'Ad Soyad', exact: true})});
+    await expect(table.locator('tbody tr')).toHaveCount(18, {timeout: 30_000});
+    await assertUncovered(page, table.locator('tbody tr').last().getByRole('button', {name: 'Eğitim', exact: true}));
+    await expect(table.locator('tbody tr').last()).toContainText('Emergency Member 18');
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    expect(state.errors).toEqual([]);
+  });
+}

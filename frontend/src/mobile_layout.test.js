@@ -1,12 +1,21 @@
 import {expect, test} from 'vitest';
 import {Window} from 'happy-dom';
 import {readFileSync} from 'node:fs';
+import postcss from 'postcss';
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const [base, styles, modern, mobile, assistant] = ['styles.base.css', 'styles.css', 'theme-modern.css', 'mobile_layout.css', 'contextual_assistant.css'].map(read);
+// Happy DOM treats media query lists as AND. Separate equivalent OR branches;
+// browser tests exercise the original stylesheets, including screen rotation.
+const css = postcss.parse(`${base}${styles.replace('@import "./styles.base.css";', '')}${modern}${mobile}${assistant}`);
+css.walkAtRules('media', (rule) => {
+  if (!rule.params.includes(',')) return;
+  for (const params of rule.params.split(',')) rule.cloneBefore({params: params.trim()});
+  rule.remove();
+});
 
 test.each([320, 360, 390, 430, 620, 621, 768, 1200])('responsive cascade at %ipx preserves usable controls and layout', async (width) => {
   const win = new Window({width, height: 844});
-  win.document.write(`<html data-ui-theme="modern"><head><style>${base}${styles.replace('@import "./styles.base.css";', '')}${modern}${mobile}${assistant}</style></head><body>
+  win.document.write(`<html data-ui-theme="modern"><head><style>${css.toString()}</style></head><body>
     <div class="app-shell"><section class="workspace"><header><div class="header-actions"><div class="header-tools"><button class="header-icon">Geri</button><div class="mobile-assistant-slot"><button class="contextual-assistant-launcher">Asistan</button></div></div></div></header>
     <main class="content"><section class="panel employees-page"><div class="form-grid employees-filters"><label class="field"><select><option>Şube</option></select></label></div><div class="employees-table table-wrap"><table></table></div><div class="employees-cards"></div><button class="danger" disabled>Sil</button></section></main></section></div>
     <div class="annual-month-grid"></div><div class="risk-departments-layout"></div><div class="ppe-signature-grid"></div>

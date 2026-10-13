@@ -928,7 +928,7 @@ html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-14deg)
 @media (max-width: 900px) {
   html[data-ui-theme="modern"] .workspace > header { margin: 10px 12px 0; }
 }
-@media (max-width: 620px) {
+@media (max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px) {
   html[data-ui-theme="modern"] .workspace > header {
     top: 8px;
     margin: 8px 10px 0;

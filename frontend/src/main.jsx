@@ -2703,7 +2703,7 @@ function App(){
   const mobileMenuRef=useRef(null);
   useDialogAccessibility(mobileMenuRef,{enabled:mobileMoreOpen,close:()=>setMobileMoreOpen(false)});
   useEffect(()=>{
-    const media=window.matchMedia('(max-width: 620px)');
+    const media=window.matchMedia('(max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px)');
     const closeDesktopMenu=()=>{if(!media.matches) setMobileMoreOpen(false)};
     media.addEventListener('change',closeDesktopMenu);
     return ()=>media.removeEventListener('change',closeDesktopMenu);

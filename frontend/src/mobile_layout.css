@@ -234,7 +234,16 @@ body:has(.modal-bg, .risk-modal-bg, .mobile-nav-sheet) .contextual-assistant-lau
   .ppe-signature-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px) {
+  /* Override both desktop and compact sidebar width constraints after rotation. */
+  html .app-shell > aside {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    overflow: visible;
+  }
   /* Desktop navigation padding must not truncate the five phone shortcuts. */
   html .app-shell .nav-mobile-primary { gap: 2px; padding: 0; }
   html .app-shell .nav-mobile-primary button { padding: 8px 2px; min-height: 54px; }
@@ -251,9 +260,9 @@ body:has(.modal-bg, .risk-modal-bg, .mobile-nav-sheet) .contextual-assistant-lau
     gap: 6px;
     width: 100%;
   }
-  .workspace > header .header-tools > .header-icon,
-  .workspace > header .header-tools > .theme-toggle:not(.theme-toggle-floating),
-  .workspace > header .header-actions > .logout-mobile {
+  html .workspace > header .header-tools > .header-icon,
+  html .workspace > header .header-tools > .theme-toggle:not(.theme-toggle-floating),
+  html .workspace > header .header-actions > .logout-mobile {
     display: grid;
     place-items: center;
     flex: 0 0 44px;
@@ -303,6 +312,20 @@ body:has(.modal-bg, .risk-modal-bg, .mobile-nav-sheet) .contextual-assistant-lau
   .performance-coverage-row { grid-template-columns: minmax(0, 1fr) auto; }
   .performance-coverage-row > :first-child { grid-column: 1 / -1; }
   .contextual-assistant-panel .contextual-assistant-close { width: 44px !important; height: 44px !important; flex-basis: 44px !important; }
+}
+
+@media (orientation: landscape) and (max-width: 980px) and (max-height: 500px) {
+  /* Let the header leave the short viewport as the document scrolls. */
+  html .app-shell > .workspace > header { position: static; }
+  .workspace > header .header-actions { grid-template-columns: minmax(0, 1fr) auto 44px; }
+  .workspace > header .header-tools { grid-column: auto; }
+  .workspace > header .header-actions > .user-chip { max-width: 180px; }
+  .workspace > header .header-tools > .theme-toggle span { display: none; }
+  .content .table-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  .mobile-nav-sheet-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* The assistant's desktop minimum message height can push its composer offscreen. */
+  html .contextual-assistant-panel { inset: 8px !important; width: auto !important; max-width: none !important; height: auto !important; max-height: calc(100dvh - 16px) !important; overflow-y: auto !important; }
+  html .contextual-assistant-messages { min-height: 60px !important; }
 }
 
 @media print {

@@ -131,7 +131,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
   const panelRef = useRef(null);
   useDialogAccessibility(panelRef, {enabled: open, close: () => closePanel()});
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 620px)');
+    const media = window.matchMedia('(max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px)');
     const update = () => setMobileLauncherTarget(media.matches ? document.getElementById('mobile-assistant-slot') : null);
     update();
     media.addEventListener('change', update);
