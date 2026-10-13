@@ -24,7 +24,7 @@ async function prepare(page, {role = 'safety_specialist', downloadError = false,
     if (path === '/companies') return json([company, {id: 2, name: 'İkinci İşyeri'}]);
     if (path === '/employees') return json(url.searchParams.get('company_id') === '1' ? [employee] : []);
     if (path === '/emergency-teams/meta') return json({team_types: [{id: 1, code: 'sondurme', name: team.name}]});
-    if (path === '/emergency-teams/overview') return json({company: {...company, id: Number(url.searchParams.get('company_id'))}, teams: [team], kpis: {}, warnings: [], can_edit: role === 'safety_specialist'});
+    if (path === '/emergency-teams/overview') return json({company: {...company, id: Number(url.searchParams.get('company_id'))}, teams: [team], kpis: {}, warnings: [], can_edit: role === 'safety_specialist' || role === 'company_admin'});
     if (path === '/emergency-teams/assignments' && request.method() === 'POST') {
       const payload = request.postDataJSON(); posts.push(payload);
       if (saveError) return json({detail: 'Bu personel zaten bu ekibin üyesi.'}, 409);
@@ -123,7 +123,7 @@ test('assignment failures stay visible inside the open dialog', async ({page}) =
 });
 
 for (const viewport of [{name: 'desktop', width: 1440, height: 900}, {name: 'mobile', width: 390, height: 844}]) {
-  test(`${viewport.name}: workplace account opens its emergency teams and downloads reports`, async ({page}) => {
+  test(`${viewport.name}: workplace account manages its emergency teams and downloads reports`, async ({page}) => {
     await page.setViewportSize(viewport);
     await prepare(page, {role: 'company_admin'});
     const panel = page.locator('.emergency-teams-page');
@@ -131,9 +131,10 @@ for (const viewport of [{name: 'desktop', width: 1440, height: 900}, {name: 'mob
     await expect(companySelect).toHaveValue('1');
     await expect(companySelect).toBeDisabled();
     await expect(companySelect.locator('option[value="2"]')).toHaveCount(0);
-    await expect(panel.getByRole('button', {name: 'Destek Elemanı Ekle', exact: true})).toHaveCount(0);
-    await expect(panel.getByRole('button', {name: 'Yeni Ekip', exact: true})).toHaveCount(0);
-    await expect(panel.getByRole('button', {name: 'Silinenleri Geri Al', exact: true})).toHaveCount(0);
+    // İşyeri hesabı kendi firmasında ekip ve destek elemanı ekleme/silme yapabilir.
+    await expect(panel.getByRole('button', {name: 'Destek Elemanı Ekle', exact: true})).toBeVisible();
+    await expect(panel.getByRole('button', {name: 'Yeni Ekip', exact: true})).toBeVisible();
+    await expect(panel.getByRole('button', {name: 'Silinenleri Geri Al', exact: true})).toBeVisible();
     await expect(panel.getByRole('button', {name: 'Excel', exact: true})).toBeVisible();
     await expect(panel.getByRole('button', {name: 'PDF', exact: true})).toBeVisible();
     for (const [label, format] of [['Excel', 'xlsx'], ['PDF', 'pdf']]) {

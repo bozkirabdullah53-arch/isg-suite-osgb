@@ -2,8 +2,9 @@
 
 Mevcut modüllere dokunmaz; yalnızca yeni tablolarla çalışır. Tenant izolasyonu
 company_ids_for_query / ensure_company_access üzerinden yapılır. Silme yumuşaktır
-(is_active=False). İşyeri hekimi ve tek işyerine bağlı işyeri hesabı salt-okunur
-(VIEW); düzenleme yalnızca global yönetici ve İSG uzmanına açıktır.
+(is_active=False). İşyeri hekimi salt-okunurdur (VIEW). Düzenleme; global yönetici,
+İSG uzmanı ve tek işyerine bağlı işyeri hesabına açıktır. İşyeri hesabı yalnızca
+kendi firması kapsamında ekip ve üye ekleme/silme işlemleri yapabilir.
 """
 from __future__ import annotations
 
@@ -17,7 +18,11 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import get_current_user, require_roles, require_roles_or_workplace_manager
+from app.api.deps import (
+    get_current_user,
+    is_workplace_manager_account,
+    require_roles_or_workplace_manager,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
@@ -71,6 +76,15 @@ EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
 VIEW_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN)
 ALLOWED_CERT = {".jpg", ".jpeg", ".png", ".pdf"}
 ENGINE = "emergency-teams-v1"
+
+
+def _can_edit(user: User) -> bool:
+    """Düzenleme yetkisi: global yönetici, İSG uzmanı veya kendi işyerine bağlı işyeri hesabı.
+
+    İşyeri hesabı yalnızca kendi firmasında işlem yapabilir; bu sınır her yazma
+    ucunda ``ensure_company_access`` ile ayrıca doğrulanır.
+    """
+    return user.role in EDIT_ROLES or is_workplace_manager_account(user)
 
 
 def _upload_root() -> Path:
@@ -317,8 +331,9 @@ def overview(
         raise HTTPException(404, "Firma bulunamadı.")
 
     ensure_system_team_types(db)
-    # Salt-okunur roller otomatik oluşturma tetiklemez
-    if user.role in EDIT_ROLES:
+    # Salt-okunur roller otomatik oluşturma tetiklemez; düzenleyebilen roller
+    # ve kendi işyerine bağlı işyeri hesabı varsayılan ekipleri oluşturabilir.
+    if _can_edit(user):
         ensure_default_teams(db, company_id, user.id)
 
     teams = _teams_for_company(db, company_id)
@@ -371,7 +386,7 @@ def overview(
         },
         "warnings": warnings,
         "teams": team_payload,
-        "can_edit": user.role in EDIT_ROLES,
+        "can_edit": _can_edit(user),
     }
 
 
@@ -416,7 +431,7 @@ def create_team(
     payload: TeamCreate,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     ensure_company_access(db, user, payload.company_id)
     ttype = db.get(EmergencyTeamType, payload.type_id)
@@ -460,7 +475,7 @@ def update_team(
     payload: TeamUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     row = _load_team(db, team_id)
     ensure_company_access(db, user, row.company_id)
@@ -531,7 +546,7 @@ def delete_team(
     team_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     row = _load_team(db, team_id)
     ensure_company_access(db, user, row.company_id)
@@ -574,7 +589,7 @@ def restore_team(
     team_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     """Pasife alınan ekibi ve üyelerini geri alır. Kayıtlar silinmez."""
     row = _load_team(db, team_id, include_inactive=True)
@@ -603,7 +618,7 @@ def restore_inactive(
     request: Request,
     company_id: int = Query(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     """İşyerindeki pasif ekipleri ve üyeleri toplu geri alır."""
     company_id = ensure_company_access(db, user, company_id)
@@ -729,7 +744,7 @@ def create_assignment(
     payload: AssignmentCreate,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     ensure_company_access(db, user, payload.company_id)
     team = _load_team(db, payload.team_id)
@@ -814,7 +829,7 @@ def update_assignment(
     payload: AssignmentUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)
@@ -906,7 +921,7 @@ def delete_assignment(
     assignment_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)
@@ -946,7 +961,7 @@ def restore_assignment(
     assignment_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     """Pasife alınan üyeyi geri alır. Ekip pasifse ekip de açılır."""
     row = _load_assignment(db, assignment_id, include_inactive=True)
@@ -1001,7 +1016,7 @@ def add_training(
     payload: TrainingCreate,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)
@@ -1059,7 +1074,7 @@ async def upload_certificate(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     row = _load_assignment(db, assignment_id)
     ensure_company_access(db, user, row.company_id)

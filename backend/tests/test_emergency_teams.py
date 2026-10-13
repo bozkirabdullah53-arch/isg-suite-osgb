@@ -484,7 +484,7 @@ def _emergency_viewer_headers(seed, *, email, company_bound=True, role=None):
 
 
 @pytest.mark.parametrize("email", ["workplace@test.com", "isyeri.1@kiosk.isgsuite.tr"])
-def test_workplace_emergency_teams_read_only_and_company_scoped(client, email):
+def test_workplace_emergency_teams_can_edit_own_company_only(client, email):
     from app.core.database import SessionLocal
     from app.models.entities import EmergencyTeamAssignment, EmergencyTeamTraining, Employee, User
     from app.services.emergency_team_logic import ensure_default_teams
@@ -494,82 +494,81 @@ def test_workplace_emergency_teams_read_only_and_company_scoped(client, email):
     own_id, foreign_id = seed["company_id"], seed["other_company_id"]
     base = "/api/v1/emergency-teams"
 
-    # Görüntüleme boş işyerine ekip/görevlendirme oluşturmaz.
-    empty = client.get(f"{base}/overview?company_id={own_id}", headers=headers)
-    assert empty.status_code == 200, empty.text
-    assert empty.json()["teams"] == []
-    assert empty.json()["can_edit"] is False
-
-    with SessionLocal() as db:
-        specialist = db.query(User).filter_by(email="acil-uzman@test.com").one()
-        teams = {}
-        assignments = {}
-        for cid in (own_id, foreign_id):
-            team = ensure_default_teams(db, cid, specialist.id)[0]
-            employee = db.query(Employee).filter_by(company_id=cid).first()
-            member = EmergencyTeamAssignment(
-                company_id=cid, team_id=team.id, employee_id=employee.id,
-                membership="asil", created_by_id=specialist.id,
-            )
-            db.add(member)
-            db.flush()
-            db.add(EmergencyTeamTraining(assignment_id=member.id, training_type="Ekip Eğitimi"))
-            teams[cid] = {"id": team.id, "type_id": team.type_id}
-            assignments[cid] = member.id
-        db.commit()
-
-    assert client.get(f"{base}/meta", headers=headers).status_code == 200
+    # İşyeri hesabı kendi firmasında düzenleyebilir; varsayılan ekipler oluşur.
     overview = client.get(f"{base}/overview?company_id={own_id}", headers=headers)
     assert overview.status_code == 200, overview.text
     assert overview.json()["company"]["id"] == own_id
-    assert overview.json()["can_edit"] is False
-    for resource in ("teams", "assignments"):
-        for query in ("", f"?company_id={own_id}"):
-            result = client.get(f"{base}/{resource}{query}", headers=headers)
-            assert result.status_code == 200, result.text
-            assert result.json()
-            assert {row["company_id"] for row in result.json()} == {own_id}
+    assert overview.json()["can_edit"] is True
+    teams = overview.json()["teams"]
+    assert teams
+    own_team = teams[0]
 
-    own_member = assignments[own_id]
-    foreign_member = assignments[foreign_id]
-    trainings = client.get(f"{base}/assignments/{own_member}/trainings", headers=headers)
-    assert trainings.status_code == 200, trainings.text
-    assert trainings.json()[0]["training_type"] == "Ekip Eğitimi"
-    for path in (f"export.xlsx?company_id={own_id}", f"export.pdf?company_id={own_id}",
-                 f"assignments/{own_member}/letter.pdf"):
+    # Yabancı firmada görevlendirme oluştur (uzman üzerinden) — işyeri hesabı bunu görememeli.
+    with SessionLocal() as db:
+        specialist = db.query(User).filter_by(email="acil-uzman@test.com").one()
+        foreign_team = ensure_default_teams(db, foreign_id, specialist.id)[0]
+        foreign_employee = db.query(Employee).filter_by(company_id=foreign_id).first()
+        foreign_member = EmergencyTeamAssignment(
+            company_id=foreign_id, team_id=foreign_team.id, employee_id=foreign_employee.id,
+            membership="asil", created_by_id=specialist.id,
+        )
+        db.add(foreign_member)
+        db.flush()
+        db.add(EmergencyTeamTraining(assignment_id=foreign_member.id, training_type="Ekip Eğitimi"))
+        foreign_member_id = foreign_member.id
+        foreign_type_id = foreign_team.type_id
+        foreign_team_id = foreign_team.id
+        db.commit()
+
+    # Kendi firmasında ekip ekleme, güncelleme ve silme.
+    created = client.post(f"{base}/teams", headers=headers, json={
+        "company_id": own_id, "type_id": own_team["type_id"], "name": "İşyeri Ekibi"})
+    assert created.status_code == 200, created.text
+    new_team_id = created.json()["id"]
+    updated = client.put(f"{base}/teams/{new_team_id}", headers=headers, json={"name": "İşyeri Ekibi 2"})
+    assert updated.status_code == 200, updated.text
+    deleted = client.request("DELETE", f"{base}/teams/{new_team_id}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+
+    # Kendi firmasında üye ekleme, güncelleme ve silme.
+    member = client.post(f"{base}/assignments", headers=headers, json={
+        "company_id": own_id, "team_id": own_team["id"],
+        "employee_id": seed["employee_ids"][1], "membership": "asil"})
+    assert member.status_code == 200, member.text
+    member_id = member.json()["id"]
+    assert client.put(f"{base}/assignments/{member_id}", headers=headers,
+                      json={"notes": "Not"}).status_code == 200
+    assert client.request("DELETE", f"{base}/assignments/{member_id}",
+                          headers=headers).status_code == 200
+
+    # Kendi firmasında okuma ve raporlar.
+    for resource in ("teams", "assignments"):
+        result = client.get(f"{base}/{resource}?company_id={own_id}", headers=headers)
+        assert result.status_code == 200, result.text
+        assert {row["company_id"] for row in result.json()} <= {own_id}
+    for path in (f"export.xlsx?company_id={own_id}", f"export.pdf?company_id={own_id}"):
         result = client.get(f"{base}/{path}", headers=headers)
         assert result.status_code == 200, result.text
         assert result.content.startswith(b"PK" if ".xlsx" in path else b"%PDF")
 
+    # Başka firmaya okuma ve yazma erişimi engellenir.
     for path in (f"overview?company_id={foreign_id}", f"teams?company_id={foreign_id}",
                  f"assignments?company_id={foreign_id}", f"export.xlsx?company_id={foreign_id}",
-                 f"export.pdf?company_id={foreign_id}", f"assignments/{foreign_member}/trainings",
-                 f"assignments/{foreign_member}/letter.pdf"):
+                 f"export.pdf?company_id={foreign_id}", f"assignments/{foreign_member_id}/trainings",
+                 f"assignments/{foreign_member_id}/letter.pdf"):
         assert client.get(f"{base}/{path}", headers=headers).status_code == 403, path
-
-    # Kendi işyerinde bile mevcut uzman düzenleme/silme sınırı korunur.
-    own_team = teams[own_id]
     for method, path, payload in (
-        ("POST", "teams", {"company_id": own_id, "type_id": own_team["type_id"], "name": "Yeni Ekip"}),
-        ("PUT", f"teams/{own_team['id']}", {"name": "Değiştirildi"}),
-        ("DELETE", f"teams/{own_team['id']}", None),
-        ("POST", f"teams/{own_team['id']}/restore", None),
-        ("POST", f"restore-inactive?company_id={own_id}", None),
-        ("POST", "assignments", {"company_id": own_id, "team_id": own_team["id"], "employee_id": seed["employee_ids"][1]}),
-        ("PUT", f"assignments/{own_member}", {"notes": "Değiştirildi"}),
-        ("DELETE", f"assignments/{own_member}", None),
-        ("POST", f"assignments/{own_member}/restore", None),
-        ("POST", f"assignments/{own_member}/trainings", {"training_type": "Yeni Eğitim"}),
+        ("POST", "teams", {"company_id": foreign_id, "type_id": foreign_type_id, "name": "Yabancı Ekip"}),
+        ("POST", "assignments", {"company_id": foreign_id, "team_id": foreign_team_id,
+                                 "employee_id": seed["employee_ids"][1]}),
+        ("DELETE", f"assignments/{foreign_member_id}", None),
     ):
         result = client.request(method, f"{base}/{path}", headers=headers, json=payload)
         assert result.status_code == 403, (method, path, result.text)
-    upload = client.post(f"{base}/assignments/{own_member}/certificate-file", headers=headers,
-                         files={"file": ("belge.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")})
-    assert upload.status_code == 403
+
     with SessionLocal() as db:
-        member = db.get(EmergencyTeamAssignment, own_member)
-        assert member.is_active is True and member.notes is None
-        assert len(member.trainings) == 1
+        foreign = db.get(EmergencyTeamAssignment, foreign_member_id)
+        assert foreign.is_active is True
 
 
 @pytest.mark.parametrize("account", ["osgb_admin", "employee"])

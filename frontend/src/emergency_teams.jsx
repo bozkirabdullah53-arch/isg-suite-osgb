@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {TeamMinimum, TeamRequirementsSummary} from './emergency_team_requirements';
-import {isWorkplaceAccountUser} from './workplace_user_policy';
+import {canEditEmergencyTeams, isWorkplaceAccountUser} from './workplace_user_policy';
 import './emergency_teams.css';
 
 const CERT_BADGE = {
@@ -141,7 +141,6 @@ function Kpi({label, value, tone}) {
 }
 
 export function EmergencyTeamsPage({user}) {
-  const canEdit = user.role === 'safety_specialist' || user.role === 'global_admin';
   const isWorkplaceAccount = isWorkplaceAccountUser(user);
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user.company_id || '');
@@ -166,6 +165,8 @@ export function EmergencyTeamsPage({user}) {
   const [trainingModal, setTrainingModal] = useState(null); // assignment row
   const [trainingForm, setTrainingForm] = useState(emptyTraining);
   const [trainingFile, setTrainingFile] = useState(null);
+  // Backend yetki bayrağı esastır; yüklenene kadar rol/işyeri hesabına göre davran.
+  const canEdit = canEditEmergencyTeams(user, overview?.can_edit);
 
   const companyEmployees = useMemo(
     () => employees.filter((e) => String(e.company_id) === String(companyId)),
