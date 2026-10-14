@@ -256,17 +256,9 @@ function sectorLabel(code) {
 }
 
 function packageDistributionState(packageRow, rollout) {
-  // Keep older API responses usable while the additive metadata rolls out.
-  if (!rollout || !Array.isArray(rollout.package_codes)) {
-    return {allowed: true, label: 'Firma bazlı atama açık'};
-  }
-  if (rollout.force_off || !rollout.enabled) {
-    return {allowed: false, label: 'Firma ataması kapalı'};
-  }
-  if (!rollout.package_codes.includes(packageRow?.code)) {
-    return {allowed: false, label: 'Bu paket dağıtıma kapalı'};
-  }
-  return {allowed: true, label: rollout.company_allowlist_configured ? 'İzinli firma kontrolü' : 'Firma bazlı atama açık'};
+  // Grant and company-scope checks are authoritative. Rollout flags must not
+  // lock a package that the global administrator has already opened here.
+  return {allowed: true, label: 'Firma ve personel ataması açık'};
 }
 
 function packageAutomaticExamReady(packageRow) {
@@ -1517,14 +1509,6 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       setError(notReady.map((item) => item.automatic_exam_warning || `${item.title}: onaylı soru paketi hazır değil.`).join(' '));
       return;
     }
-    const distributionBlocked = selected.filter((item) => !packageDistributionState(item, rollout).allowed);
-    if (distributionBlocked.length) {
-      setError(
-        `Dağıtıma kapalı paketler firmaya hazırlanamaz: ${distributionBlocked.map((item) => item.title).join(', ')}. ` +
-        'Firma atama ayarını açın veya yayımlanmış başka bir paket seçin.',
-      );
-      return;
-    }
     setBusy(true); setError(''); setMessage('');
     const created = [];
     const failed = [];
@@ -1598,10 +1582,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       </div>}
       {!contentManagementOnly && <><div className="remote-training-rollout-note" role="note">
         <strong>Firma bazlı manuel atama:</strong>{' '}
-        {rollout?.enabled && !rollout?.force_off
-          ? `Yayımlanmış paketler arasından sektör seçimini siz yaparsınız: ${rollout.package_codes?.map(rolloutPackageLabel).join(', ') || 'dağıtıma açık paketler'}.`
-          : 'İçerik hazırlama açıktır; firma ve sektör ataması için dağıtım ayarı henüz etkin değil.'}
-        {rollout?.company_allowlist_configured && ' Ek olarak izinli firma listesi kontrol edilir.'}
+         'Global yöneticinin bu OSGB veya bireysel çalışma alanına açtığı yayımlanmış paketleri seçerek firmaya hazırlayın.'
       </div>
       <div style={{marginTop: 14, padding: 14, border: '2px solid #7c3aed', borderRadius: 10, background: '#faf5ff'}} aria-label="Firma ve sektör atama merkezi">
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
@@ -3193,10 +3174,11 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [programRefreshToken, setProgramRefreshToken] = useState(0);
+  const globalAdminMode = user?.role === 'global_admin';
   const canManage = Boolean(meta?.can_manage);
   const canOperate = Boolean(meta?.can_operate);
   const workplaceMode = Boolean(meta?.workplace_scoped) || isWorkplaceManagerUser(user);
-  const canEditContent = Boolean(meta?.can_edit_content) && canEditRemoteContent(user);
+  const canEditContent = (globalAdminMode || Boolean(meta?.can_edit_content)) && canEditRemoteContent(user);
   const canEditSharedContent = canEditContent && Boolean(meta?.can_edit_shared_content);
 
   function handleCompanySelectionChange(value) {
@@ -3211,13 +3193,24 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
   if (error) return <section className="remote-training-panel remote-training-card" style={cardStyle}><ErrorText value={error} /></section>;
   if (!meta) return <section className="remote-training-panel remote-training-card" style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
   if (!meta.enabled) return <section className="remote-training-panel remote-training-card" style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} modülü henüz etkin değil.</section>;
-  if (canEditContent) {
-    return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
-      <section style={cardStyle} aria-label="Global yönetici uzaktan eğitim video yönetimi">
-        <h2 style={{marginTop: 0, color: '#123b59'}}>Uzaktan Eğitim Video Yönetimi</h2>
-        <p style={{marginBottom: 0, color: '#5e7485'}}>Eğitim paketi ve videolarının ekleme, düzenleme, silme ve yayınlama yetkisi yalnızca global yöneticidedir. OSGB, uzman ve diğer yetkili alt kullanıcılar yayımlanmış eğitimleri kendi firma ve personeline atar; ilerlemeyi, sınavları ve belgeleri takip eder.</p>
+  if (globalAdminMode) {
+    return <div className="remote-training-panel remote-training-global-workspace">
+      <section className="remote-training-global-hero" aria-label="Merkezi uzaktan eğitim yönetimi">
+        <div>
+          <span className="remote-training-global-kicker">EİSA MERKEZİ YÖNETİM</span>
+          <h2>Uzaktan Eğitim Merkezi</h2>
+          <p>Eğitim paketlerini hazırlayın, videoları yönetin ve hazır eğitimleri OSGB ile bireysel kullanıcıların erişimine açın.</p>
+        </div>
+        <div className="remote-training-global-status">
+          <span className="remote-training-global-status-dot" /> Merkezi katalog aktif
+        </div>
       </section>
-      <div id="remote-training-catalog"><CatalogManagerPanel rollout={meta.strict_policy} canEditContent canEditSharedContent={canEditSharedContent} contentManagementOnly /></div>
+      <div className="remote-training-global-steps" aria-label="Global eğitim iş akışı">
+        <div><strong>01</strong><span>Paketi hazırla</span><small>Bölüm ve video ekle</small></div>
+        <div><strong>02</strong><span>İncele ve yayımla</span><small>İçeriği son kez kontrol et</small></div>
+        <div><strong>03</strong><span>Erişim aç</span><small>OSGB veya bireysel kullanıcı seç</small></div>
+      </div>
+      <div id="remote-training-catalog"><CatalogManagerPanel rollout={meta.strict_policy} canEditContent canEditSharedContent={true} contentManagementOnly /></div>
     </div>;
   }
   if (workplaceMode) {

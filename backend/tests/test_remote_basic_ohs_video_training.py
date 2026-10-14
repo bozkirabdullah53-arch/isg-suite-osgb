@@ -1172,13 +1172,16 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
         db.commit()
 
     monkeypatch.setattr("app.core.config.settings.remote_basic_ohs_strict_policy_enabled", False)
-    blocked_materialization = remote_client.post(
+    materialization = remote_client.post(
         f"/api/v1/trainings/remote/catalog/packages/{empty_package['id']}/materialize",
         headers=headers,
         json={"company_id": company_id},
     )
-    assert blocked_materialization.status_code == 409, blocked_materialization.text
-    assert "firma bazlı dağıtım" in blocked_materialization.json()["detail"]
+    # Distribution is controlled by the global catalog grant and company scope,
+    # not by the optional strict-policy rollout flag. This fixture has no
+    # published video, so content readiness remains the expected blocker.
+    assert materialization.status_code == 409, materialization.text
+    assert "firma bazlı dağıtım" not in materialization.json()["detail"]
 
 
 def test_remote_catalog_published_package_accepts_additive_video_and_section(remote_client, monkeypatch):
