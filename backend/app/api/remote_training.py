@@ -1463,12 +1463,6 @@ def materialize_catalog_package(
     if package.status != "published":
         raise HTTPException(409, "Yalnızca yayımlanmış merkezi paket firmaya hazırlanabilir.")
     ensure_company_access(db, user, payload.company_id)
-    if not remote_basic_ohs_strict_policy_active(package.code, payload.company_id):
-        raise HTTPException(
-            409,
-            "Bu paket merkezi katalogda yayımlandı; çalışanlara açılacak firma sürümü "
-            "firma bazlı dağıtım politikası etkinleştirildiğinde hazırlanabilir.",
-        )
     branch = validate_branch(db, payload.company_id, payload.branch_id)
     snapshot_branch_id = branch.id if branch else None
     company = db.get(Company, payload.company_id)
