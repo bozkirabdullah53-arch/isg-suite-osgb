@@ -147,7 +147,10 @@ def create_app() -> FastAPI:
             return {"ready": False, "status": "pkcs11_unavailable", "module": path.name}
 
     @app.post("/v1/sign")
-    def sign(payload: SignRequest):
+    def sign(payload: SignRequest, request: Request):
+        origin = (request.headers.get("origin") or "").strip()
+        if origin not in origins:
+            raise HTTPException(403, "İzin verilmeyen web kaynağı.")
         # A signed document must be bound to a backend-issued request.  The
         # hash and token are mandatory so the local agent cannot be used as a
         # generic signing oracle by an unrelated local page.

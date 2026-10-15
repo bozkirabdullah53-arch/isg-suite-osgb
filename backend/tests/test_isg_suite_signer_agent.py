@@ -59,7 +59,11 @@ def test_signer_requires_backend_binding(monkeypatch):
     from fastapi.testclient import TestClient
 
     client = TestClient(create_app())
-    response = client.post("/v1/sign", json={"pdf_base64": "JVBERi0xLjQK"})
+    response = client.post(
+        "/v1/sign",
+        json={"pdf_base64": "JVBERi0xLjQK"},
+        headers={"Origin": "https://www.isgsuite.tr"},
+    )
     assert response.status_code == 400
     assert "tek kullanımlık" in response.json()["detail"].lower()
 
