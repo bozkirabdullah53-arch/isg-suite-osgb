@@ -62,3 +62,13 @@ def test_signer_requires_backend_binding(monkeypatch):
     response = client.post("/v1/sign", json={"pdf_base64": "JVBERi0xLjQK"})
     assert response.status_code == 400
     assert "tek kullanımlık" in response.json()["detail"].lower()
+
+
+def test_signer_readiness_is_not_demo_health():
+    from agent.server import create_app
+    from fastapi.testclient import TestClient
+
+    response = TestClient(create_app()).get("/v1/readiness")
+    assert response.status_code == 200
+    assert response.json()["ready"] is False
+    assert response.json()["status"] == "pkcs11_not_configured"

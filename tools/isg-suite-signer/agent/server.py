@@ -114,6 +114,38 @@ def create_app() -> FastAPI:
             )
         return {"certs": items}
 
+    @app.get("/v1/readiness")
+    def readiness():
+        """Report whether a real PKCS#11 signing setup is usable.
+
+        /health only means the local process is alive. This endpoint deliberately
+        distinguishes a configured card middleware from the demo certificate so
+        the web UI cannot present a test signer as a ministry-ready signer.
+        """
+        signing = cfg.get("Signing") or {}
+        module = (signing.get("Pkcs11Module") or "").strip()
+        if not module:
+            return {"ready": False, "status": "pkcs11_not_configured", "demo_only": True}
+        path = Path(module)
+        if not path.exists():
+            return {"ready": False, "status": "pkcs11_module_missing", "module": path.name}
+        try:
+            import PyKCS11  # noqa: F401
+        except ImportError:
+            return {"ready": False, "status": "pkcs11_dependency_missing", "module": path.name}
+        try:
+            import PyKCS11
+
+            lib = PyKCS11.PyKCS11Lib()
+            lib.load(str(path))
+            slots = lib.getSlotList(tokenPresent=True)
+            if not slots:
+                return {"ready": False, "status": "card_not_present", "module": path.name}
+            return {"ready": True, "status": "pkcs11_card_present", "module": path.name}
+        except Exception:
+            log.exception("PKCS#11 readiness check failed")
+            return {"ready": False, "status": "pkcs11_unavailable", "module": path.name}
+
     @app.post("/v1/sign")
     def sign(payload: SignRequest):
         # A signed document must be bound to a backend-issued request.  The

@@ -91,6 +91,7 @@ def esign_meta(user: User = Depends(require_roles(*VIEW))):
         "product": "OSGB Signer",
         "agent_port": pipe.AGENT_PORT,
         "agent_health": f"https://127.0.0.1:{pipe.AGENT_PORT}/health",
+        "agent_readiness": f"https://127.0.0.1:{pipe.AGENT_PORT}/v1/readiness",
         "token_ttl_minutes": pipe.TOKEN_TTL_MINUTES,
         "max_pdf_mb": pipe.MAX_PDF_BYTES // (1024 * 1024),
         "origins_for_agent": pipe.AGENT_ORIGINS_HINT,
