@@ -4840,7 +4840,7 @@ def download_remote_certificate(
 def verify_remote_certificate(
     verification_code: str,
     db: Session = Depends(get_db),
-    response: Response | None = None,
+    response: Response = None,
     _user: User = Depends(get_current_user),
 ):
     if response is not None:

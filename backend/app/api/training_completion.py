@@ -230,7 +230,7 @@ def finalize_training(
 def verify_completed_training(
     code: str,
     db: Session = Depends(get_db),
-    response: Response | None = None,
+    response: Response = None,
     _user: User = Depends(get_current_user),
 ):
     """Authenticated verification with a non-enumerating failure contract."""
