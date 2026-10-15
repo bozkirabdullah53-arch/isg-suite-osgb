@@ -173,15 +173,17 @@ const roleModules={
   ],
   // Çalışan hesabı yalnızca kendisine atanmış uzaktan eğitimi görür.
   // İşyeri Durum Merkezi ve yönetim modülleri çalışan ekranına açılmaz.
-  read_only:['employee_training','security'],
+  read_only:['security'],
 };
 
 /** İşyeri/QR hesaplarının menüsü yalnız bağlı oldukları işyerine yöneliktir. */
 function modulesForUser(user){
   const workplaceModules=workplaceModulesForUser(user);
   if(workplaceModules) return workplaceModules.filter((id)=>id!=='workplace_backups'||WORKPLACE_BACKUPS_ENABLED);
-  if(user?.role==='read_only' && EMPLOYEE_SELF_SERVICE_ENABLED){
-    return ['employee_self_service','employee_training','security'];
+  if(user?.role==='read_only'){
+    return EMPLOYEE_SELF_SERVICE_ENABLED
+      ? ['employee_self_service','employee_training','security']
+      : ['security'];
   }
   if(user?.is_individual && user?.role==='safety_specialist'){
     const base=professionalModulesForUser('safety_specialist',{isIndividual:true});
@@ -835,7 +837,7 @@ function SiteQrKioskPage({user,onLogout,embedded=false}){
                   width={320}
                   height={320}
                   style={{display:'block',width:'100%',maxWidth:320,height:'auto'}}
-                  src={`/api/v1/companies/qr-render?data=${encodeURIComponent(payload)}`}
+                  src={`${API_URL}/companies/qr-render?data=${encodeURIComponent(payload)}`}
                 />
               ):(
                 <div style={{width:280,maxWidth:'100%',height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
@@ -1161,7 +1163,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360, canSelectCompany=f
       <div className="form-grid single">
         <p style={{marginTop:0,color:'#64748b'}}>Kalıcı QR — işyerine asılır. Saha personeli ziyaret tamamlarken okutur.</p>
         <div style={{textAlign:'center'}}>
-          <img alt="İşyeri QR" width={220} height={220} src={`/api/v1/companies/qr-render?data=${encodeURIComponent(siteQr.qr_payload)}`}/>
+          <img alt="İşyeri QR" width={220} height={220} src={`${API_URL}/companies/qr-render?data=${encodeURIComponent(siteQr.qr_payload)}`}/>
         </div>
         <p><strong>Kod:</strong> <code>{siteQr.site_verify_code}</code></p>
         <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQr.qr_payload}</p>
@@ -1174,7 +1176,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360, canSelectCompany=f
           <hr style={{border:'none',borderTop:'1px solid #e2e8f0',margin:'8px 0'}}/>
           <p style={{marginTop:0,color:'#64748b'}}>Geçici QR — süresi dolunca veya bir kez kullanılınca geçersiz olur. Kalıcı QR değişmez.</p>
           <div style={{textAlign:'center'}}>
-            <img alt="Geçici işyeri QR" width={220} height={220} src={`/api/v1/companies/qr-render?data=${encodeURIComponent(siteQrEphemeral.qr_payload)}`}/>
+            <img alt="Geçici işyeri QR" width={220} height={220} src={`${API_URL}/companies/qr-render?data=${encodeURIComponent(siteQrEphemeral.qr_payload)}`}/>
           </div>
           <p><strong>Bitiş:</strong> <code>{siteQrEphemeral.expires_at}</code> ({siteQrEphemeral.ttl_minutes} dk, tek kullanımlık)</p>
           <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQrEphemeral.qr_payload}</p>
