@@ -116,6 +116,13 @@ def create_app() -> FastAPI:
 
     @app.post("/v1/sign")
     def sign(payload: SignRequest):
+        # A signed document must be bound to a backend-issued request.  The
+        # hash and token are mandatory so the local agent cannot be used as a
+        # generic signing oracle by an unrelated local page.
+        if not payload.request_token:
+            raise HTTPException(400, "Tek kullanımlık imza talebi gerekli.")
+        if not payload.expected_sha256 or len(payload.expected_sha256) != 64:
+            raise HTTPException(400, "Beklenen PDF hash'i gerekli.")
         try:
             raw = base64.b64decode(payload.pdf_base64, validate=False)
         except Exception as exc:  # noqa: BLE001
