@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -227,13 +227,22 @@ def finalize_training(
     response_model=TrainingVerifyResponse,
     response_model_exclude_none=True,
 )
-def verify_completed_training(code: str, db: Session = Depends(get_db)):
+def verify_completed_training(
+    code: str,
+    db: Session = Depends(get_db),
+    response: Response | None = None,
+    _user: User = Depends(get_current_user),
+):
+    """Authenticated verification with a non-enumerating failure contract."""
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["Pragma"] = "no-cache"
     clean = (code or "").strip().upper()
     if not clean or len(clean) < 8:
         return TrainingVerifyResponse(
             valid=False,
-            verification_code=clean or "",
-            message="Geçersiz doğrulama kodu.",
+            verification_code="",
+            message="Doğrulama tamamlanamadı.",
         )
 
     matched_participant = None
@@ -292,8 +301,8 @@ def verify_completed_training(code: str, db: Session = Depends(get_db)):
             )
         return TrainingVerifyResponse(
             valid=False,
-            verification_code=clean,
-            message="Bu kodla eşleşen eğitim belgesi bulunamadı.",
+            verification_code="",
+            message="Doğrulama tamamlanamadı.",
         )
 
     strict, _snapshot = completion_strict_applies(db, training)

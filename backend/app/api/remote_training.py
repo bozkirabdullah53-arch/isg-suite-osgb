@@ -12,7 +12,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -4840,15 +4840,20 @@ def download_remote_certificate(
 def verify_remote_certificate(
     verification_code: str,
     db: Session = Depends(get_db),
+    response: Response | None = None,
+    _user: User = Depends(get_current_user),
 ):
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["Pragma"] = "no-cache"
     clean = (verification_code or "").strip().upper()
     if not feature_active():
-        return {"valid": False, "verification_code": clean, "message": "Uzaktan eğitim katılım belgesi doğrulaması etkin değil."}
+        return {"valid": False, "verification_code": "", "message": "Doğrulama tamamlanamadı."}
     certificate = db.scalar(
         select(RemoteTrainingCertificate).where(RemoteTrainingCertificate.verification_code == clean)
     ) if clean else None
     if not certificate:
-        return {"valid": False, "verification_code": clean, "message": "Bu kodla eşleşen uzaktan eğitim katılım belgesi bulunamadı."}
+        return {"valid": False, "verification_code": "", "message": "Doğrulama tamamlanamadı."}
     duration = remote_training_duration(
         certificate.nace_code_snapshot, certificate.hazard_class_snapshot
     )
