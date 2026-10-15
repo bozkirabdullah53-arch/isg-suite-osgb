@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -29,12 +30,15 @@ def validate_config() -> dict[str, Any]:
     key = (settings.katip_api_key or "").strip()
     has_url = bool(url)
     has_key = bool(key)
-    configured = has_url and has_key
+    parsed = urlsplit(url) if has_url else None
+    endpoint_valid = bool(parsed and parsed.scheme == "https" and parsed.hostname)
+    configured = has_url and has_key and endpoint_valid
     return {
         "adapter": "katip",
         "has_url": has_url,
         "has_key": has_key,
         "configured": configured,
+        "endpoint_valid": endpoint_valid,
         "adapter_version": ADAPTER_VERSION,
     }
 
@@ -135,7 +139,7 @@ def probe() -> dict[str, Any]:
         return {
             "adapter": "katip",
             "ok": False,
-            "status": "missing_credentials",
+            "status": "invalid_endpoint" if cfg.get("has_url") and not cfg.get("endpoint_valid") else "missing_credentials",
             "adapter_version": ADAPTER_VERSION,
             "probe_version": PROBE_VERSION,
             "probed_at": now,

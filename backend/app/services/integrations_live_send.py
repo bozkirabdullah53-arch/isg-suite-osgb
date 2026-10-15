@@ -31,7 +31,7 @@ def run_live_send(
         result = katip_client.live_send(osgb_id=osgb_id, record_count=count)
 
     status = str(result.get("status") or "unknown")
-    if status == "missing_credentials":
+    if status in {"missing_credentials", "invalid_endpoint"}:
         log_status = "blocked_no_credentials"
     elif result.get("ok"):
         log_status = "live_sent"
@@ -64,8 +64,8 @@ def run_live_send(
         "osgb_id": osgb_id,
         "log_id": entry.id,
         "note": (
-            "Kimlik bilgisi yok — harici HTTP çağrısı yapılmadı."
-            if status == "missing_credentials"
+            "Kimlik bilgisi veya güvenli HTTPS endpointi yok — harici HTTP çağrısı yapılmadı."
+            if status in {"missing_credentials", "invalid_endpoint"}
             else (
                 "Canlı gönderim başarılı (HTTP 2xx)."
                 if result.get("ok")
