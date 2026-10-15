@@ -246,6 +246,14 @@ def pipeline_complete(
 
     agent_meta = agent_meta or {}
     demo_mode = str(agent_meta.get("mode") or "").lower() in {"demo", "demo-pfx"}
+    # A demo PFX is useful for local smoke tests only. Never let it create a
+    # production artifact that could be mistaken for a ministry-grade e-sign.
+    if demo_mode and str(getattr(settings, "environment", "development")).lower() in {
+        "production",
+        "prod",
+        "live",
+    }:
+        raise ValueError("Production ortamında demo e-imza kabul edilmez; PKCS#11 kart kullanın.")
     verify_ok = bool(sig.get("verify_ok"))
     # Demo imza: kabul edilir ama qualified_claim=false ve verification=demo_accepted
     if demo_mode:
@@ -254,7 +262,15 @@ def pipeline_complete(
         lock = verification_status == "demo_accepted"
     else:
         verification_status = "verified" if verify_ok else "failed"
-        qualified = False  # 5070 qualified claim yalnızca akredite yol + OCSP good sonrası
+        # A PKCS#11 signature alone is not sufficient for a qualified claim.
+        # Certificate status and a verified timestamp must be proven separately.
+        qualified = bool(
+            agent_meta.get("mode") == "pkcs11"
+            and verification_status == "verified"
+            and ocsp.get("status") == "good"
+            and crl.get("status") == "good"
+            and tsa.get("status") == "verified"
+        )
         lock = verification_status == "verified"
 
     return {
