@@ -23,7 +23,15 @@ export async function probeIsgSigner(timeoutMs = 2500) {
     });
     if (!res.ok) return {ok: false, error: `HTTP ${res.status}`};
     const data = await res.json();
-    return {ok: data.status === 'healthy', data};
+    let readiness = null;
+    try {
+      const readyRes = await fetch(`${OSGB_SIGNER_BASE}/v1/readiness`, {
+        method: 'GET', signal: ctrl.signal, credentials: 'omit',
+      });
+      readiness = readyRes.ok ? await readyRes.json() : {ready: false, status: `HTTP ${readyRes.status}`};
+    } catch { readiness = {ready: false, status: 'readiness_unavailable'}; }
+    const ready = readiness.ready === true;
+    return {ok: data.status === 'healthy' && ready, ready, data: {...data, readiness}};
   } catch (e) {
     return {ok: false, error: e.name === 'AbortError' ? 'zaman aşımı' : (e.message || 'ulaşılamadı')};
   } finally {
