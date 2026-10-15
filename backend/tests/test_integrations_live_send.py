@@ -173,3 +173,29 @@ def test_live_send_configured_mocks_network(client, monkeypatch):
     assert kt["status"] == "http_error"
     assert kt["log_status"] == "live_failed"
     assert "test-katip-key" not in katip.text
+
+
+def test_live_send_invalid_http_endpoint_is_blocked_without_network(client, monkeypatch):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    from app.core.config import settings
+
+    settings.ibys_api_url = "http://not-approved.example/ibys"
+    settings.ibys_api_key = "configured-but-not-safe"
+    called = {"n": 0}
+
+    def fail_if_called(*_args, **_kwargs):
+        called["n"] += 1
+        raise AssertionError("invalid endpoint must not reach the network")
+
+    monkeypatch.setattr("app.services.ibys_client._http_live_post", fail_if_called)
+    response = client.post(
+        f"/api/v1/osgb/integrations/ibys/live-send?osgb_id={seed['osgb_id']}",
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["ok"] is False
+    assert body["status"] == "invalid_endpoint"
+    assert body["log_status"] == "blocked_no_credentials"
+    assert called["n"] == 0

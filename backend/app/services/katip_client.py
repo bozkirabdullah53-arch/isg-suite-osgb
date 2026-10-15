@@ -190,7 +190,7 @@ def live_send(*, osgb_id: int | None = None, record_count: int = 0) -> dict[str,
         return {
             "adapter": "katip",
             "ok": False,
-            "status": "missing_credentials",
+            "status": "invalid_endpoint" if cfg.get("has_url") and not cfg.get("endpoint_valid") else "missing_credentials",
             "adapter_version": ADAPTER_VERSION,
             "live_send_version": LIVE_SEND_VERSION,
             "sent_at": now,
