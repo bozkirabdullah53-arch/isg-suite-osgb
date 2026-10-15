@@ -187,7 +187,11 @@ def create_app() -> FastAPI:
             "document_title": payload.document_title,
             "request_token": payload.request_token,
             "signature_id": secrets.token_hex(8),
-            "qualified": mode == "pkcs11",
+            # The local agent only creates the CMS/PAdES candidate. The
+            # server must complete certificate status, timestamp and policy
+            # validation before any qualified claim is made.
+            "qualified": False,
+            "technical_signature": mode == "pkcs11",
             "mode": mode,
             "legal_note": (
                 "PKCS#11 kart imzası nitelikli e-imza adayıdır; nihai 5070 geçerliliği "

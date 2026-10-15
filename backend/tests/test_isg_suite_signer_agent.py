@@ -52,3 +52,13 @@ def test_document_approvals_has_local_sign_route():
     paths = {getattr(r, "path", None) for r in da_router.routes}
     assert "/document-approvals/{item_id}/record-local-sign" in paths
     assert "/document-approvals/{item_id}/approve" in paths
+
+
+def test_signer_requires_backend_binding(monkeypatch):
+    from agent.server import create_app
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_app())
+    response = client.post("/v1/sign", json={"pdf_base64": "JVBERi0xLjQK"})
+    assert response.status_code == 400
+    assert "tek kullanımlık" in response.json()["detail"].lower()
