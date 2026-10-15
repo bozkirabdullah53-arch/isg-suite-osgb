@@ -1551,8 +1551,9 @@ def export_pdf(
 def verify_report(
     code: str,
     db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
-    """Herkese açık doğrulama — yalnızca özet; firma içeriği yok."""
+    """Authenticated verification; code existence is never exposed anonymously."""
     ev = db.scalar(
         select(AnnualPlanEvaluation).where(
             AnnualPlanEvaluation.verify_code == code.strip(),
@@ -1560,7 +1561,17 @@ def verify_report(
         )
     )
     if not ev:
-        raise HTTPException(404, "Doğrulama kodu bulunamadı.")
+        # Keep the authenticated contract and response shape identical for
+        # unknown codes. Never turn a missing row into an oracle-specific 404.
+        return {
+            "valid": False,
+            "verify_code": "",
+            "year": None,
+            "report_status": None,
+            "report_date": None,
+            "company_name": None,
+            "note": "Doğrulama tamamlanamadı.",
+        }
     company = db.get(Company, ev.company_id)
     return {
         "valid": True,

@@ -82,6 +82,12 @@ services:
       # yedek devrede kalır (canlıyı bozmaz). Adımlar: docs/SECURITY_INFRA_ROLLOUT.md
       - key: REDIS_URL
         sync: false
+      - key: RATE_LIMIT_REQUIRE_REDIS
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: PROXY_TRUST_DEPTH
+        value: "1"
       - key: ASYNC_JOBS_FORCE_OFF
         value: "false"
       - key: ASYNC_JOBS_ENABLED
@@ -116,6 +122,12 @@ services:
         sync: false
       - key: HEALTH_FIELD_ENCRYPTION_FORCE_OFF
         value: "false"
+      # Deleted clinical records are hidden immediately and anonymized after
+      # the approved KVKK retention window by the daily purge worker.
+      - key: HEALTH_RECORD_PURGE_ENABLED
+        value: "true"
+      - key: HEALTH_RECORD_PURGE_AFTER_DAYS
+        value: "30"
       - key: OBJECT_STORAGE_AUTO_CUTOVER
         value: "true"
       - key: OBJECT_STORAGE_FORCE_LOCAL
@@ -426,6 +438,32 @@ services:
           property: connectionString
       - key: SECRET_KEY
         sync: false
+
+  # Daily irreversible anonymization of expired soft-deleted clinical rows.
+  # The worker is idempotent and processes bounded batches.
+  - type: cron
+    name: isg-suite-health-record-purge-daily
+    runtime: python
+    rootDir: backend
+    schedule: "15 22 * * *"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m scripts.purge_deleted_health_records --limit 5000
+    branch: master
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: isg-suite-db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: HEALTH_RECORD_PURGE_ENABLED
+        value: "true"
+      - key: HEALTH_RECORD_PURGE_AFTER_DAYS
+        value: "30"
 
   - type: cron
     name: isg-suite-api-warmup

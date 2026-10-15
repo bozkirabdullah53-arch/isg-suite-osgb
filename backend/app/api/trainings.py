@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -66,6 +66,13 @@ from app.services.training_topics import (
     sektor_tehlike_sinifi,
     sectors_list_for_api,
 )
+
+
+def _mask_public_name(value: str | None) -> str | None:
+    parts = [part for part in str(value or "").split() if part]
+    if not parts:
+        return None
+    return " ".join(f"{part[0]}{'*' * max(1, len(part) - 1)}" for part in parts)
 from app.services import training_validity
 from app.services.special_training_profiles import (
     resolve_special_duration_hours,
@@ -293,18 +300,21 @@ def training_meta(user: User = Depends(get_current_user)):
 
 
 @router.get("/verify/{code}", response_model=TrainingVerifyResponse, response_model_exclude_none=True)
-def verify_training(code: str, db: Session = Depends(get_db)):
+def verify_training(code: str, response: Response, db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
     """Kamuya açık, salt-okunur belge doğrulama.
 
     The original training-level verification code remains supported.  A
     participant certificate number is also accepted so each printed
     certificate can open the matching person's public verification view.
     """
+    if isinstance(response, Session):
+        response, db = None, response
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["Pragma"] = "no-cache"
     clean = (code or "").strip().upper()
     if not clean or len(clean) < 8:
-        return TrainingVerifyResponse(
-            valid=False, verification_code=clean or "", message="Geçersiz doğrulama kodu."
-        )
+        return TrainingVerifyResponse(valid=False, verification_code="", message="Doğrulama tamamlanamadı.")
 
     matched_participant = None
     row = db.scalar(
@@ -343,32 +353,27 @@ def verify_training(code: str, db: Session = Depends(get_db)):
                 (int(remote_certificate.training_duration_seconds or 0) + 2699) // 2700,
             )
             participant = {
-                "full_name": remote_certificate.employee_name_snapshot,
-                "certificate_number": remote_certificate.certificate_number,
+                "full_name": _mask_public_name(remote_certificate.employee_name_snapshot),
             }
             return TrainingVerifyResponse(
                 valid=True,
                 verification_code=clean,
                 title=remote_certificate.training_name,
-                company_name=remote_certificate.company_name_snapshot,
+                company_name=None,
                 start_date=remote_certificate.training_date,
                 end_date=remote_certificate.training_date,
                 hazard_class=remote_certificate.hazard_class_snapshot,
                 duration_hours=duration_hours,
-                instructor_name=remote_certificate.instructor_name_snapshot,
-                workplace_physician=remote_certificate.workplace_physician_snapshot,
-                employer_representative=remote_certificate.employer_representative_snapshot,
+                instructor_name=_mask_public_name(remote_certificate.instructor_name_snapshot),
                 participant_count=1,
                 participants=[participant],
                 certificate_number=remote_certificate.certificate_number,
-                participant_name=remote_certificate.employee_name_snapshot,
+                participant_name=_mask_public_name(remote_certificate.employee_name_snapshot),
                 message="Belge doğrulandı.",
             )
 
     if not row:
-        return TrainingVerifyResponse(
-            valid=False, verification_code=clean, message="Bu kodla eşleşen eğitim belgesi bulunamadı."
-        )
+        return TrainingVerifyResponse(valid=False, verification_code="", message="Doğrulama tamamlanamadı.")
 
     company = db.get(Company, row.company_id)
     emp_map = _employees_map(db, row)
@@ -382,29 +387,26 @@ def verify_training(code: str, db: Session = Depends(get_db)):
         e = emp_map.get(p.employee_id)
         participants.append(
             {
-                "full_name": e.full_name if e else f"#{p.employee_id}",
-                "certificate_number": p.certificate_number,
+                "full_name": _mask_public_name(e.full_name if e else f"#{p.employee_id}"),
+                **({"certificate_number": p.certificate_number} if matched_participant else {}),
             }
         )
 
     participant_name = participants[0]["full_name"] if matched_participant and participants else None
-    certificate_number = participants[0]["certificate_number"] if matched_participant and participants else None
     return TrainingVerifyResponse(
         valid=True,
         verification_code=clean,
         title=row.title,
-        company_name=company.name if company else None,
+        company_name=None,
         start_date=row.start_date,
         end_date=row.end_date,
         hazard_class=row.hazard_class,
         duration_hours=row.duration_hours,
-        instructor_name=row.instructor_name,
-        workplace_physician=row.workplace_physician,
-        employer_representative=row.employer_representative,
-        participant_count=len(participants),
-        participants=participants,
-        certificate_number=certificate_number,
+        instructor_name=_mask_public_name(row.instructor_name),
+        participant_count=len(participants) if matched_participant else 0,
+        participants=participants if matched_participant else None,
         participant_name=participant_name,
+        certificate_number=(participants[0].get("certificate_number") if matched_participant and participants else None),
         message="Belge doğrulandı.",
     )
 

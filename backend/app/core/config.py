@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     # verim yeni anahtarla olur (JWT'de çift anahtarlı doğrulama mevcuttur).
     jwt_secret: str | None = None
     mfa_enc_key: str | None = None
+    # Password-only MFA reset is disabled by default; enable only with an
+    # approved recovery workflow and an additional verified factor.
+    mfa_restart_setup_enabled: bool = False
+    health_auth_required: bool = False
+    # Soft-deleted clinical rows stay hidden immediately, then are irreversibly
+    # anonymized by the scheduled retention worker after this grace period.
+    health_record_purge_after_days: int = 30
+    # Production retention is fail-closed: the scheduled worker must be
+    # explicitly enabled in every environment where deletion is required.
+    health_record_purge_enabled: bool = False
+    debug: bool = False
     # ISG-001: virgülle ayrılmış ek CORS origin'leri (kod yayınına gerek kalmadan
     # Render dashboard'dan eklenebilir; yalnızca https/http origin kabul edilir).
     extra_cors_origins: str = ""
@@ -121,6 +132,8 @@ class Settings(BaseSettings):
     turnstile_allowed_hostnames: str = ""
     # Switch Render's probe to /live before enabling this.
     health_auth_required: bool = False
+    # Keep a bounded shared login window for deployments that use Redis.
+    login_window_seconds: int = 600
     # Güvenilir proxy zinciri derinliği: X-Forwarded-For zincirinin
     # kaç girişinin güvenilir sayılacağı (Render/Cloudflare = 1). İstemci
     # spoof edemez çünkü proxy en sağıdaki girişi ekler/kontrol eder.
@@ -425,6 +438,15 @@ def apply_production_rollout() -> None:
     env = (settings.environment or "").strip().lower()
     if env not in ("production", "prod", "live"):
         return
+    if bool(settings.debug):
+        raise RuntimeError("Production ortamında DEBUG=true kullanılamaz.")
+    if bool(getattr(settings, "rate_limit_require_redis", False)) and not (
+        (getattr(settings, "redis_url", None) or "").strip()
+    ):
+        raise RuntimeError(
+            "RATE_LIMIT_REQUIRE_REDIS=true iken REDIS_URL zorunludur; "
+            "paylaşımlı kimlik doğrulama limiti olmadan production başlatılamaz."
+        )
     if not bool(settings.upload_gateway_force_off):
         settings.upload_gateway_enabled = True
 
