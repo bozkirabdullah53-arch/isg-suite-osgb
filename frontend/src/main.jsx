@@ -23,7 +23,6 @@ import {LoginPasswordInput, PasswordField} from './password_field';
 import {LoginShowcase} from './login_showcase';
 import {LoginCaptcha} from './login_captcha';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
-import {osgbDashboardCompanyOptions} from './osgb_company_scope';
 import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversight';
 import {WorkplaceHomePage} from './workplace_home';
 import {WorkplaceTrainingRecordsPage} from './workplace_training_records';
@@ -2718,7 +2717,6 @@ function App(){
   const[contextCompaniesError,setContextCompaniesError]=useState('');
   const[contextCompaniesRetry,setContextCompaniesRetry]=useState(0);
   const[selectedContextCompanyId,setSelectedContextCompanyId]=useState('');
-  const initialDashboardCompanyPending=useRef(false);
   const[naceDraft,setNaceDraft]=useState('');
   const[naceContextLoading,setNaceContextLoading]=useState(false);
   const naceDraftTimerRef=useRef(null);
@@ -2764,18 +2762,12 @@ function App(){
       const routeCompanyId=COMPANY_CONTEXT_MODULES.has(route.module)
         ? normalizeCompanyId(route.companyId)
         : '';
-      // Only bootstrap a fresh home entry, never a cleared/history/deep-link scope.
-      const initialCompany=initialDashboardCompanyPending.current
-        && route.module==='osgb_dashboard' && !route.companyId
-        ? osgbDashboardCompanyOptions(companies,{role:user.role})[0]
-        : null;
-      if(!companyResult.error) initialDashboardCompanyPending.current=false;
       const preferredId=user.company_id
         ? String(user.company_id)
         : routeCompanyId
           ? routeCompanyId
           : requiresPageCompanySelection
-            ? String(initialCompany?.id||'')
+            ? ''
             : (active==='osgb_dashboard'||active==='notifications' ? '' : persisted);
       if(requiresPageCompanySelection&&!routeCompanyId) persistSelectedCompanyId('');
       const preferred=companies.find((row)=>String(row.id)===preferredId);
@@ -2836,7 +2828,6 @@ function App(){
       });
     }
     function onCompanySelected(event){
-      initialDashboardCompanyPending.current=false;
       const detail=event.detail||{};
       cancelPendingNaceDraft();
       const company=detail.company||null;
@@ -2882,7 +2873,6 @@ function App(){
       queueNaceDraft(event.detail?.value??'');
     }
     function onContextReset(){
-      initialDashboardCompanyPending.current=false;
       cancelPendingNaceDraft();
       if(COMPANY_CONTEXT_MODULES.has(active)&&active!=='customer_360') writeModuleToLocation(active,{companyId:''});
       setSelectedContextCompanyId('');
@@ -3046,7 +3036,6 @@ function App(){
   }
 
   function goModule(id,{replace=false,companyId=''}={}){
-    initialDashboardCompanyPending.current=false;
     companyId=normalizeCompanyId(user?.company_id||companyId);
     if(companyId&&!contextCompanies.some((row)=>String(row.id)===companyId)) companyId='';
     setMobileMoreOpen(false);
@@ -3198,9 +3187,6 @@ function App(){
         else if(validCustomerRoute) next=fromUrl;
         else if(fromUrl && (allowed.includes(fromUrl)||canOpenCompanyCapa(u,fromUrl,locationCompanyId))) next=fromUrl;
         else next=homeModuleForUser(u);
-        initialDashboardCompanyPending.current=u.role==='company_admin' && !u.company_id
-          && next==='osgb_dashboard' && (!fromUrl||fromUrl===next)
-          && !locationNavigation.companyId;
         setActive(next);
         if(next==='customer_360' && validCustomerRoute) setC360Id(Number(locationCompanyId));
         else if(next!=='customer_360') setC360Id(null);
@@ -3224,7 +3210,6 @@ function App(){
   useEffect(()=>{
     if(!user) return undefined;
     function onPop(){
-      initialDashboardCompanyPending.current=false;
       const locationNavigation=readNavigationFromLocation();
       const id=locationNavigation.module;
       const allowed=modulesForUser(user);

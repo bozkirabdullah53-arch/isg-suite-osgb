@@ -79,6 +79,22 @@ async function assertCompany(page, module, id, {mobile = false} = {}) {
 }
 
 for (const theme of ['classic', 'modern']) {
+  test(`OSGB overview opens without a company and returns after menu navigation (${theme})`, async ({page}) => {
+    const {calls, failures} = await boot(page, '/#m=osgb_dashboard', {theme});
+    await expect(page.locator('#osgb-dashboard-company-select')).toHaveValue('');
+    await expect(page.getByRole('heading', {name: 'Entegrasyon hazırlık', exact: true})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'ÇSGB denetim hazırlığı', exact: true})).toBeVisible();
+    await expect(page.locator('article.metric').filter({hasText: 'Bu Ay Saha Ziyareti'}).locator('strong')).toHaveText('0');
+    expect(calls.some(({path, query}) => path === '/operations/dashboard' && query === '?osgb_id=4')).toBe(true);
+    await page.locator('button[data-nav="notifications"]').first().click();
+    await page.locator('button[data-nav="osgb_dashboard"]').first().click();
+    await expect(page.getByRole('heading', {name: 'Entegrasyon hazırlık', exact: true})).toBeVisible();
+    await expect(page.locator('#osgb-dashboard-company-select')).toHaveValue('');
+    await page.setViewportSize({width: 390, height: 844});
+    await expect(page.locator('.global-nace-context-mobile-card select')).toHaveValue('');
+    await expect(page.getByRole('heading', {name: 'ÇSGB denetim hazırlığı', exact: true})).toBeVisible();
+    expect(failures).toEqual([]);
+  });
   for (const module of Object.keys(selectors)) {
     test(`${module}: native Back/Forward, reload, clearing and isolation (${theme})`, async ({page}) => {
       const {calls, failures} = await boot(page, `/#m=${module}&company=174`, {theme});
@@ -146,7 +162,12 @@ test('login/logout and both public applications work with only mocked requests',
   await page.locator('input[autocomplete="username"]').fill('navigation@example.test');
   await page.locator('input[type="password"]').fill('test-only-password');
   await page.getByRole('button', {name: 'Giriş Yap', exact: true}).click();
-  await assertCompany(page, 'osgb_dashboard', 174);
+  await expect(page).toHaveURL(/#m=osgb_dashboard$/);
+  await expect(page.locator('#osgb-dashboard-company-select')).toHaveValue('');
+  await expect(page.getByRole('heading', {name: 'Tüm işyerleri', exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Entegrasyon hazırlık', exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'ÇSGB denetim hazırlığı', exact: true})).toBeVisible();
+  await expect(page.locator('article.metric').filter({hasText: 'Bu Ay Saha Ziyareti'}).locator('strong')).toHaveText('0');
   await page.getByRole('button', {name: 'Çıkış', exact: true}).first().click();
   await expect(page.getByRole('button', {name: 'Giriş Yap', exact: true})).toBeVisible();
   expect(calls.filter(({method}) => method !== 'GET').map(({path}) => path)).toEqual(['/auth/login', '/auth/logout']);

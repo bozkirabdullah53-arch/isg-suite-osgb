@@ -226,7 +226,7 @@ export function OsgbDashboard({
  }
 
  async function load(id,cid,signal){
-  const scopeQuery=`?osgb_id=${encodeURIComponent(id)}&company_id=${encodeURIComponent(cid)}`;
+  const scopeQuery=`?osgb_id=${encodeURIComponent(id)}`+(cid?`&company_id=${encodeURIComponent(cid)}`:'');
   await Promise.all([
    [`/operations/dashboard${scopeQuery}`,setData],
    [`/osgb/oversight${scopeQuery}`,setOps],
@@ -241,7 +241,7 @@ export function OsgbDashboard({
    }catch(error){
     if(signal.aborted) return;
     setResult(null);
-    if(setResult===setData) setDashboardError(error?.message||'Firma paneli yüklenemedi.');
+    if(setResult===setData) setDashboardError(error?.message||'OSGB paneli yüklenemedi.');
    }
   }));
  }
@@ -307,7 +307,7 @@ export function OsgbDashboard({
   const controller=new AbortController();
   clearDashboardData();
   setDashboardError('');
-  if(oid&&companyId&&selectedCompany) void load(oid,companyId,controller.signal);
+  if(oid&&(!companyId||selectedCompany)) void load(oid,companyId,controller.signal);
   return()=>controller.abort();
  },[oid,companyId,selectedCompany]);
 
@@ -334,11 +334,12 @@ export function OsgbDashboard({
  const csgbGaps=csgb?.missing_items||[];
 
  async function downloadCsgbZip(){
-  if(!oid||!companyId) return;
+  if(!oid) return;
   setCsgbDlBusy(true);
   try{
    const stamp=new Date().toISOString().slice(0,10);
-   await downloadFile(`/osgb/csgb-audit-pack/bundle?osgb_id=${encodeURIComponent(oid)}&company_id=${encodeURIComponent(companyId)}`,`csgb-isyeri-paketi-${companyId}-${stamp}.zip`);
+   const scopeQuery=`?osgb_id=${encodeURIComponent(oid)}`+(companyId?`&company_id=${encodeURIComponent(companyId)}`:'');
+   await downloadFile(`/osgb/csgb-audit-pack/bundle${scopeQuery}`,companyId?`csgb-isyeri-paketi-${companyId}-${stamp}.zip`:`csgb-osgb-paketi-${oid}-${stamp}.zip`);
   }catch(e){alert(e.message||'ZIP indirilemedi')}
   finally{setCsgbDlBusy(false)}
  }
@@ -361,17 +362,17 @@ export function OsgbDashboard({
    <div style={{display:'flex',justifyContent:'space-between',gap:16,flexWrap:'wrap',alignItems:'flex-end'}}>
     <div style={{minWidth:240,flex:'1 1 320px'}}>
      <div style={{display:'flex',alignItems:'center',gap:8,color:'#0f766e',fontSize:12,fontWeight:800,letterSpacing:'.04em'}}>
-      <Building2 size={17}/> AKTİF İŞYERİ KAPSAMI
+      <Building2 size={17}/> {selectedCompany?'AKTİF İŞYERİ KAPSAMI':'OSGB GENEL ÖZETİ'}
      </div>
-     <h3 style={{margin:'6px 0 4px'}}>{selectedCompany?.name||'Firma seçiniz'}</h3>
+     <h3 style={{margin:'6px 0 4px'}}>{selectedCompany?.name||'Tüm işyerleri'}</h3>
      <p style={{margin:0,color:'#64748b',fontSize:13}}>
-      OSGB ana panelindeki tüm sayaçlar, uyarılar ve denetim özeti seçtiğiniz işyerine göre gösterilir.
+      {selectedCompany?'Sayaçlar, uyarılar ve denetim özeti seçtiğiniz işyerine göre gösterilir.':'Sayaçlar, uyarılar ve denetim özeti OSGB genelini kapsar. Firma seçerek belirli bir işyerini inceleyebilirsiniz.'}
      </p>
     </div>
     <label className="field" style={{margin:0,minWidth:280,flex:'1 1 340px'}}>
      <span>Firma / işyeri</span>
      <select id="osgb-dashboard-company-select" data-global-company-selector="true" value={companyId} onChange={e=>chooseCompany(e.target.value)} disabled={companiesLoading||Boolean(companiesError)||!companyOptions.length}>
-      <option value="">{companiesLoading?'Firmalar yükleniyor…':companiesError?'Firma listesi yüklenemedi':companyOptions.length?'Firma seçiniz':'Erişilebilir firma bulunamadı'}</option>
+      <option value="">{companiesLoading?'Firmalar yükleniyor…':companiesError?'Firma listesi yüklenemedi':'Tüm işyerleri (OSGB geneli)'}</option>
       {companyOptions.map((row)=><option key={row.id} value={row.id}>{row.name}</option>)}
      </select>
     </label>
@@ -392,19 +393,11 @@ export function OsgbDashboard({
    )}
   </section>
 
-  {!companyId ? (
-   <section className="panel" style={{marginBottom:16,textAlign:'center',padding:'38px 24px'}}>
-    <Building2 size={38} color="#0f766e" style={{marginBottom:8}}/>
-    <h3 style={{margin:'0 0 6px'}}>Başlamak için firma seçiniz</h3>
-    <p style={{margin:0,color:'#64748b',fontSize:14}}>
-     Firma seçilmeden hiçbir işyeri verisi OSGB ana paneline otomatik bağlanmaz.
-    </p>
-   </section>
-  ) : !oid ? (
+  {!oid ? (
    <section className="panel" role="alert" style={{marginBottom:16,textAlign:'center',padding:'32px 24px'}}>
     <Building2 size={34} color="#0f766e" style={{marginBottom:8}}/>
-    <h3 style={{margin:'0 0 6px'}}>Firma için OSGB bilgisi eksik</h3>
-    <p style={{margin:0,color:'#64748b',fontSize:14}}>Bu firmanın bağlı olduğu OSGB bilgisi olmadan panel verileri güvenli kapsamda yüklenemiyor.</p>
+    <h3 style={{margin:'0 0 6px'}}>OSGB bilgisi eksik</h3>
+    <p style={{margin:0,color:'#64748b',fontSize:14}}>Hesabın veya seçili firmanın OSGB bağlantısı olmadan panel verileri güvenli kapsamda yüklenemiyor.</p>
    </section>
   ) : <>
 
