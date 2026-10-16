@@ -73,7 +73,16 @@ Bu adım bitince PR birleştirilir. Böylece render.yaml canlı ayarla aynı olu
 | EKLE | TXT `@` → `v=spf1 -all` |
 | EKLE | TXT `_dmarc` → `v=DMARC1; p=reject; adkim=s; aspf=s` |
 
-Site kayıtlarına (A `@`, `www` CNAME → Render) **dokunulmaz**.
+Site kayıtlarına (A `@` → 216.24.57.1, `www` CNAME → isg-suite-web-1u9t.onrender.com) **dokunulmaz**.
+
+### isgsuite.com.tr sitesi (aynı depo, aynı servis)
+DNS doğru, ancak 16 Ekim'de `https://www.isgsuite.com.tr` TLS el sıkışmasında başarısızdı:
+Render'da bu alan adı için sertifika yok. Render → `isg-suite-web` → Settings → Custom Domains →
+`www.isgsuite.com.tr` ekle (Render kök `isgsuite.com.tr` → www yönlendirmesini kendisi ekler),
+"Verify" de ve sertifika "Issued" olana kadar bekle. render.yaml'a da eklendi.
+CAPTCHA açılacaksa `TURNSTILE_ALLOWED_HOSTNAMES` ve Turnstile widget'ına
+`www.isgsuite.com.tr` de eklenmeli. Şifre sıfırlama bağlantıları `FRONTEND_ORIGIN`
+(www.isgsuite.tr) adresine gider; iki alan adı aynı veritabanını kullandığı için bu sorun değildir.
 
 ### 4. İsimtescil posta paketi
 Adım 2 ve 3'teki kontroller geçtikten sonra İsimtescil'deki e-posta barındırma paketi

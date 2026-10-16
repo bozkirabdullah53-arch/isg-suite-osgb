@@ -490,8 +490,12 @@ services:
     staticPublishPath: dist
     branch: master
     # EİSA canlı alan adı: kök alan adı www adresine yönlendirilir.
+    # isgsuite.com.tr aynı depodan, aynı servisten yayınlanır (www CNAME →
+    # isg-suite-web-1u9t.onrender.com, kök A → 216.24.57.1). API /api/* ile
+    # aynı kökenden proxylendiği için ek CORS ayarı gerekmez.
     domains:
       - www.isgsuite.tr
+      - www.isgsuite.com.tr
     # --- Güvenlik başlıkları (smoke test D2 bulgusu) ---
     # Render static sites, nginx.conf'u kullanmaz; headers direktifiyle
     # tüm yanıtlara güvenlik başlıkları eklenir.
