@@ -17,7 +17,7 @@ async function boot(page, route, {theme = 'modern', logged = true} = {}) {
     localStorage.clear();
     sessionStorage.clear();
     if (logged) sessionStorage.setItem('isg_token', token);
-    sessionStorage.setItem('isg_selected_company_id', '176');
+    if (logged) sessionStorage.setItem('isg_selected_company_id', '176');
     localStorage.setItem('isg_ui_theme', theme);
     localStorage.setItem('isg_pwa_shortcut_choice_v2', JSON.stringify({choice: 'dismissed', time: Number.MAX_SAFE_INTEGER}));
   }, {theme, logged, token});
@@ -146,8 +146,7 @@ test('login/logout and both public applications work with only mocked requests',
   await page.locator('input[autocomplete="username"]').fill('navigation@example.test');
   await page.locator('input[type="password"]').fill('test-only-password');
   await page.getByRole('button', {name: 'Giriş Yap', exact: true}).click();
-  await expect(page).toHaveURL(/#m=osgb_dashboard$/);
-  await expect(page.locator('#osgb-dashboard-company-select')).toBeVisible();
+  await assertCompany(page, 'osgb_dashboard', 174);
   await page.getByRole('button', {name: 'Çıkış', exact: true}).first().click();
   await expect(page.getByRole('button', {name: 'Giriş Yap', exact: true})).toBeVisible();
   expect(calls.filter(({method}) => method !== 'GET').map(({path}) => path)).toEqual(['/auth/login', '/auth/logout']);

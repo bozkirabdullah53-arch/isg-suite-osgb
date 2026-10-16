@@ -1,6 +1,6 @@
 import {act} from 'react';
 import {expect, test, vi} from 'vitest';
-import {calls, choose, clickNav, companyFailureCases, dashboard, fixture, mainText, mount, routeCompany, sidebar, travel, visit} from './navigation_app_fixture';
+import {calls, choose, clickNav, companies, companyFailureCases, dashboard, deferred, fixture, mainText, mount, routeCompany, sidebar, travel, visit} from './navigation_app_fixture';
 
 const picker = () => document.querySelector('#osgb-dashboard-company-select');
 const visits = () => [...document.querySelectorAll('article.metric')].find((article) => article.querySelector('span')?.textContent === 'Bu Ay Saha Ziyareti')?.querySelector('strong')?.textContent;
@@ -16,12 +16,8 @@ async function assertCompany(id) {
 
 test('OSGB dashboard: fresh entry, both pickers, recorded history, clearing and notifications round trip', async () => {
   await mount('/#m=osgb_dashboard');
-  expect(sidebar()?.value).toBe('');
-  expect(picker()?.value).toBe('');
-  expect(calls('/operations/dashboard?')).toHaveLength(0);
-  expect(sessionStorage.getItem('isg_selected_company_id')).toBeNull();
-  await choose(sidebar(), 174);
   await assertCompany(174);
+  expect(window.history.state.navigationIndex).toBe(0);
   await choose(picker(), 175);
   await assertCompany(175);
   await travel('back');
@@ -54,6 +50,50 @@ test('OSGB dashboard: fresh entry, both pickers, recorded history, clearing and 
     expect(params.get('osgb_id')).toBe('4');
     expect(['174', '175', '176']).toContain(params.get('company_id'));
   }
+});
+
+test.each(['/', '/#m=osgb_dashboard'])('fresh login at %s renders the dashboard without stored company or manual selection', async (route) => {
+  await mount(route, {storedCompany: ''});
+  await assertCompany(174);
+  expect(mainText()).not.toContain('Başlamak için firma seçiniz');
+  expect(document.querySelector('.global-nace-context-mobile-card select')?.value).toBe('174');
+});
+
+test('initial dashboard waits for the authorized directory and skips inactive companies', async () => {
+  const pending = deferred();
+  fixture.overrides.set('/companies', pending.promise);
+  await mount('/', {storedCompany: ''});
+  expect(calls('/operations/dashboard?')).toHaveLength(0);
+  await act(async () => pending.resolve([{...companies[0], is_active: false}, ...companies.slice(1)]));
+  await assertCompany(175);
+});
+
+test.each([[], companies.map((company) => ({...company, is_active: false}))])('initial dashboard with no active companies remains finite', async (rows) => {
+  fixture.companies = rows;
+  await mount('/', {storedCompany: ''});
+  expect(calls('/operations/dashboard?')).toHaveLength(0);
+  expect(picker()?.value).toBe('');
+  expect(mainText()).not.toContain('Sistem yükleniyor');
+});
+
+test('initial dashboard directory error can retry automatic selection', async () => {
+  fixture.overrides.set('/companies', new Error('Firma dizini hatası'));
+  await mount('/', {storedCompany: ''});
+  expect(calls('/operations/dashboard?')).toHaveLength(0);
+  fixture.overrides.delete('/companies');
+  await act(async () => [...document.querySelectorAll('button')].find((button) => button.textContent === 'Tekrar dene').click());
+  await assertCompany(174);
+});
+
+test('navigation while initial directory is loading cancels automatic selection', async () => {
+  const pending = deferred();
+  fixture.overrides.set('/companies', pending.promise);
+  await mount('/', {storedCompany: ''});
+  await visit('#m=osgb_dashboard&company=175');
+  await visit('#m=osgb_dashboard');
+  await act(async () => pending.resolve(companies));
+  expect(picker()?.value).toBe('');
+  expect(calls('/operations/dashboard?')).toHaveLength(0);
 });
 
 test('mobile company picker shares dashboard state', async () => {

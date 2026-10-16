@@ -141,9 +141,9 @@ afterEach(async () => {
   }
 });
 
-export async function mount(route, {logged = true, theme = 'modern'} = {}) {
+export async function mount(route, {logged = true, theme = 'modern', storedCompany = '176'} = {}) {
   if (logged) sessionStorage.setItem('isg_token', 'test-token');
-  sessionStorage.setItem('isg_selected_company_id', '176');
+  if (storedCompany) sessionStorage.setItem('isg_selected_company_id', storedCompany);
   localStorage.setItem('isg_ui_theme', theme);
   localStorage.setItem('isg_pwa_shortcut_choice_v2', JSON.stringify({choice: 'dismissed', time: Number.MAX_SAFE_INTEGER}));
   window.history.replaceState({}, '', route);
