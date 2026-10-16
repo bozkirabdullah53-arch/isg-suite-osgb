@@ -31,8 +31,10 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://www.isgsuite.tr
+      # NSL-202602/202607: posta Google Workspace'e taşındı (MX smtp.google.com).
+      # SMTP_PASSWORD ve INBOUND_MAIL_PASSWORD = info@isgsuite.tr Google uygulama şifresi.
       - key: SMTP_HOST
-        value: giden.mailmatik.com
+        value: smtp.gmail.com
       - key: SMTP_PORT
         value: "465"
       - key: SMTP_USERNAME
@@ -41,9 +43,6 @@ services:
         sync: false
       - key: SMTP_FROM_EMAIL
         value: info@isgsuite.tr
-      # İsimtescil'in güncel resmi istemci rehberi SSL SMTP için bu ortak
-      # sunucuyu önerir. Hesap/parola değişmeden doğrulanmış TLS kullanılır.
-      # Kaynak: https://www.isimtescil.net/bilgibankasi/microsoft-mail-ve-outlook-new-mail-kurulum-ayarlar
       - key: SMTP_USE_TLS
         value: "false"
       - key: SMTP_USE_SSL
@@ -51,18 +50,20 @@ services:
       # EİSA Global gelen kutusu — kullanıcı adı ve parola Render Secret olarak eklenir.
       - key: INBOUND_MAIL_ENABLED
         value: "true"
+      # NSL-202602: parola yalnız doğrulanmış TLS üzerinden gönderilir.
+      # Eski pop3.isgsuite.tr:110 düz metin kimlik doğrulama kullanıyordu.
       - key: INBOUND_MAIL_HOST
-        value: pop3.isgsuite.tr
+        value: imap.gmail.com
       - key: INBOUND_MAIL_PORT
-        value: "110"
+        value: "993"
       - key: INBOUND_MAIL_USERNAME
         value: info@isgsuite.tr
       - key: INBOUND_MAIL_PASSWORD
         sync: false
       - key: INBOUND_MAIL_USE_SSL
-        value: "false"
+        value: "true"
       - key: INBOUND_MAIL_PROTOCOL
-        value: pop3
+        value: imap
       - key: INBOUND_MAIL_FOLDER
         value: INBOX
       - key: INBOUND_MAIL_SYNC_LIMIT
