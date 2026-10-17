@@ -3198,7 +3198,7 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
       <section className="remote-training-global-hero" aria-label="Merkezi uzaktan eğitim yönetimi">
         <div>
           <span className="remote-training-global-kicker">EİSA MERKEZİ YÖNETİM</span>
-          <h2>Uzaktan Eğitim Merkezi</h2>
+          <h2>Uzaktan Eğitim Video Yönetimi</h2>
           <p>Eğitim paketlerini hazırlayın, videoları yönetin ve hazır eğitimleri OSGB ile bireysel kullanıcıların erişimine açın.</p>
         </div>
         <div className="remote-training-global-status">
