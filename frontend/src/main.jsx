@@ -87,6 +87,7 @@ import {
 } from './eisa';
 import {EisaIndividualSubscriptionsPage} from './eisa_individual_subscriptions';
 import {EisaEmailCenterPage} from './eisa_email_center';
+import './theme-tokens.css';
 import './styles.css';
 import './theme-modern.css';
 import './osgb_application.css';
