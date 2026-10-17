@@ -151,6 +151,12 @@ def _legacy_training_summary(db: Session, company_id: int, employee_id: int) -> 
     }
 
 
+# Çalışan panelinde gösterilecek en fazla yayında atama sayısı. Sınır görünürlük
+# filtresinden SONRA uygulanır: yayında olmayan eski atamalar sınırı doldurup
+# çalışanın görmesi gereken açık eğitimleri listeden düşürmemelidir.
+_REMOTE_ASSIGNMENT_SUMMARY_LIMIT = 20
+
+
 def _remote_training_summary(db: Session, company_id: int, employee_id: int) -> dict[str, Any]:
     if not remote_basic_ohs_training_active():
         return {"available": False, "total": 0, "completed": 0, "assignments": []}
@@ -163,7 +169,6 @@ def _remote_training_summary(db: Session, company_id: int, employee_id: int) -> 
             RemoteTrainingAssignment.status != "revoked",
         )
         .order_by(RemoteTrainingAssignment.assigned_at.desc(), RemoteTrainingAssignment.id.desc())
-        .limit(20)
     ).all()
     program_ids = {int(row.program_id) for row in assignments}
     programs = {
@@ -190,6 +195,8 @@ def _remote_training_summary(db: Session, company_id: int, employee_id: int) -> 
                 "completed_at": _iso(assignment.completed_at),
             }
         )
+        if len(visible) == _REMOTE_ASSIGNMENT_SUMMARY_LIMIT:
+            break
     return {
         "available": True,
         "total": len(visible),
