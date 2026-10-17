@@ -69,7 +69,7 @@ test('global administrator opens the dedicated menu and uploads a shared video w
   const state = await setup(page, 'global_admin');
   await page.goto('/#m=eisa_remote_training');
   await expect(page.getByRole('region', {name: 'Merkezi uzaktan eğitim yönetimi'})
-    .getByRole('heading', {name: 'Uzaktan Eğitim Merkezi', exact: true})).toBeVisible();
+    .getByRole('heading', {name: 'Uzaktan Eğitim Video Yönetimi', exact: true})).toBeVisible();
   await expect(page.getByRole('button', {name: '+ Yeni eğitim paketi', exact: true})).toBeVisible();
   const catalog = page.getByRole('region', {name: 'Merkezi uzaktan eğitim paket kataloğu'});
   const uploadButton = catalog.locator('[data-sa="upload"]');

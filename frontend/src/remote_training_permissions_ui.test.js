@@ -53,7 +53,7 @@ async function renderRole(role, {editFlag = role === 'global_admin'} = {}) {
 describe('remote training management and assignment screens', () => {
   it('shows central video controls to the global administrator without company assignment forms', async () => {
     await renderRole('global_admin');
-    expect(host.textContent).toContain('Uzaktan Eğitim Merkezi');
+    expect(host.textContent).toContain('Uzaktan Eğitim Video Yönetimi');
     expect(host.textContent).toContain('Yeni ders bölümü oluştur');
     expect(host.textContent).toContain('Video yayımla');
     expect(host.querySelector('input[type="file"]')).not.toBeNull();
