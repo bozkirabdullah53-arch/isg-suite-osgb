@@ -1,0 +1,30 @@
+/*
+ * Tema tokenları — tek kaynak.
+ *
+ * Bu dosya yalnızca değişkenleri tanımlar. Mevcut kurallar bu değişkenleri henüz
+ * kullanmadığı için görünüm değişmez. Değerler theme-modern.css içindeki --m-*
+ * değişkenlerinin karşılığıdır; ilerleyen adımlarda kurallar kademeli olarak
+ * bu isimlere taşınacak.
+ */
+:root {
+  --ui-color-bg: #e8eef3;
+  --ui-color-glass: rgba(255, 255, 255, .68);
+  --ui-color-glass-strong: rgba(255, 255, 255, .9);
+  --ui-color-glass-border: rgba(255, 255, 255, .78);
+  --ui-color-border: rgba(160, 186, 200, .45);
+  --ui-color-text: #0a1c26;
+  --ui-color-text-soft: #4a6573;
+  --ui-color-text-faint: #6e8794;
+  --ui-color-accent: #0f766e;
+  --ui-color-accent-deep: #115e59;
+  --ui-color-accent-ink: #134e4a;
+  --ui-color-danger: #dc2626;
+  --ui-accent-grad: linear-gradient(135deg, #2dd4bf 0%, #0d9488 42%, #0e7490 100%);
+  --ui-radius-xl: 26px;
+  --ui-radius-lg: 18px;
+  --ui-radius-md: 13px;
+  --ui-shadow-sm: 0 2px 8px rgba(8, 32, 44, .05), 0 12px 32px rgba(8, 32, 44, .08);
+  --ui-shadow-md: 0 8px 16px rgba(8, 32, 44, .08), 0 28px 60px rgba(8, 32, 44, .14);
+  --ui-shadow-accent: 0 10px 28px rgba(13, 148, 136, .34);
+  --ui-ring: 0 0 0 3px rgba(20, 184, 166, .22);
+}
