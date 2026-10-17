@@ -231,14 +231,25 @@ def export_isg_pdf(
             query = query.where(IsgRecord.company_id.in_(scope))
         rows = list(db.scalars(query).all())
 
+    # Standart Helvetica Ş, Ğ, ı, İ harflerini içermez; paketli DejaVu yoksa Helvetica'ya düşülür.
+    summary_font_path = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "DejaVuSans.ttf"
+    summary_bold_path = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "DejaVuSans-Bold.ttf"
+    summary_font, summary_bold = "Helvetica", "Helvetica-Bold"
+    if summary_font_path.exists():
+        pdfmetrics.registerFont(TTFont("SummarySans", str(summary_font_path)))
+        summary_font = "SummarySans"
+    if summary_bold_path.exists():
+        pdfmetrics.registerFont(TTFont("SummarySans-Bold", str(summary_bold_path)))
+        summary_bold = "SummarySans-Bold"
+
     stream = BytesIO()
     pdf = canvas.Canvas(stream, pagesize=A4)
     width, height = A4
     y = height - 50
-    pdf.setFont("Helvetica-Bold", 16)
+    pdf.setFont(summary_bold, 16)
     pdf.drawString(45, y, "ISG Suite - ISG Kayit Ozeti")
     y -= 30
-    pdf.setFont("Helvetica", 9)
+    pdf.setFont(summary_font, 9)
 
     for item in rows:
         line = f"{item.module.value} | {item.title[:55]} | {item.status.value}"
@@ -247,7 +258,7 @@ def export_isg_pdf(
         if y < 50:
             pdf.showPage()
             y = height - 50
-            pdf.setFont("Helvetica", 9)
+            pdf.setFont(summary_font, 9)
 
     pdf.save()
     stream.seek(0)
