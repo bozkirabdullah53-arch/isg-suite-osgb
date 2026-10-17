@@ -147,18 +147,20 @@ def test_public_verify_supports_training_and_participant_codes():
 
         training_result = verify_training("training-qr-001", db)
         assert training_result.valid is True
-        assert training_result.participant_count == 2
+        # Eğitim düzeyindeki doğrulama katılımcı listesini açmaz (commit e194006a: gizlilik).
+        assert training_result.participant_count == 0
         assert training_result.participant_name is None
-        assert len(training_result.participants or []) == 2
+        assert training_result.participants is None
 
         certificate_result = verify_training("egt-000001-000001", db)
         assert certificate_result.valid is True
         assert certificate_result.participant_count == 1
-        assert certificate_result.participant_name == first.full_name
+        # Public doğrulamada katılımcı adı maskelenir.
+        assert certificate_result.participant_name == "İ** Ç******"
         assert certificate_result.certificate_number == "EGT-000001-000001"
         assert certificate_result.participants == [
             {
-                "full_name": first.full_name,
+                "full_name": "İ** Ç******",
                 "certificate_number": "EGT-000001-000001",
             }
         ]
@@ -202,7 +204,7 @@ def test_public_verify_supports_issued_remote_certificate_when_pilot_is_disabled
         result = verify_training(remote.certificate_number, db)
         assert result.valid is True
         assert result.title == "Uzaktan QR Eğitimi"
-        assert result.participant_name == first.full_name
+        assert result.participant_name == "İ** Ç******"
         assert result.certificate_number == remote.certificate_number
         assert result.participant_count == 1
 
