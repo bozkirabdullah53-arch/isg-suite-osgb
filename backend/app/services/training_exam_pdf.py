@@ -40,14 +40,20 @@ def _exam_pdf_question_text(value: str | None) -> str:
     return _GENERATED_TOPIC_DURATION_RE.sub("", str(value or "")).strip()
 
 
+_BUNDLED_FONTS_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
+
+
 def _register_fonts() -> None:
+    # Sistem yazı tipleri önce denenir; repo içindeki DejaVu kopyası yedektir.
     regular_candidates = (
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         Path("/usr/share/fonts/dejavu/DejaVuSans.ttf"),
+        _BUNDLED_FONTS_DIR / "DejaVuSans.ttf",
     )
     bold_candidates = (
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
         Path("/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+        _BUNDLED_FONTS_DIR / "DejaVuSans-Bold.ttf",
     )
     regular = next((p for p in regular_candidates if p.exists()), None)
     bold = next((p for p in bold_candidates if p.exists()), None)
