@@ -224,8 +224,11 @@ services:
       # vision_provider=api + vision_api_key ile gerçek görüntü analizi açılır.
       - key: VISION_ANALYSIS_ENABLED
         value: "true"
+      # KVKK: saha fotoğrafları üçüncü taraf AI'a gönderilmez. Yerel kural tabanlı
+      # analiz kullanılır. Dış sağlayıcı; veri aktarım değerlendirmesi ve işleme
+      # sözleşmesi tamamlanana kadar kapalı tutulur.
       - key: VISION_PROVIDER
-        value: "api"
+        value: "heuristic"
       - key: VISION_API_BASE_URL
         value: "https://api.xkiro.com/v1"
       - key: VISION_API_MODEL
@@ -255,10 +258,10 @@ services:
         value: "field-visual-v2"
       - key: FIELD_AI_TIMEOUT_SECONDS
         value: "90"
-      # Görsel saha AI pilotu için dış veri işleme açıkça etkinleştirilmiştir;
-      # gerçek rapor bulgusu yine uzman onayından geçer.
+      # KVKK: saha fotoğraflarının dış AI'a gönderimi kapalı. Bu değer, veri aktarım
+      # değerlendirmesi ve sözleşme tamamlanana kadar "false" kalmalıdır.
       - key: FIELD_AI_DATA_PROCESSING_ALLOWED
-        value: "true"
+        value: "false"
       # İstenirse yeni ayrı anahtar burada tanımlanabilir. Boş bırakıldığında
       # backend mevcut VISION_API_KEY değerini kullanır; gerçek sır commit edilmez.
       - key: FIELD_AI_API_KEY
