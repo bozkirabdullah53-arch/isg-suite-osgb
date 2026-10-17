@@ -1,0 +1,252 @@
+/* ============================================================
+   İSG Suite — Modern tema "Lacivert-Amber" renk paleti
+   Yalnızca renkleri değiştirir; yerleşim, boyut ve davranış
+   theme-modern.css'te olduğu gibi kalır.
+
+   Etkin olması için iki koşul birlikte gerekir:
+     html[data-ui-theme="modern"][data-ui-palette="navy"]
+   Bu öznitelik yoksa dosyanın hiçbir etkisi yoktur; varsayılan
+   teal görünüm ve klasik tema aynen korunur.
+
+   Palet: lacivert #0B1F33, çelik mavi #1E3A5F,
+          güvenlik amberi #F5A524, açık gri #E2E8F0, zemin #F8FAFC.
+   Amber yalnızca koyu yüzeylerde vurgu olarak kullanılır; açık
+   zeminde metin ve butonlar lacivert kalır (okunabilirlik).
+   ============================================================ */
+
+html[data-ui-theme="modern"][data-ui-palette="navy"] {
+  --ui-color-bg: #eef2f6;
+  --ui-color-border: rgba(148, 163, 184, .45);
+  --ui-color-text: #0f172a;
+  --ui-color-text-soft: #475569;
+  --ui-color-text-faint: #64748b;
+  --ui-color-accent: #1e3a5f;
+  --ui-color-accent-deep: #0b1f33;
+  --ui-color-accent-ink: #0b1f33;
+  --ui-accent-grad: linear-gradient(135deg, #2b4f7e 0%, #1e3a5f 45%, #0b1f33 100%);
+  --ui-shadow-sm: 0 2px 8px rgba(11, 31, 51, .05), 0 12px 32px rgba(11, 31, 51, .08);
+  --ui-shadow-md: 0 8px 16px rgba(11, 31, 51, .08), 0 28px 60px rgba(11, 31, 51, .14);
+  --ui-shadow-accent: 0 10px 28px rgba(30, 58, 95, .32);
+  --ui-ring: 0 0 0 3px rgba(245, 165, 36, .28);
+  --m-bg: var(--ui-color-bg);
+  --m-border: var(--ui-color-border);
+  --m-text: var(--ui-color-text);
+  --m-text-soft: var(--ui-color-text-soft);
+  --m-text-faint: var(--ui-color-text-faint);
+  --m-accent: var(--ui-color-accent);
+  --m-accent-deep: var(--ui-color-accent-deep);
+  --m-accent-ink: var(--ui-color-accent-ink);
+  --m-accent-grad: var(--ui-accent-grad);
+  --m-shadow-sm: var(--ui-shadow-sm);
+  --m-shadow-md: var(--ui-shadow-md);
+  --m-shadow-accent: var(--ui-shadow-accent);
+  --m-ring: var(--ui-ring);
+}
+
+/* ---------- Arka plan ışıkları ve ızgara ---------- */
+html[data-ui-theme="modern"][data-ui-palette="navy"] body::before {
+  background:
+    radial-gradient(42% 36% at 10% 16%, rgba(30, 58, 95, .16), transparent 70%),
+    radial-gradient(36% 40% at 90% 8%, rgba(245, 165, 36, .10), transparent 70%),
+    radial-gradient(44% 42% at 78% 94%, rgba(11, 31, 51, .10), transparent 72%),
+    radial-gradient(28% 28% at 28% 90%, rgba(30, 58, 95, .10), transparent 70%);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] body::after {
+  background-image:
+    linear-gradient(rgba(11, 31, 51, .04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(11, 31, 51, .04) 1px, transparent 1px);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] ::-webkit-scrollbar-thumb { background-color: rgba(30, 58, 95, .3); }
+html[data-ui-theme="modern"][data-ui-palette="navy"] :focus-visible { outline-color: #f5a524; }
+
+/* ---------- Giriş ekranı ---------- */
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-shell {
+  background:
+    radial-gradient(1200px 700px at 88% -10%, rgba(30, 58, 95, .45), transparent 58%),
+    radial-gradient(900px 600px at -12% 110%, rgba(245, 165, 36, .14), transparent 55%),
+    linear-gradient(165deg, #081726 0%, #0b1f33 40%, #132b47 72%, #0e2238 100%);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-shell::before {
+  background:
+    radial-gradient(320px 320px at 16% 22%, rgba(245, 165, 36, .16), transparent 70%),
+    radial-gradient(260px 260px at 8% 78%, rgba(30, 58, 95, .35), transparent 70%),
+    radial-gradient(220px 220px at 92% 82%, rgba(245, 165, 36, .10), transparent 70%);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-card::before {
+  background: conic-gradient(
+    from var(--m-angle),
+    transparent 0deg,
+    rgba(96, 135, 184, .5) 40deg,
+    rgba(30, 58, 95, .45) 90deg,
+    transparent 150deg,
+    transparent 210deg,
+    rgba(245, 165, 36, .22) 280deg,
+    transparent 330deg
+  );
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-card h1 {
+  background: linear-gradient(120deg, #1e3a5f, #0b1f33 60%, #1e3a5f);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .brand-mark {
+  background: linear-gradient(135deg, #fdf3dc, #e2e8f0);
+}
+
+/* ---------- Kenar çubuğu ---------- */
+html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside {
+  background: linear-gradient(180deg, rgba(8, 23, 38, .97) 0%, rgba(11, 31, 51, .97) 70%, rgba(14, 36, 60, .97) 100%);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06), 12px 0 40px rgba(11, 31, 51, .18);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .logo:hover .sidebar-logo.eisa-logo-icon {
+  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, .34)) drop-shadow(0 0 18px rgba(245, 165, 36, .2));
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .logo:focus-visible { outline-color: #f5a524; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .logo-caption { color: #9fb0c6; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .logo.is-home-active { box-shadow: inset 0 -2px 0 #f5a524; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .nav-section-label,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .mobile-nav-section-label { color: #7c8da6; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] nav button { color: #a3b2c6; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] nav button:hover { color: #f8fafc; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] nav button.active {
+  background: linear-gradient(90deg, rgba(245, 165, 36, .2), rgba(30, 58, 95, .2));
+  color: #fbbf4a;
+  animation-name: m-nav-glow-navy;
+}
+@keyframes m-nav-glow-navy {
+  0%, 100% { box-shadow: inset 3px 0 0 #f5a524, 0 0 16px rgba(245, 165, 36, .08); }
+  50%      { box-shadow: inset 3px 0 0 #fbbf4a, 0 0 28px rgba(245, 165, 36, .2); }
+}
+
+/* ---------- Seçili işyeri (NACE) kartı ---------- */
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context {
+  border-color: rgba(245, 165, 36, .28);
+  background:
+    radial-gradient(180px 110px at 100% 0%, rgba(245, 165, 36, .12), transparent 72%),
+    linear-gradient(155deg, rgba(22, 46, 76, .98), rgba(11, 31, 51, .98));
+  color: #e2e8f0;
+  box-shadow: 0 16px 34px rgba(8, 23, 38, .30), inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-kicker { color: #fbbf4a; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-company { color: #f8fafc; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-selector > span { color: #c3cfdd; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-selector select:focus {
+  border-color: #f5a524;
+  box-shadow: 0 0 0 3px rgba(245, 165, 36, .2);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-code { border-bottom-color: rgba(245, 165, 36, .18); }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-code span,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-row > span { color: #a3b2c6; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-code strong,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-row strong { color: #e2e8f0; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-activity p,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context-loading { color: #c3cfdd; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .global-nace-context.is-preview {
+  border-color: rgba(245, 165, 36, .42);
+  background:
+    radial-gradient(180px 110px at 100% 0%, rgba(245, 165, 36, .16), transparent 72%),
+    linear-gradient(155deg, rgba(30, 58, 95, .98), rgba(14, 36, 60, .98));
+}
+
+/* ---------- Karşılama bandı, metrikler, tablolar, butonlar ---------- */
+html[data-ui-theme="modern"][data-ui-palette="navy"] .welcome {
+  background: linear-gradient(125deg, #0b1f33, #1e3a5f, #163152, #24456f, #0b1f33);
+  background-size: 320% 320%;
+  box-shadow: 0 24px 56px rgba(11, 31, 51, .3), inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .metric:hover {
+  box-shadow: var(--m-shadow-md), 0 0 0 1px rgba(245, 165, 36, .45);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .metric strong {
+  background: linear-gradient(120deg, #0b1f33, #1e3a5f, #2b4f7e, #0b1f33);
+  background-size: 250% 250%;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .page-title button:active,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .actions button:active,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .button:active,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .panel button:active,
+html[data-ui-theme="modern"][data-ui-palette="navy"] .form-actions button:active {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 4px 10px rgba(30, 58, 95, .24);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] tbody tr:hover { background: rgba(245, 165, 36, .07); }
+
+@media (min-width: 761px) {
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .companies-page .companies-table::-webkit-scrollbar-thumb {
+    background: rgba(30, 58, 95, .36);
+  }
+}
+
+/* ---------- Mobil alt menü ve başlık ikonları ---------- */
+@media (max-width: 620px), (orientation: landscape) and (max-width: 980px) and (max-height: 500px) {
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside {
+    box-shadow: 0 -12px 34px rgba(8, 23, 38, .4);
+    background: linear-gradient(180deg, #132b47 0%, #0b1f33 100%);
+  }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .nav-mobile-primary button { color: rgba(226, 232, 240, .85); }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .nav-mobile-primary button.active {
+    background: rgba(245, 165, 36, .16);
+    color: #fbbf4a;
+  }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .mobile-nav-sheet { background: #0e2238; color: #e2e8f0; }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .mobile-nav-sheet-grid button { color: #e2e8f0; }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .mobile-nav-sheet-grid button.active {
+    background: rgba(245, 165, 36, .16);
+    border-color: rgba(245, 165, 36, .42);
+    color: #fbbf4a;
+  }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .header-icon {
+    background: rgba(30, 58, 95, .12) !important;
+  }
+}
+
+/* ---------- Masaüstü kenar çubuğu (sidebar-stability.css karşılığı) ---------- */
+@media screen and (min-width: 901px) {
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside .nav-desktop > button { color: #c3cfdd; }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside .nav-desktop > button:hover {
+    border-color: rgba(245, 165, 36, .28);
+    background: rgba(245, 165, 36, .08);
+    color: #f8fafc;
+  }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside .nav-desktop > button.active {
+    border-color: rgba(245, 165, 36, .22);
+    background: rgba(245, 165, 36, .12);
+    color: #fbbf4a;
+    box-shadow: inset 2px 0 0 #f5a524;
+  }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside .nav-desktop > button:focus-visible,
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside > .logout:focus-visible { outline-color: #f5a524; }
+  html[data-ui-theme="modern"][data-ui-palette="navy"] .app-shell > aside .nav-section-label { color: #9fb0c6; }
+}
+
+/* ---------- Giriş ekranı slaytı (login_showcase.css karşılığı) ---------- */
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase { --showcase-accent: #f5a524; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-glow {
+  background: radial-gradient(circle, rgba(245, 165, 36, .14), transparent 68%);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-frame {
+  border-color: rgba(226, 232, 240, .16);
+  background:
+    linear-gradient(145deg, rgba(30, 58, 95, .62), rgba(8, 23, 38, .56)),
+    rgba(11, 31, 51, .52);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-frame::before {
+  background:
+    linear-gradient(115deg, rgba(255,255,255,.08), transparent 32%),
+    radial-gradient(360px 180px at 100% 0%, rgba(245, 165, 36, .12), transparent 68%);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-product > span {
+  background: #f5a524;
+  box-shadow: 0 0 0 5px rgba(245, 165, 36, .14);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-visual--teal { --showcase-accent: #f5a524; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-dots button.is-active { background: #f5a524; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-controls button:hover {
+  border-color: rgba(245, 165, 36, .55);
+  background: rgba(245, 165, 36, .14);
+}
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-controls button:focus-visible { outline-color: #f5a524; }
+html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-progress {
+  background: linear-gradient(90deg, #f5a524, #fbbf4a);
+}

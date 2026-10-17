@@ -25,6 +25,14 @@ function applyUiTheme(theme) {
 // İlk boyamada (login dahil) tema flaşı olmasın diye import anında uygula.
 applyUiTheme(getStoredUiTheme());
 
+// İsteğe bağlı renk paleti: localStorage'da 'navy' kayıtlıysa
+// <html data-ui-palette="navy"> eklenir ve theme-palette-navy.css modern
+// temanın renklerini lacivert-amber yapar. Kayıt yoksa hiçbir şey değişmez.
+const PALETTE_KEY = 'isg_ui_palette';
+try {
+  if (localStorage.getItem(PALETTE_KEY) === 'navy') document.documentElement.dataset.uiPalette = 'navy';
+} catch (_) { /* ignore */ }
+
 // Uygulama genelindeki tarih, saat, sayı ve metin alanlarına ortak doğrulama uygula.
 installGlobalInputGuards();
 

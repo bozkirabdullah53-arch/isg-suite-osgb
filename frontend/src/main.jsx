@@ -90,6 +90,7 @@ import {EisaEmailCenterPage} from './eisa_email_center';
 import './theme-tokens.css';
 import './styles.css';
 import './theme-modern.css';
+import './theme-palette-navy.css';
 import './osgb_application.css';
 import './emergency_plan_premium.css';
 import './mobile_layout.css';
