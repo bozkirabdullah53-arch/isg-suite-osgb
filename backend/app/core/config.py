@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     app_name: str = "İSG Suite OSGB"
     environment: str = "development"
+    # Boş bırakılırsa hata izleme tamamen kapalıdır (bkz. app/core/monitoring.py).
+    sentry_dsn: str = ""
     database_url: str = "sqlite:///./isgsuite.db"
     secret_key: str = "change-me-in-production-at-least-32-characters!"  # Field(min_length=32)
     # ISG-005: ayrık imza/şifreleme anahtarları. None = secret_key fallback —
