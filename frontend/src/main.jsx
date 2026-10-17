@@ -1757,6 +1757,7 @@ function Employees({user}){
             !showExitDate ? null : {key:'exit_date',label:'İşten Çıkış',render:r=><time className="employee-date" dateTime={r.exit_date||undefined}>{r.exit_date||'—'}</time>},
       {key:'gender',label:'Cinsiyet',render:r=>r.gender||'—'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
+      {key:'remote_training',label:'Uzaktan Eğitim',render:r=>r.remote_training?.total?`${r.remote_training.completed}/${r.remote_training.total} tamamlandı`:'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active===true}/>},
       {key:'actions',label:'İşlem',render:rowActions},
     ].filter(Boolean)} rows={selectedCompanyId?data:[]}/>
@@ -1771,6 +1772,7 @@ function Employees({user}){
           <div><dt>Şube</dt><dd>{branches.find(b=>b.id===r.branch_id)?.name||'—'}</dd></div>
           <div><dt>Departman</dt><dd>{r.department||'—'}</dd></div>
           <div><dt>İşe giriş</dt><dd><time dateTime={r.start_date||undefined}>{r.start_date||'—'}</time></dd></div>
+          <div><dt>Uzaktan eğitim</dt><dd>{r.remote_training?.total?`${r.remote_training.completed}/${r.remote_training.total} tamamlandı`:'—'}</dd></div>
           {showExitDate&&<div><dt>İşten çıkış</dt><dd><time dateTime={r.exit_date||undefined}>{r.exit_date||'—'}</time></dd></div>}
         </dl>
         <details className="employee-card-details"><summary>Diğer bilgiler</summary><dl className="employee-card-fields">
