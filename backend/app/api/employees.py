@@ -16,6 +16,7 @@ from app.api.company_access import accessible_company_ids_or_empty, ensure_compa
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Branch, Employee, User, UserRole
+from app.models.remote_training import RemoteTrainingAssignment
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate, normalize_gender
 from app.services.audit import add_audit_log, request_ip, request_user_agent, serialize_audit_value
 from app.services.change_guard import (
@@ -196,6 +197,36 @@ def validate_branch(db: Session, cid: int, bid: int | None):
             raise HTTPException(422, "Şube firma ile uyumlu değil.")
 
 
+def _with_remote_training_summary(db: Session, rows: list[Employee]) -> list[EmployeeResponse]:
+    """Her çalışana uzaktan eğitim atama özetini ekler: toplam, tamamlanan, devam eden.
+
+    İptal edilen atamalar sayılmaz. Özet yalnızca liste yanıtında üretilir ve veritabanına yazılmaz.
+    """
+    if not rows:
+        return []
+    counts: dict[int, dict[str, int]] = {}
+    summary_stmt = (
+        select(RemoteTrainingAssignment.employee_id, RemoteTrainingAssignment.status, func.count())
+        .where(
+            RemoteTrainingAssignment.employee_id.in_([row.id for row in rows]),
+            RemoteTrainingAssignment.status != "cancelled",
+        )
+        .group_by(RemoteTrainingAssignment.employee_id, RemoteTrainingAssignment.status)
+    )
+    for employee_id, status, count in db.execute(summary_stmt).all():
+        item = counts.setdefault(employee_id, {"total": 0, "completed": 0, "in_progress": 0})
+        item["total"] += count
+        if status == "completed":
+            item["completed"] += count
+        elif status == "in_progress":
+            item["in_progress"] += count
+    empty = {"total": 0, "completed": 0, "in_progress": 0}
+    return [
+        EmployeeResponse.model_validate(row).model_copy(update={"remote_training": counts.get(row.id, empty)})
+        for row in rows
+    ]
+
+
 @router.get("", response_model=list[EmployeeResponse])
 def list_employees(
     company_id: int | None = Query(None),
@@ -230,7 +261,7 @@ def list_employees(
         if cid is not None:
             validate_branch(db, cid, branch_id)
         stmt = stmt.where(Employee.branch_id == branch_id)
-    return list(db.scalars(stmt).all())
+    return _with_remote_training_summary(db, list(db.scalars(stmt).all()))
 
 
 @router.get("/import-template.xlsx")

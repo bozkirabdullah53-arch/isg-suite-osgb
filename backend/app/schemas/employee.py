@@ -139,4 +139,6 @@ class EmployeeResponse(BaseModel):
     special_status: str | None = None
     gender: str | None = None
     is_active: bool
+    # Yalnız çalışan listesi yanıtında doldurulur: uzaktan eğitim atama özeti.
+    remote_training: dict[str, int] | None = None
     model_config = ConfigDict(from_attributes=True)
