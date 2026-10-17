@@ -25,6 +25,7 @@ from app.schemas.operations import (FinanceCreate, FinanceResponse, FinanceUpdat
                                     VisitCheckStamp, VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.crm_convert import convert_lead_to_contract
 from app.services.finance_accrual import accrue_month_for_osgb
+from app.services.finance_receivables import OPEN_STATUSES, ReceivableRow, build_receivables_report
 from app.services.individual_specialist import is_individual_specialist
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
@@ -1049,6 +1050,32 @@ def convert_lead(
 def finance(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
     oid = active_osgb(user, osgb_id, db)
     return list(db.scalars(select(FinanceTransaction).where(FinanceTransaction.osgb_id == oid).order_by(FinanceTransaction.transaction_date.desc())).all())
+
+
+@router.get("/finance/receivables")
+def finance_receivables(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
+    """Açık alacakların vade yaşlandırması ve gecikmiş kayıt listesi (tahsilat takibi)."""
+    oid = active_osgb(user, osgb_id, db)
+    open_rows = db.scalars(
+        select(FinanceTransaction).where(
+            FinanceTransaction.osgb_id == oid,
+            FinanceTransaction.transaction_type == "income",
+            FinanceTransaction.status.in_(OPEN_STATUSES),
+        )
+    ).all()
+    rows = [
+        ReceivableRow(
+            id=row.id,
+            company_id=row.company_id,
+            amount=row.amount,
+            due_date=row.due_date,
+            status=row.status,
+            transaction_type=row.transaction_type,
+            description=row.description,
+        )
+        for row in open_rows
+    ]
+    return build_receivables_report(rows, date.today())
 
 @router.post("/finance", response_model=FinanceResponse)
 def create_finance(payload: FinanceCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
