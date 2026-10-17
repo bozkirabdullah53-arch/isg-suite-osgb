@@ -25,13 +25,15 @@ function applyUiTheme(theme) {
 // İlk boyamada (login dahil) tema flaşı olmasın diye import anında uygula.
 applyUiTheme(getStoredUiTheme());
 
-// İsteğe bağlı renk paleti: localStorage'da 'navy' kayıtlıysa
-// <html data-ui-palette="navy"> eklenir ve theme-palette-navy.css modern
-// temanın renklerini lacivert-amber yapar. Kayıt yoksa hiçbir şey değişmez.
+// Renk paleti: varsayılan lacivert-amber. <html data-ui-palette="navy"> ile
+// theme-palette-navy.css modern temanın renklerini değiştirir; klasik tema
+// etkilenmez. localStorage'da 'teal' kayıtlıysa eski teal görünüm korunur.
 const PALETTE_KEY = 'isg_ui_palette';
+let uiPalette = 'navy';
 try {
-  if (localStorage.getItem(PALETTE_KEY) === 'navy') document.documentElement.dataset.uiPalette = 'navy';
+  if (localStorage.getItem(PALETTE_KEY) === 'teal') uiPalette = 'teal';
 } catch (_) { /* ignore */ }
+if (uiPalette === 'navy') document.documentElement.dataset.uiPalette = 'navy';
 
 // Uygulama genelindeki tarih, saat, sayı ve metin alanlarına ortak doğrulama uygula.
 installGlobalInputGuards();
