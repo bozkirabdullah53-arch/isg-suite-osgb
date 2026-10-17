@@ -408,7 +408,7 @@ def test_evidence_unlink_and_history(client):
     assert all(x["id"] != eid for x in left)
 
 
-def test_verify_code_public(client):
+def test_verify_code_requires_authentication(client):
     seed = _seed(client)
     headers = {"Authorization": f"Bearer {seed['token']}"}
     ov = client.post(
@@ -418,7 +418,10 @@ def test_verify_code_public(client):
     ).json()
     code = ov.get("verify_code")
     assert code
-    pub = client.get(f"/api/v1/annual-evals/verify/{code}")
+    # Doğrulama kimlik doğrulamalıdır; kod varlığı anonim olarak açılmaz.
+    anonymous = client.get(f"/api/v1/annual-evals/verify/{code}")
+    assert anonymous.status_code == 401
+    pub = client.get(f"/api/v1/annual-evals/verify/{code}", headers=headers)
     assert pub.status_code == 200
     assert pub.json()["valid"] is True
     assert pub.json()["year"] == 2026
