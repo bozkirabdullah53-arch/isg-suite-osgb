@@ -215,7 +215,9 @@ def test_employee_and_nace_changes_recalculate_authoritative_minutes(client):
     )
     assert changed_hazard.status_code == 200, changed_hazard.text
     low = _capacity(client, headers, seed["osgb_id"])
-    assert low["workplaces"][0]["specialist_requirement"]["required_minutes"] == 10
+    # NACE temizlenince tehlike sınıfı türetilmez; süre hesaplanmaz (0 dk). companies.py kuralı.
+    assert low["workplaces"][0]["hazard_class"] is None
+    assert low["workplaces"][0]["specialist_requirement"]["required_minutes"] == 0
 
     changed_nace = client.put(
         f"/api/v1/companies/{seed['company_id']}",
