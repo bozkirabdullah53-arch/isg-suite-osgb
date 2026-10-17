@@ -1553,10 +1553,10 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       </div>
       <ErrorText value={error} />
       {message && <div role="status" aria-live="polite" style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
-      {canEditSharedContent && selectedPackage?.is_shared && <div style={{marginTop: 14, padding: 18, border: '1px solid #b9d9d5', borderRadius: 14, background: 'linear-gradient(135deg, #f0fdfa 0%, #f8fbff 100%)', boxShadow: '0 8px 24px rgba(15, 118, 110, .08)'}} aria-label="OSGB eğitim erişimi yönetimi">
+      {canEditSharedContent && selectedPackage?.is_shared && <div style={{marginTop: 14, padding: 18, border: '1px solid var(--rt-line, #b9d9d5)', borderRadius: 14, background: 'linear-gradient(135deg, var(--rt-tint, #f0fdfa) 0%, #f8fbff 100%)', boxShadow: '0 8px 24px rgba(15, 118, 110, .08)'}} aria-label="OSGB eğitim erişimi yönetimi">
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start'}}>
-          <div><span style={{display: 'block', color: '#0f766e', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase'}}>Erişim yönetimi</span><strong style={{display: 'block', color: '#123b59', fontSize: 20, marginTop: 4}}>Kime açık?</strong><span style={{display: 'block', color: '#557083', fontSize: 13, marginTop: 5}}>Bir OSGB veya bireysel kullanıcı seçin; bu pakete erişimi tek tıkla yönetin.</span></div>
-          <div style={{padding: '9px 13px', borderRadius: 10, background: '#fff', border: '1px solid #c9e7df', color: '#0f766e', fontSize: 12, fontWeight: 800}}>{packageGrants.length} aktif erişim</div>
+          <div><span style={{display: 'block', color: 'var(--rt-accent, #0f766e)', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase'}}>Erişim yönetimi</span><strong style={{display: 'block', color: '#123b59', fontSize: 20, marginTop: 4}}>Kime açık?</strong><span style={{display: 'block', color: '#557083', fontSize: 13, marginTop: 5}}>Bir OSGB veya bireysel kullanıcı seçin; bu pakete erişimi tek tıkla yönetin.</span></div>
+          <div style={{padding: '9px 13px', borderRadius: 10, background: '#fff', border: '1px solid var(--rt-line, #c9e7df)', color: 'var(--rt-accent, #0f766e)', fontSize: 12, fontWeight: 800}}>{packageGrants.length} aktif erişim</div>
         </div>
         {selectedPackage.status !== 'published' && <div style={{marginTop: 14, padding: 11, borderRadius: 9, background: '#fff8e8', color: '#795500', fontSize: 12}}>Erişim açmadan önce paketi yayımlayın.</div>}
         {selectedPackage.status === 'published' && <div style={{marginTop: 16, display: 'grid', gridTemplateColumns: 'minmax(240px, 1.2fr) minmax(220px, .8fr)', gap: 14, alignItems: 'stretch'}}>
@@ -1564,7 +1564,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
             <label htmlFor="remote-grant-target-search" style={{display: 'block', color: '#36556d', fontSize: 12, fontWeight: 800, marginBottom: 7}}>Hedef ara</label>
             <input id="remote-grant-target-search" value={grantTargetSearch} onChange={(event) => setGrantTargetSearch(event.target.value)} placeholder="OSGB veya kullanıcı adı ara..." style={{width: '100%', padding: '10px 12px', border: '1px solid #c9d8e3', borderRadius: 8, marginBottom: 9}} />
             <label htmlFor="remote-grant-target" style={{display: 'block', color: '#36556d', fontSize: 12, fontWeight: 800, marginBottom: 7}}>Hedef seçin</label>
-            <select id="remote-grant-target" value={grantTargetId} onChange={(event) => setGrantTargetId(event.target.value)} style={{width: '100%', padding: '11px 12px', border: '1px solid #9fc7c2', borderRadius: 8, background: '#f8fffd', color: '#123b59', fontWeight: 700}}>
+            <select id="remote-grant-target" value={grantTargetId} onChange={(event) => setGrantTargetId(event.target.value)} style={{width: '100%', padding: '11px 12px', border: '1px solid var(--rt-line, #9fc7c2)', borderRadius: 8, background: '#f8fffd', color: '#123b59', fontWeight: 700}}>
               {grantTargets.filter((target) => !grantTargetSearch.trim() || target.name.toLowerCase().includes(grantTargetSearch.trim().toLowerCase())).map((target) => <option key={target.id} value={target.id}>{target.name} · {target.is_individual ? 'Bireysel' : 'OSGB'}</option>)}
             </select>
           </div>
@@ -1572,9 +1572,9 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
             <div><span style={{display: 'block', color: '#6a8090', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 800}}>Seçili hedef</span><strong style={{display: 'block', color: '#123b59', fontSize: 16, marginTop: 5}}>{target?.name || 'Hedef seçilmedi'}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>{target ? (target.is_individual ? 'Bireysel çalışma alanı' : 'OSGB aboneliği') : 'Listeden bir hedef seçin'} · Paketleri aşağıdan yönetin</span></div>
             <label htmlFor="remote-grant-package-search" style={{display: 'block', color: '#36556d', fontSize: 12, fontWeight: 800, margin: '14px 0 7px'}}>Eğitim paketi ara</label>
             <input id="remote-grant-package-search" value={grantPackageSearch} onChange={(event) => setGrantPackageSearch(event.target.value)} placeholder="Paket adı ara..." style={{width: '100%', padding: '9px 11px', border: '1px solid #c9d8e3', borderRadius: 8, marginBottom: 8}} />
-            <div style={{display: 'flex', gap: 8, marginBottom: 9}}><button type="button" disabled={!target || grantBusyId === `all:${target?.id}`} onClick={() => toggleAllPackageGrants(target.id, true)} style={{flex: 1, padding: '9px 10px', border: 0, borderRadius: 7, background: '#0f766e', color: '#fff', fontSize: 11, fontWeight: 800}}>{grantBusyId === `all:${target?.id}` ? 'İşleniyor…' : 'Tümünü ekle'}</button><button type="button" disabled={!target || grantBusyId === `all:${target?.id}`} onClick={() => toggleAllPackageGrants(target.id, false)} style={{flex: 1, padding: '9px 10px', border: '1px solid #e4aaa4', borderRadius: 7, background: '#fff', color: '#b42318', fontSize: 11, fontWeight: 800}}>Tümünü kaldır</button></div>
+            <div style={{display: 'flex', gap: 8, marginBottom: 9}}><button type="button" disabled={!target || grantBusyId === `all:${target?.id}`} onClick={() => toggleAllPackageGrants(target.id, true)} style={{flex: 1, padding: '9px 10px', border: 0, borderRadius: 7, background: 'var(--rt-accent, #0f766e)', color: '#fff', fontSize: 11, fontWeight: 800}}>{grantBusyId === `all:${target?.id}` ? 'İşleniyor…' : 'Tümünü ekle'}</button><button type="button" disabled={!target || grantBusyId === `all:${target?.id}`} onClick={() => toggleAllPackageGrants(target.id, false)} style={{flex: 1, padding: '9px 10px', border: '1px solid #e4aaa4', borderRadius: 7, background: '#fff', color: '#b42318', fontSize: 11, fontWeight: 800}}>Tümünü kaldır</button></div>
             <div style={{display: 'grid', gap: 7, maxHeight: 230, overflowY: 'auto', paddingRight: 2}}>
-              {visiblePackages.map((row) => { const enabled = target && (grantByPackage[String(row.id)] || []).some((grant) => Number(grant.osgb_id) === Number(target.id)); const busy = target && grantBusyId === `${row.id}:${target.id}`; return <div key={row.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 10px', borderRadius: 8, border: `1px solid ${enabled ? '#79d9b5' : '#d7e6ef'}`, background: enabled ? '#ecfdf5' : '#fbfdff'}}><div><strong style={{display: 'block', color: '#123b59', fontSize: 13}}>{row.title || row.name}</strong><small style={{color: '#6a8090'}}>{enabled ? 'Erişim açık' : 'Erişim kapalı'}</small></div><button type="button" disabled={!target || busy} onClick={() => togglePackageGrant(row.id, target.id, !enabled)} style={{padding: '7px 10px', borderRadius: 7, border: enabled ? '1px solid #e4aaa4' : 0, background: enabled ? '#fff' : '#0f766e', color: enabled ? '#b42318' : '#fff', fontSize: 11, fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>{busy ? '...' : enabled ? 'Kaldır' : 'Ekle'}</button></div>; })}
+              {visiblePackages.map((row) => { const enabled = target && (grantByPackage[String(row.id)] || []).some((grant) => Number(grant.osgb_id) === Number(target.id)); const busy = target && grantBusyId === `${row.id}:${target.id}`; return <div key={row.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 10px', borderRadius: 8, border: `1px solid ${enabled ? '#79d9b5' : '#d7e6ef'}`, background: enabled ? '#ecfdf5' : '#fbfdff'}}><div><strong style={{display: 'block', color: '#123b59', fontSize: 13}}>{row.title || row.name}</strong><small style={{color: '#6a8090'}}>{enabled ? 'Erişim açık' : 'Erişim kapalı'}</small></div><button type="button" disabled={!target || busy} onClick={() => togglePackageGrant(row.id, target.id, !enabled)} style={{padding: '7px 10px', borderRadius: 7, border: enabled ? '1px solid #e4aaa4' : 0, background: enabled ? '#fff' : 'var(--rt-accent, #0f766e)', color: enabled ? '#b42318' : '#fff', fontSize: 11, fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>{busy ? '...' : enabled ? 'Kaldır' : 'Ekle'}</button></div>; })}
               {!visiblePackages.length && <span style={{color: '#6a8090', fontSize: 12}}>Yayımlanmış paket bulunamadı.</span>}
             </div>
           </div>; })()}
@@ -1653,7 +1653,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
               {selectedPackage.is_shared && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}>
                 <><strong>Ortak hazır paket:</strong> İçerik yalnızca global yönetici tarafından hazırlanır ve yayımlanır. Alt kullanıcılar bu eğitimleri yetkili oldukları firma ve personele atayabilir.</>
               </div>}
-              {directContentEdit && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; güncel yayımlanmış veya yayından kaldırılmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın. Eski sürüm tarihçe için korunur; yanlış yüklenen bekleyen taslak <strong>Taslak videoyu sil</strong> ile kaldırılır.</div>}
+              {directContentEdit && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: 'var(--rt-tint, #effcfc)', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; güncel yayımlanmış veya yayından kaldırılmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın. Eski sürüm tarihçe için korunur; yanlış yüklenen bekleyen taslak <strong>Taslak videoyu sil</strong> ile kaldırılır.</div>}
               {directContentEdit && <>
 {selectedPackage.status === 'archived'
                 ? <div style={{marginTop: 14, padding: 12, border: '1px solid #f2c46d', borderRadius: 9, background: '#fff8e8'}}>
@@ -2346,12 +2346,12 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>{workplaceMode ? 'İŞYERİ UZAKTAN EĞİTİM YÖNETİMİ' : 'FİRMA EĞİTİM VE SINAV YÖNETİMİ'}</div><h3 style={{margin: '4px 0'}}>{workplaceMode ? 'Çalışanlarınıza uzaktan eğitim atayın' : 'Firma/işyeri personeline eğitim atayın'}</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>{workplaceMode ? 'İSG uzmanınızın işyerinize tanımladığı hazır eğitim paketini seçin, çalışan girişlerini kontrol edin ve eğitimi tek işlemle atayın.' : 'Firma ve işyerini seçin, hazır programı açın, giriş hesabı olmayan personel için hesabı oluşturun ve eğitimi tek seçimle atayın. Katalog programlarında pakete göre final soruları otomatik hazırdır.'}</p></div>
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
             {workplaceMode
-              ? <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '0 13px', border: '1px solid #b9d9d2', borderRadius: 9, background: '#f0faf7', color: '#115e59', fontWeight: 800}}>{companies.find((row) => String(row.id) === String(companyId))?.name || 'İşyeriniz'}</span>
+              ? <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '0 13px', border: '1px solid var(--rt-line, #b9d9d2)', borderRadius: 9, background: 'var(--rt-tint, #f0faf7)', color: 'var(--rt-accent-text, #115e59)', fontWeight: 800}}>{companies.find((row) => String(row.id) === String(companyId))?.name || 'İşyeriniz'}</span>
               : <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setBranchId(''); onBranchChange?.(''); onCompanyChange?.(event.target.value); setProgram(null); setAssignments([]); setAutomaticExamQuestions([]);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>}
             <select value={branchId} onChange={(event) => {setBranchId(event.target.value); onBranchChange?.(event.target.value); setSelectedEmployees([]);}} disabled={!companyId} aria-label="Personel ve eğitim işyeri seçin"><option value="">Firma geneli / işyeri seçilmedi</option>{branches.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
           </div>
         </div>
-        <div style={{marginTop: 12, padding: 10, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}>{workplaceMode ? <><strong>Yetki sınırı:</strong> Burada yalnız İSG uzmanınızın işyerinize tanımlayıp yayımladığı paketler görünür. Paket oluşturma, içerik değiştirme ve başka işyerlerine erişim kapalıdır.</> : <><strong>Yeni paket oluşturma burada yapılmaz.</strong> Yeni bir eğitim paketi için üstteki merkezi katalogdan ilerleyin. Böylece aynı eğitim adıyla tekrar tekrar taslak oluşmaz.</>}</div>
+        <div style={{marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--rt-tint, #effcfc)', color: '#36556d', fontSize: 12}}>{workplaceMode ? <><strong>Yetki sınırı:</strong> Burada yalnız İSG uzmanınızın işyerinize tanımlayıp yayımladığı paketler görünür. Paket oluşturma, içerik değiştirme ve başka işyerlerine erişim kapalıdır.</> : <><strong>Yeni paket oluşturma burada yapılmaz.</strong> Yeni bir eğitim paketi için üstteki merkezi katalogdan ilerleyin. Böylece aynı eğitim adıyla tekrar tekrar taslak oluşmaz.</>}</div>
         <ErrorText value={error} />
         {message && <div role="status" aria-live="polite" style={{color: '#087443', marginTop: 8, fontWeight: 600}}>{message}</div>}
       </div>
@@ -2389,7 +2389,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                   <label style={{fontSize: 12, color: '#36556d'}}>Eğitici yeterliliği<input value={programEditForm.instructor_qualification} onChange={(event) => setProgramEditForm((current) => ({...current, instructor_qualification: event.target.value}))} style={{display: 'block', width: '100%', marginTop: 4}} /></label>
                 </div>
                 <label style={{display: 'block', marginTop: 8, fontSize: 12, color: '#36556d'}}>Açıklama<textarea value={programEditForm.description} onChange={(event) => setProgramEditForm((current) => ({...current, description: event.target.value}))} rows={3} style={{display: 'block', width: '100%', marginTop: 4}} /></label>
-                <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 9}}><button type="button" onClick={() => setEditingProgram(false)} disabled={busy}>Vazgeç</button><button type="button" onClick={saveProgramAssignment} disabled={busy} style={{color: '#fff', background: '#0f766e', borderColor: '#0f766e'}}>Değişiklikleri kaydet</button></div>
+                <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 9}}><button type="button" onClick={() => setEditingProgram(false)} disabled={busy}>Vazgeç</button><button type="button" onClick={saveProgramAssignment} disabled={busy} style={{color: '#fff', background: 'var(--rt-accent, #0f766e)', borderColor: 'var(--rt-accent, #0f766e)'}}>Değişiklikleri kaydet</button></div>
                 <div style={{marginTop: 8, fontSize: 11, color: '#5e7485'}}>Bu işlem yalnızca seçili firmadaki atama bilgilerini günceller; merkezi katalog ve çalışanların geçmiş/belge kayıtları değişmez.</div>
               </div>}
               <InlineRemoteVideoPreview preview={preview} onClose={() => setPreview(null)} />
@@ -2937,7 +2937,7 @@ function RemoteCertificateHub({workplaceMode = false, user = null}) {
     <section style={cardStyle} aria-label={workplaceMode ? 'İşyeri çalışanları uzaktan eğitim takip ve belge paneli' : 'Firma eğitim katılım ve belgelendirme raporu'}>
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
         <div>
-          <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>{workplaceMode ? 'İŞYERİ UZAKTAN EĞİTİM TAKİBİ' : 'FİRMA EĞİTİM KATILIM RAPORU'}</div>
+          <div style={{fontSize: 12, color: 'var(--rt-accent-text, #0b7f83)', fontWeight: 800, letterSpacing: '.04em'}}>{workplaceMode ? 'İŞYERİ UZAKTAN EĞİTİM TAKİBİ' : 'FİRMA EĞİTİM KATILIM RAPORU'}</div>
           <h3 style={{margin: '4px 0'}}>{workplaceMode ? 'Çalışanlarınızın eğitim durumu ve belgeleri' : 'Eğitime katılan personel ve belgelendirme'}</h3>
           <p style={{margin: 0, color: '#496174', fontSize: 13}}>
             {workplaceMode
@@ -2973,7 +2973,7 @@ function RemoteCertificateHub({workplaceMode = false, user = null}) {
 
       <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, padding: 10, borderRadius: 10, background: '#f7fbfd'}}>
         {workplaceMode ? (
-          <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 12px', border: '1px solid #b9d9d2', borderRadius: 9, background: '#f0faf7', color: '#115e59', fontWeight: 800}}>
+          <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 12px', border: '1px solid var(--rt-line, #b9d9d2)', borderRadius: 9, background: 'var(--rt-tint, #f0faf7)', color: 'var(--rt-accent-text, #115e59)', fontWeight: 800}}>
             {selectedCompanyName}
           </span>
         ) : (
@@ -3033,7 +3033,7 @@ function RemoteCertificateHub({workplaceMode = false, user = null}) {
             {visibleRows.map((row) => (
               <tr key={row.id}>
                 <td>
-                  <div style={{fontSize: 11, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>FİRMA / İŞYERİ</div>
+                  <div style={{fontSize: 11, color: 'var(--rt-accent-text, #0b7f83)', fontWeight: 800, letterSpacing: '.04em'}}>FİRMA / İŞYERİ</div>
                   <strong>{row.company_name || 'Firma bilgisi yok'}</strong>
                   <small style={{display: 'block', color: '#5e7485'}}>İşyeri: {row.branch_name || 'Firma geneli'}</small>
                   <small style={{display: 'block', color: '#5e7485'}}>
@@ -3215,8 +3215,8 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
   }
   if (workplaceMode) {
     return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
-      <section style={{...cardStyle, borderTop: '4px solid #0f766e'}} aria-label="İşyeri uzaktan eğitim atama akışı">
-        <div style={{fontSize: 11, color: '#0f766e', fontWeight: 800, letterSpacing: '.1em'}}>İŞYERİ YETKİLİSİ / İNSAN KAYNAKLARI</div>
+      <section style={{...cardStyle, borderTop: '4px solid var(--rt-accent, #0f766e)'}} aria-label="İşyeri uzaktan eğitim atama akışı">
+        <div style={{fontSize: 11, color: 'var(--rt-accent, #0f766e)', fontWeight: 800, letterSpacing: '.1em'}}>İŞYERİ YETKİLİSİ / İNSAN KAYNAKLARI</div>
         <h2 style={{margin: '7px 0 6px', color: '#123b59'}}>Uzaktan Eğitim Atama ve Takip</h2>
         <p style={{margin: 0, color: '#5e7485', lineHeight: 1.6}}>İş güvenliği uzmanınızın işyerinize tanımladığı eğitim paketlerini görün, kendi çalışanlarınıza atayın ve aşağıdaki takip panelinden ilerlemeyi ve hazır PDF belgelerini izleyin. Eğitim içeriği ve merkezi paketler bu ekrandan değiştirilemez.</p>
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 14}}>
@@ -3224,7 +3224,7 @@ export function RemoteBasicOhsTrainingPanel({user, onCompanySelectionChange}) {
             ['1', 'Tanımlı paketi seçin', 'Yalnız işyerinize açılmış yayımlanmış paketler gösterilir.'],
             ['2', 'Çalışan hesabını kontrol edin', 'Giriş hesabı olmayan çalışan için güvenli geçici hesap oluşturun.'],
             ['3', 'Personeli seçip atayın', 'Son tarihi belirleyin; tek kişiye veya toplu atama yapın.'],
-          ].map(([number, title, description]) => <div key={number} style={{display: 'flex', gap: 10, padding: 12, border: '1px solid #dbe8e5', borderRadius: 10, background: '#f8fcfb'}}><span style={{display: 'grid', placeItems: 'center', width: 28, height: 28, flex: '0 0 28px', borderRadius: 999, background: '#0f766e', color: '#fff', fontWeight: 800}}>{number}</span><span><strong style={{display: 'block', color: '#163943'}}>{title}</strong><small style={{display: 'block', marginTop: 3, color: '#64748b', lineHeight: 1.45}}>{description}</small></span></div>)}
+          ].map(([number, title, description]) => <div key={number} style={{display: 'flex', gap: 10, padding: 12, border: '1px solid #dbe8e5', borderRadius: 10, background: '#f8fcfb'}}><span style={{display: 'grid', placeItems: 'center', width: 28, height: 28, flex: '0 0 28px', borderRadius: 999, background: 'var(--rt-accent, #0f766e)', color: '#fff', fontWeight: 800}}>{number}</span><span><strong style={{display: 'block', color: '#163943'}}>{title}</strong><small style={{display: 'block', marginTop: 3, color: '#64748b', lineHeight: 1.45}}>{description}</small></span></div>)}
         </div>
       </section>
       <RemoteCertificateHub workplaceMode user={user} />

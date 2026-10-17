@@ -250,3 +250,18 @@ html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-controls bu
 html[data-ui-theme="modern"][data-ui-palette="navy"] .login-showcase-progress {
   background: linear-gradient(90deg, #f5a524, #fbbf4a);
 }
+
+/* ---------- Uzaktan eğitim sayfası (remote_basic_ohs_training.css / core.jsx) ----------
+   Bu sayfanın teal renkleri var(--rt-*, <eski değer>) olarak yazıldı; varsayılan değerler
+   eski renkle aynı olduğu için klasik ve teal görünümler değişmez. Yalnızca navy
+   palet bu değişkenleri lacivert-amber değerlerine çevirir. */
+html[data-ui-theme="modern"][data-ui-palette="navy"] {
+  --rt-accent: #1e3a5f;
+  --rt-accent-text: #1e3a5f;
+  --rt-hero-1: #0b1f33;
+  --rt-hero-2: #1e3a5f;
+  --rt-hero-3: #2b4f7e;
+  --rt-kicker: #fbbf4a;
+  --rt-tint: #eef4fa;
+  --rt-line: #cbd5e1;
+}
