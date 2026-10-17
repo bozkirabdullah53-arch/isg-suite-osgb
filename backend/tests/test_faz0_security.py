@@ -187,11 +187,14 @@ def test_specialist_register_does_not_create_osgb(client):
     assert me.status_code == 200
     body = me.json()
     assert body["role"] == "safety_specialist"
-    assert body["osgb_id"] is None
+    # Bireysel uzman kendi çalışma alanına bağlanır (osgb_id dolu); gerçek OSGB listesi boş kalır.
+    assert body["osgb_id"] is not None
     assert body["company_id"] is None
     orgs = client.get("/api/v1/osgb", headers={"Authorization": f"Bearer {r.json()['access_token']}"})
     assert orgs.status_code == 200
-    assert orgs.json() == []
+    # Uzman yalnızca kendi bireysel çalışma alanını görür; genel OSGB listesine karışmaz.
+    assert [row["id"] for row in orgs.json()] == [body["osgb_id"]]
+    assert orgs.json()[0]["is_individual"] is True
 
 
 def test_password_reset_flow(client):

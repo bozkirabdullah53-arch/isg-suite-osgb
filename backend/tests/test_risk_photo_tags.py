@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.services.risk_photo_tags import TAGS_ENGINE, parse_tags, serialize_selected
 
@@ -288,11 +289,10 @@ def test_field_inspection_risk_and_dof_are_idempotent(client):
 def test_photo_pdf_reports_embed_saved_and_draft_photos(client):
     token, risk_id = _seed(client)
     headers = {"Authorization": f"Bearer {token}"}
-    png = (
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
-        b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
-        b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
-    )
+    # Elle yazılmış PNG baytları bozuktu (Pillow okuyamıyordu); geçerli bir görüntü üretiliyor.
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 48), (200, 30, 30)).save(buf, format="PNG")
+    png = buf.getvalue()
 
     upload = client.post(
         f"/api/v1/risks/{risk_id}/media",

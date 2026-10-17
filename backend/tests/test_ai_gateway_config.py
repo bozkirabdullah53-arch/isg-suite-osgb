@@ -79,7 +79,8 @@ def test_named_provider_uses_official_base_url(db, monkeypatch):
 def test_custom_provider_blocks_private_ip_in_production(db, monkeypatch):
     monkeypatch.setattr(settings, "secret_key", "test-secret-key-for-ai-gateway-32-bytes-minimum")
     monkeypatch.setattr(settings, "environment", "production")
-    with pytest.raises(ValueError, match="yerel/özel ağ IP"):
+    # Üretimde özel base URL, daha önceki kontrolde ("özel AI Base URL") ya da IP kontrolünde engellenir.
+    with pytest.raises(ValueError, match="özel AI Base URL|yerel/özel ağ IP"):
         gateway.save_managed_config(
             db,
             enabled=True,
